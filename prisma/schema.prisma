@@ -8,10 +8,46 @@ datasource db {
 }
 
 // ========================
-// MAELLIS AIRPORT BOT - Database Schema
+// MAELLIS AIRPORT BOT - Production Database Schema
+// Phase 3 Enhanced — SQLite (dev) / PostgreSQL-ready (production)
 // ========================
 
+// ─────────────────────────────────────────────
+// WhatsApp Users (end users, not admins)
+// ─────────────────────────────────────────────
+model User {
+  id            String   @id @default(cuid())
+  phone         String   @unique
+  name          String?
+  language      String   @default("fr")
+  isActive      Boolean  @default(true)
+  lastSeen      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  conversations Conversation[]
+}
+
+// ─────────────────────────────────────────────
+// Enhanced Conversation (linked to User, JSON history)
+// ─────────────────────────────────────────────
+model Conversation {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     String   // JSON array of message history
+  intent       String?
+  resolved     Boolean  @default(false)
+  language     String   @default("fr")
+  status       String   @default("active")
+  lastMessage  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
 // Admin users of the dashboard
+// ─────────────────────────────────────────────
 model Admin {
   id        String   @id @default(cuid())
   name      String
@@ -25,21 +61,9 @@ model Admin {
   activityLogs ActivityLog[]
 }
 
-// WhatsApp conversations
-model Conversation {
-  id          String   @id @default(cuid())
-  userPhone   String
-  userName    String?
-  language    String   @default("fr")
-  status      String   @default("active")
-  lastMessage DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  messages Message[]
-}
-
-// Individual messages in a conversation
+// ─────────────────────────────────────────────
+// Message log (standalone — historical record)
+// ─────────────────────────────────────────────
 model Message {
   id             String   @id @default(cuid())
   conversationId String
@@ -50,27 +74,30 @@ model Message {
   entities       String?
   responseTime   Int?
   createdAt      DateTime @default(now())
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
 
-// Flight searches
+// ─────────────────────────────────────────────
+// Enhanced FlightSearch (linked to User, JSON results)
+// ─────────────────────────────────────────────
 model FlightSearch {
   id            String   @id @default(cuid())
+  userId        String?
   departureCode String
   arrivalCode   String
   departureCity String
   arrivalCity   String
   travelDate    String?
   passengers    Int      @default(1)
-  resultsCount  Int      @default(0)
+  results       String?  // JSON array of flight results from API
   cheapestPrice Float?
   airline       String?
   status        String   @default("completed")
   createdAt     DateTime @default(now())
 }
 
+// ─────────────────────────────────────────────
 // Flight status tracking
+// ─────────────────────────────────────────────
 model FlightStatus {
   id            String   @id @default(cuid())
   flightNumber  String
@@ -89,24 +116,30 @@ model FlightStatus {
   updatedAt     DateTime @updatedAt
 }
 
-// Baggage QR codes
+// ─────────────────────────────────────────────
+// Enhanced BaggageQR (with phone & scan tracking)
+// ─────────────────────────────────────────────
 model BaggageQR {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
+  userId         String?
   passengerName  String
+  phone          String
   flightNumber   String
   pnr            String
   tagNumber      String
   weight         Float?
   destination    String
-  qrToken        String   @unique
-  status         String   @default("active")
+  qrToken        String    @unique
+  status         String    @default("active")
+  lastScan       DateTime?
   expiresAt      DateTime
-  claimedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
+// ─────────────────────────────────────────────
 // Lounge bookings
+// ─────────────────────────────────────────────
 model LoungeBooking {
   id            String   @id @default(cuid())
   passengerName String
@@ -127,7 +160,9 @@ model LoungeBooking {
   updatedAt     DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────
 // Transport bookings
+// ─────────────────────────────────────────────
 model TransportBooking {
   id              String   @id @default(cuid())
   passengerName   String
@@ -150,7 +185,9 @@ model TransportBooking {
   updatedAt       DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────
 // Payments
+// ─────────────────────────────────────────────
 model Payment {
   id           String   @id @default(cuid())
   bookingId    String?
@@ -167,7 +204,9 @@ model Payment {
   updatedAt    DateTime @updatedAt
 }
 
-// Emergency/SOS alerts
+// ─────────────────────────────────────────────
+// Emergency / SOS alerts
+// ─────────────────────────────────────────────
 model EmergencyAlert {
   id          String   @id @default(cuid())
   userPhone   String
@@ -183,7 +222,9 @@ model EmergencyAlert {
   updatedAt   DateTime @updatedAt
 }
 
+// ─────────────────────────────────────────────
 // Activity logs
+// ─────────────────────────────────────────────
 model ActivityLog {
   id        String   @id @default(cuid())
   adminId   String?
@@ -196,7 +237,9 @@ model ActivityLog {
   admin Admin? @relation(fields: [adminId], references: [id])
 }
 
+// ─────────────────────────────────────────────
 // System settings
+// ─────────────────────────────────────────────
 model Setting {
   id          String   @id @default(cuid())
   key         String   @unique

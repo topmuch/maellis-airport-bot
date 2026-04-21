@@ -7,6 +7,7 @@ export async function POST() {
     // Clean existing data (ordered by dependencies)
     await db.message.deleteMany()
     await db.conversation.deleteMany()
+    await db.user.deleteMany()
     await db.payment.deleteMany()
     await db.loungeBooking.deleteMany()
     await db.transportBooking.deleteMany()
@@ -53,124 +54,94 @@ export async function POST() {
     await db.setting.createMany({ data: settingsData })
 
     // ========================
-    // 3. CONVERSATIONS & MESSAGES
+    // 3. USERS & CONVERSATIONS (linked)
     // ========================
-    const conversationsData = [
-      { userPhone: '+221771234567', userName: 'Moussa Diop', language: 'fr', status: 'active' },
-      { userPhone: '+221782345678', userName: 'Fatou Sow', language: 'fr', status: 'active' },
-      { userPhone: '+225070123456', userName: 'Aminata Koné', language: 'fr', status: 'active' },
-      { userPhone: '+22361234567', userName: 'Ibrahim Traoré', language: 'fr', status: 'active' },
-      { userPhone: '+2348012345678', userName: 'Chidi Okonkwo', language: 'en', status: 'active' },
-      { userPhone: '+233241234567', userName: 'Kwame Asante', language: 'en', status: 'active' },
-      { userPhone: '+221763456789', userName: 'Aissatou Ba', language: 'fr', status: 'active' },
-      { userPhone: '+225070987654', userName: 'Yao Kouadio', language: 'fr', status: 'active' },
-      { userPhone: '+22670123456', userName: 'Ousmane Ouédraogo', language: 'fr', status: 'active' },
-      { userPhone: '+221775678901', userName: 'Mariama Diallo', language: 'fr', status: 'active' },
-      { userPhone: '+2348098765432', userName: 'Adaobi Nwosu', language: 'en', status: 'closed' },
-      { userPhone: '+233201234567', userName: 'Ama Mensah', language: 'en', status: 'closed' },
-      { userPhone: '+221789876543', userName: 'Cheikh Sylla', language: 'fr', status: 'active' },
-      { userPhone: '+225070555666', userName: 'Koffi Aka', language: 'fr', status: 'active' },
-      { userPhone: '+22364567890', userName: 'Adama Coulibaly', language: 'fr', status: 'active' },
-      { userPhone: '+221761112233', userName: 'Ndeye Mbacké', language: 'fr', status: 'active' },
-      { userPhone: '+2348033456789', userName: 'Emeka Eze', language: 'en', status: 'closed' },
+    const usersData = [
+      { phone: '+221771234567', name: 'Moussa Diop', language: 'fr' },
+      { phone: '+221782345678', name: 'Fatou Sow', language: 'fr' },
+      { phone: '+225070123456', name: 'Aminata Koné', language: 'fr' },
+      { phone: '+22361234567', name: 'Ibrahim Traoré', language: 'fr' },
+      { phone: '+2348012345678', name: 'Chidi Okonkwo', language: 'en' },
+      { phone: '+233241234567', name: 'Kwame Asante', language: 'en' },
+      { phone: '+221763456789', name: 'Aissatou Ba', language: 'fr' },
+      { phone: '+225070987654', name: 'Yao Kouadio', language: 'fr' },
+      { phone: '+22670123456', name: 'Ousmane Ouédraogo', language: 'fr' },
+      { phone: '+221775678901', name: 'Mariama Diallo', language: 'fr' },
+      { phone: '+2348098765432', name: 'Adaobi Nwosu', language: 'en' },
+      { phone: '+233201234567', name: 'Ama Mensah', language: 'en' },
+      { phone: '+221789876543', name: 'Cheikh Sylla', language: 'fr' },
+      { phone: '+225070555666', name: 'Koffi Aka', language: 'fr' },
+      { phone: '+22364567890', name: 'Adama Coulibaly', language: 'fr' },
+      { phone: '+221761112233', name: 'Ndeye Mbacké', language: 'fr' },
+      { phone: '+2348033456789', name: 'Emeka Eze', language: 'en' },
     ]
 
-    const conversations = await db.conversation.createMany({ data: conversationsData })
-    const createdConversations = await db.conversation.findMany()
+    const createdUsers = []
+    for (const u of usersData) {
+      createdUsers.push(await db.user.create({ data: u }))
+    }
 
-    // Messages for each conversation
-    const messagesData: {
-      conversationId: string
-      direction: string
-      content: string
-      messageType: string
-      intent?: string
-      createdAt: Date
-    }[] = []
-
+    // Message templates for conversations (stored as JSON)
     const messageTemplates = [
-      { direction: 'inbound', content: 'Bonjour, je cherche un vol de Dakar à Abidjan pour vendredi', intent: 'flight_search', messageType: 'text' },
-      { direction: 'outbound', content: 'Bonjour ! Je vais chercher des vols de Dakar (DSS) à Abidjan (ABJ) pour vendredi. Quel est votre budget approximatif ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Entre 150 000 et 250 000 FCFA', intent: 'flight_search', messageType: 'text' },
-      { direction: 'outbound', content: 'J\'ai trouvé 3 vols disponibles :\n1. Air Sénégal SS 301 - 185 000 FCFA (08:00)\n2. ASKY KP 521 - 210 000 FCFA (10:30)\n3. Ethiopian ET 927 - 195 000 FCFA (14:15)\nLequel vous intéresse ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Le premier vol me convient. Comment réserver ?', intent: 'booking', messageType: 'text' },
-      { direction: 'outbound', content: 'Très bien ! Pour réserver le vol Air Sénégal SS 301, j\'ai besoin de : nom complet, numéro de passeport, et numéro de téléphone. Voulez-vous continuer ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'J\'ai aussi besoin d\'un transport de l\'aéroport à Plateau', intent: 'transport', messageType: 'text' },
-      { direction: 'outbound', content: 'Bien sûr ! Nous organiserons votre transfert. Un taxi privé coûte environ 25 000 FCFA depuis l\'aéroport Félix-Houphouët-Boigny. Voulez-vous réserver ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Oui, s\'il vous plaît', intent: 'transport_booking', messageType: 'text' },
-      { direction: 'outbound', content: 'Votre réservation de transport est en cours. Vous recevrez une confirmation avec les détails du chauffeur sous peu. ✅', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Merci beaucoup !', intent: null, messageType: 'text' },
-      { direction: 'outbound', content: 'Avec plaisir ! N\'hésitez pas si vous avez besoin d\'autre chose. Bon voyage ! ✈️', intent: null, messageType: 'text' },
+      { direction: 'inbound', content: 'Bonjour, je cherche un vol de Dakar à Abidjan pour vendredi', intent: 'flight_search' },
+      { direction: 'outbound', content: 'Bonjour ! Je vais chercher des vols de Dakar (DSS) à Abidjan (ABJ) pour vendredi. Quel est votre budget approximatif ?', intent: null },
+      { direction: 'inbound', content: 'Entre 150 000 et 250 000 FCFA', intent: 'flight_search' },
+      { direction: 'outbound', content: 'J\'ai trouvé 3 vols disponibles :\n1. Air Sénégal SS 301 - 185 000 FCFA (08:00)\n2. ASKY KP 521 - 210 000 FCFA (10:30)\n3. Ethiopian ET 927 - 195 000 FCFA (14:15)', intent: null },
+      { direction: 'inbound', content: 'Le premier vol me convient. Comment réserver ?', intent: 'booking' },
+      { direction: 'outbound', content: 'Très bien ! Pour réserver, j\'ai besoin de votre nom complet et numéro de passeport. Voulez-vous continuer ?', intent: null },
     ]
 
     const flightStatusTemplates = [
-      { direction: 'inbound', content: 'Quel est le statut du vol SS 203 ?', intent: 'flight_status', messageType: 'text' },
-      { direction: 'outbound', content: 'Le vol Air Sénégal SS 203 (Dakar → Bamako) :\n📅 Aujourd\'hui\n⏰ Départ prévu : 16:30\n📍 Terminal : A\n🚪 Porte : B12\n✅ Statut : À l\'heure', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Merci pour l\'info', intent: null, messageType: 'text' },
-      { direction: 'outbound', content: 'De rien ! Je peux vous notifier s\'il y a des changements. Souhaitez-vous une alerte ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Oui merci', intent: 'flight_alert', messageType: 'text' },
-      { direction: 'outbound', content: 'Parfait ! Vous recevrez une notification pour tout changement du vol SS 203. ✅', intent: null, messageType: 'text' },
+      { direction: 'inbound', content: 'Quel est le statut du vol SS 203 ?', intent: 'flight_status' },
+      { direction: 'outbound', content: 'Le vol SS 203 (Dakar → Bamako) : ⏰ Départ prévu : 16:30 — ✅ À l\'heure', intent: null },
+      { direction: 'inbound', content: 'Merci pour l\'info', intent: null },
+      { direction: 'outbound', content: 'De rien ! Je peux vous notifier s\'il y a des changements.', intent: null },
     ]
 
     const baggageTemplates = [
-      { direction: 'inbound', content: 'J\'ai besoin de suivre mon bagage', intent: 'baggage_tracking', messageType: 'text' },
-      { direction: 'outbound', content: 'Bien sûr ! Veuillez me fournir votre numéro de billet (PNR) ou le numéro de tag de bagage.', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Mon PNR est TRV8K2', intent: 'baggage_tracking', messageType: 'text' },
-      { direction: 'outbound', content: 'Voici le statut de votre bagage :\n🏷️ Tag : DSS-2025-78432\n✈️ Vol : ET 927\n📍 Statut : En transit via Addis-Abeba\n📦 Localisation actuelle : Zone de transfert B\n⏰ Mise à jour : il y a 15 min', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Quand est-ce que je peux le récupérer ?', intent: 'baggage_tracking', messageType: 'text' },
-      { direction: 'outbound', content: 'Votre bagage devrait arriver à la carrousel de livraison 3 d\'ici 20 minutes. Vous recevrez une notification automatique. 🧳', intent: null, messageType: 'text' },
+      { direction: 'inbound', content: 'J\'ai besoin de suivre mon bagage', intent: 'baggage_tracking' },
+      { direction: 'outbound', content: 'Veuillez me fournir votre numéro de billet (PNR) ou le numéro de tag.', intent: null },
+      { direction: 'inbound', content: 'Mon PNR est TRV8K2', intent: 'baggage_tracking' },
+      { direction: 'outbound', content: 'Votre bagage est en transit via Addis-Abeba. Arrivée prévue à la carrousel 3 sous 20 min. 🧳', intent: null },
     ]
 
     const emergencyTemplates = [
-      { direction: 'inbound', content: 'URGENT j\'ai besoin d\'aide à l\'aéroport', intent: 'emergency', messageType: 'text' },
-      { direction: 'outbound', content: '🚨 Urgence détectée ! Notre équipe a été alertée. Pouvez-vous me décrire votre situation et votre localisation exacte ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Je suis à la zone d\'embarquement A, je me sens mal. Je suis près de la porte B8', intent: 'emergency', messageType: 'text' },
-      { direction: 'outbound', content: 'Une équipe médicale est en route vers la porte B8, zone d\'embarquement A. Restez où vous êtes si possible. Quelqu\'un est-il avec vous ?', intent: null, messageType: 'text' },
+      { direction: 'inbound', content: 'URGENT j\'ai besoin d\'aide à l\'aéroport', intent: 'emergency' },
+      { direction: 'outbound', content: '🚨 Urgence détectée ! Notre équipe a été alertée. Décrivez votre situation.', intent: null },
     ]
 
     const loungeTemplates = [
-      { direction: 'inbound', content: 'Je voudrais réserver un accès salon VIP', intent: 'lounge_booking', messageType: 'text' },
-      { direction: 'outbound', content: 'Bienvenue ! 🛋️ Nous avons plusieurs salons disponibles à l\'aéroport Blaise Diagne :\n1. Salon Teranga - 25 000 FCFA/personne\n2. Salon Sahel - 35 000 FCFA/personne\n3. Salon Premium International - 50 000 FCFA/personne\nLequel vous intéresse ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Le Salon Teranga pour 2 personnes', intent: 'lounge_booking', messageType: 'text' },
-      { direction: 'outbound', content: 'Excellente choice ! Pour le Salon Teranga (2 personnes - 50 000 FCFA) :\n📅 Quelle date souhaitez-vous ?\n⏰ À quelle heure prévoyez-vous d\'arriver ?', intent: null, messageType: 'text' },
-      { direction: 'inbound', content: 'Demain à 10h', intent: 'lounge_booking', messageType: 'text' },
-      { direction: 'outbound', content: 'Parfait ! Votre réservation est confirmée :\n🛋️ Salon Teranga\n👥 2 personnes\n📅 Demain\n⏰ 10:00\n💰 50 000 FCFA\nVous recevrez un QR code d\'accès. Merci ! ✅', intent: null, messageType: 'text' },
+      { direction: 'inbound', content: 'Je voudrais réserver un salon VIP', intent: 'lounge_booking' },
+      { direction: 'outbound', content: '🛋️ Salon Teranga (25 000 FCFA/personne). Quelle date et à quelle heure ?', intent: null },
+      { direction: 'inbound', content: 'Demain à 10h pour 2 personnes', intent: 'lounge_booking' },
+      { direction: 'outbound', content: 'Réservation confirmée ! Salon Teranga, 2 personnes, demain 10h. ✅', intent: null },
     ]
 
-    const templatesByIndex = [
-      messageTemplates,      // 0
-      flightStatusTemplates,  // 1
-      baggageTemplates,       // 2
-      emergencyTemplates,     // 3
-      loungeTemplates,        // 4
-    ]
+    const templatesByIndex = [messageTemplates, flightStatusTemplates, baggageTemplates, emergencyTemplates, loungeTemplates]
 
-    let globalMsgIdx = 0
-    for (let i = 0; i < createdConversations.length; i++) {
-      const conv = createdConversations[i]
+    // Create conversations linked to users with JSON message history
+    for (let i = 0; i < createdUsers.length; i++) {
+      const user = createdUsers[i]
       const templateSet = templatesByIndex[i % templatesByIndex.length]
-      const baseDate = new Date()
-      baseDate.setHours(baseDate.getHours() - (createdConversations.length - i) * 2)
+      const isClosed = user.phone.includes('+234809') || user.phone.includes('+23320') || user.phone.includes('+234803')
 
-      for (let j = 0; j < templateSet.length; j++) {
-        const msgDate = new Date(baseDate.getTime() + j * 2 * 60 * 1000)
-        messagesData.push({
-          conversationId: conv.id,
-          direction: templateSet[j].direction,
-          content: templateSet[j].content,
-          messageType: templateSet[j].messageType,
-          intent: templateSet[j].intent,
-          createdAt: msgDate,
-        })
-        globalMsgIdx++
-      }
-    }
+      const messages = templateSet.map((m) => ({
+        direction: m.direction,
+        content: m.content,
+        messageType: 'text' as const,
+        intent: m.intent,
+        timestamp: new Date(Date.now() - (createdUsers.length - i) * 2 * 3600000).toISOString(),
+      }))
 
-    // Batch insert messages (SQLite has limits on batch size)
-    const batchSize = 50
-    for (let i = 0; i < messagesData.length; i += batchSize) {
-      await db.message.createMany({
-        data: messagesData.slice(i, i + batchSize),
+      await db.conversation.create({
+        data: {
+          userId: user.id,
+          messages: JSON.stringify(messages),
+          intent: templateSet[0]?.intent ?? null,
+          resolved: isClosed,
+          language: user.language,
+          status: isClosed ? 'closed' : 'active',
+        },
       })
     }
 
@@ -178,27 +149,27 @@ export async function POST() {
     // 4. FLIGHT SEARCHES
     // ========================
     const flightSearchesData = [
-      { departureCode: 'DSS', arrivalCode: 'ABJ', departureCity: 'Dakar', arrivalCity: 'Abidjan', travelDate: '2025-07-18', passengers: 1, resultsCount: 3, cheapestPrice: 185000, airline: 'Air Sénégal', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'BKO', departureCity: 'Dakar', arrivalCity: 'Bamako', travelDate: '2025-07-19', passengers: 2, resultsCount: 2, cheapestPrice: 210000, airline: 'ASKY', status: 'completed' },
-      { departureCode: 'ABJ', arrivalCode: 'DSS', departureCity: 'Abidjan', arrivalCity: 'Dakar', travelDate: '2025-07-17', passengers: 1, resultsCount: 4, cheapestPrice: 175000, airline: 'Air Côte d\'Ivoire', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'OUA', departureCity: 'Dakar', arrivalCity: 'Ouagadougou', travelDate: '2025-07-20', passengers: 1, resultsCount: 1, cheapestPrice: 240000, airline: 'Air Burkina', status: 'completed' },
-      { departureCode: 'LOS', arrivalCode: 'ACC', departureCity: 'Lagos', arrivalCity: 'Accra', travelDate: '2025-07-18', passengers: 1, resultsCount: 5, cheapestPrice: 85000, airline: 'Air Peace', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'LOS', departureCity: 'Dakar', arrivalCity: 'Lagos', travelDate: '2025-07-21', passengers: 3, resultsCount: 3, cheapestPrice: 320000, airline: 'Air Sénégal', status: 'completed' },
-      { departureCode: 'ACC', arrivalCode: 'DSS', departureCity: 'Accra', arrivalCity: 'Dakar', travelDate: '2025-07-22', passengers: 1, resultsCount: 2, cheapestPrice: 290000, airline: 'Africa World Airlines', status: 'completed' },
-      { departureCode: 'BKO', arrivalCode: 'DSS', departureCity: 'Bamako', arrivalCity: 'Dakar', travelDate: '2025-07-19', passengers: 1, resultsCount: 2, cheapestPrice: 220000, airline: 'ASKY', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'CMN', departureCity: 'Dakar', arrivalCity: 'Casablanca', travelDate: '2025-07-25', passengers: 2, resultsCount: 3, cheapestPrice: 350000, airline: 'Royal Air Maroc', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'CDG', departureCity: 'Dakar', arrivalCity: 'Paris', travelDate: '2025-07-28', passengers: 1, resultsCount: 4, cheapestPrice: 480000, airline: 'Air France', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'ABJ', departureCity: 'Dakar', arrivalCity: 'Abidjan', travelDate: '2025-07-30', passengers: 4, resultsCount: 3, cheapestPrice: 175000, airline: 'Air Sénégal', status: 'completed' },
-      { departureCode: 'OUA', arrivalCode: 'DSS', departureCity: 'Ouagadougou', arrivalCity: 'Dakar', travelDate: '2025-08-02', passengers: 1, resultsCount: 1, cheapestPrice: 245000, airline: 'Air Burkina', status: 'completed' },
-      { departureCode: 'LOS', arrivalCode: 'LHR', departureCity: 'Lagos', arrivalCity: 'Londres', travelDate: '2025-08-05', passengers: 2, resultsCount: 6, cheapestPrice: 520000, airline: 'British Airways', status: 'searching' },
-      { departureCode: 'DSS', arrivalCode: 'JFK', departureCity: 'Dakar', arrivalCity: 'New York', travelDate: '2025-08-10', passengers: 1, resultsCount: 2, cheapestPrice: 850000, airline: 'Delta', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'BRU', departureCity: 'Dakar', arrivalCity: 'Bruxelles', travelDate: '2025-08-15', passengers: 1, resultsCount: 3, cheapestPrice: 420000, airline: 'Brussels Airlines', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'ABJ', departureCity: 'Dakar', arrivalCity: 'Abidjan', travelDate: '2025-08-20', passengers: 2, resultsCount: 0, cheapestPrice: null, airline: null, status: 'failed' },
-      { departureCode: 'DSS', arrivalCode: 'NBO', departureCity: 'Dakar', arrivalCity: 'Nairobi', travelDate: '2025-08-25', passengers: 1, resultsCount: 4, cheapestPrice: 550000, airline: 'Ethiopian Airlines', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'ADD', departureCity: 'Dakar', arrivalCity: 'Addis-Abeba', travelDate: '2025-07-16', passengers: 1, resultsCount: 2, cheapestPrice: 410000, airline: 'Ethiopian Airlines', status: 'completed' },
-      { departureCode: 'ACC', arrivalCode: 'NBO', departureCity: 'Accra', arrivalCity: 'Nairobi', travelDate: '2025-07-23', passengers: 1, resultsCount: 3, cheapestPrice: 380000, airline: 'Kenya Airways', status: 'completed' },
-      { departureCode: 'DSS', arrivalCode: 'DKR', departureCity: 'Dakar', arrivalCity: 'Dakar', travelDate: null, passengers: 1, resultsCount: 0, cheapestPrice: null, airline: null, status: 'failed' },
-      { departureCode: 'BKO', arrivalCode: 'ABJ', departureCity: 'Bamako', arrivalCity: 'Abidjan', travelDate: '2025-07-26', passengers: 1, resultsCount: 2, cheapestPrice: 195000, airline: 'ASKY', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'ABJ', departureCity: 'Dakar', arrivalCity: 'Abidjan', travelDate: '2025-07-18', passengers: 1, results: '3 flights found', cheapestPrice: 185000, airline: 'Air Sénégal', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'BKO', departureCity: 'Dakar', arrivalCity: 'Bamako', travelDate: '2025-07-19', passengers: 2, results: '2 flights found', cheapestPrice: 210000, airline: 'ASKY', status: 'completed' },
+      { departureCode: 'ABJ', arrivalCode: 'DSS', departureCity: 'Abidjan', arrivalCity: 'Dakar', travelDate: '2025-07-17', passengers: 1, results: '4 flights found', cheapestPrice: 175000, airline: 'Air Côte d\'Ivoire', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'OUA', departureCity: 'Dakar', arrivalCity: 'Ouagadougou', travelDate: '2025-07-20', passengers: 1, results: '1 flight found', cheapestPrice: 240000, airline: 'Air Burkina', status: 'completed' },
+      { departureCode: 'LOS', arrivalCode: 'ACC', departureCity: 'Lagos', arrivalCity: 'Accra', travelDate: '2025-07-18', passengers: 1, results: '5 flights found', cheapestPrice: 85000, airline: 'Air Peace', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'LOS', departureCity: 'Dakar', arrivalCity: 'Lagos', travelDate: '2025-07-21', passengers: 3, results: '3 flights found', cheapestPrice: 320000, airline: 'Air Sénégal', status: 'completed' },
+      { departureCode: 'ACC', arrivalCode: 'DSS', departureCity: 'Accra', arrivalCity: 'Dakar', travelDate: '2025-07-22', passengers: 1, results: '2 flights found', cheapestPrice: 290000, airline: 'Africa World Airlines', status: 'completed' },
+      { departureCode: 'BKO', arrivalCode: 'DSS', departureCity: 'Bamako', arrivalCity: 'Dakar', travelDate: '2025-07-19', passengers: 1, results: '2 flights found', cheapestPrice: 220000, airline: 'ASKY', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'CMN', departureCity: 'Dakar', arrivalCity: 'Casablanca', travelDate: '2025-07-25', passengers: 2, results: '3 flights found', cheapestPrice: 350000, airline: 'Royal Air Maroc', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'CDG', departureCity: 'Dakar', arrivalCity: 'Paris', travelDate: '2025-07-28', passengers: 1, results: '4 flights found', cheapestPrice: 480000, airline: 'Air France', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'ABJ', departureCity: 'Dakar', arrivalCity: 'Abidjan', travelDate: '2025-07-30', passengers: 4, results: '3 flights found', cheapestPrice: 175000, airline: 'Air Sénégal', status: 'completed' },
+      { departureCode: 'OUA', arrivalCode: 'DSS', departureCity: 'Ouagadougou', arrivalCity: 'Dakar', travelDate: '2025-08-02', passengers: 1, results: '1 flight found', cheapestPrice: 245000, airline: 'Air Burkina', status: 'completed' },
+      { departureCode: 'LOS', arrivalCode: 'LHR', departureCity: 'Lagos', arrivalCity: 'Londres', travelDate: '2025-08-05', passengers: 2, results: '6 flights found', cheapestPrice: 520000, airline: 'British Airways', status: 'searching' },
+      { departureCode: 'DSS', arrivalCode: 'JFK', departureCity: 'Dakar', arrivalCity: 'New York', travelDate: '2025-08-10', passengers: 1, results: '2 flights found', cheapestPrice: 850000, airline: 'Delta', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'BRU', departureCity: 'Dakar', arrivalCity: 'Bruxelles', travelDate: '2025-08-15', passengers: 1, results: '3 flights found', cheapestPrice: 420000, airline: 'Brussels Airlines', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'ABJ', departureCity: 'Dakar', arrivalCity: 'Abidjan', travelDate: '2025-08-20', passengers: 2, results: null, cheapestPrice: null, airline: null, status: 'failed' },
+      { departureCode: 'DSS', arrivalCode: 'NBO', departureCity: 'Dakar', arrivalCity: 'Nairobi', travelDate: '2025-08-25', passengers: 1, results: '4 flights found', cheapestPrice: 550000, airline: 'Ethiopian Airlines', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'ADD', departureCity: 'Dakar', arrivalCity: 'Addis-Abeba', travelDate: '2025-07-16', passengers: 1, results: '2 flights found', cheapestPrice: 410000, airline: 'Ethiopian Airlines', status: 'completed' },
+      { departureCode: 'ACC', arrivalCode: 'NBO', departureCity: 'Accra', arrivalCity: 'Nairobi', travelDate: '2025-07-23', passengers: 1, results: '3 flights found', cheapestPrice: 380000, airline: 'Kenya Airways', status: 'completed' },
+      { departureCode: 'DSS', arrivalCode: 'DKR', departureCity: 'Dakar', arrivalCity: 'Dakar', travelDate: null, passengers: 1, results: null, cheapestPrice: null, airline: null, status: 'failed' },
+      { departureCode: 'BKO', arrivalCode: 'ABJ', departureCity: 'Bamako', arrivalCity: 'Abidjan', travelDate: '2025-07-26', passengers: 1, results: '2 flights found', cheapestPrice: 195000, airline: 'ASKY', status: 'completed' },
     ]
 
     await db.flightSearch.createMany({ data: flightSearchesData })
@@ -227,18 +198,18 @@ export async function POST() {
     // 6. BAGGAGE QR CODES
     // ========================
     const baggageData = [
-      { passengerName: 'Moussa Diop', flightNumber: 'ET 927', pnr: 'TRV8K2', tagNumber: 'DSS-2025-78432', weight: 23.5, destination: 'ADD', qrToken: 'bq_dk_moussa_001', status: 'active', expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Fatou Sow', flightNumber: 'SS 203', pnr: 'MLL5R9', tagNumber: 'DSS-2025-78433', weight: 18.0, destination: 'BKO', qrToken: 'bq_dk_fatou_002', status: 'claimed', expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), claimedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-      { passengerName: 'Aminata Koné', flightNumber: 'HC 301', pnr: 'CIV7P3', tagNumber: 'DSS-2025-78434', weight: 30.2, destination: 'CMN', qrToken: 'bq_dk_aminata_003', status: 'active', expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Ibrahim Traoré', flightNumber: 'KP 521', pnr: 'MLI2X8', tagNumber: 'DSS-2025-78435', weight: 15.0, destination: 'ABJ', qrToken: 'bq_dk_ibrahim_004', status: 'active', expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Chidi Okonkwo', flightNumber: 'P4 701', pnr: 'LOS4T6', tagNumber: 'DSS-2025-78436', weight: 27.8, destination: 'ACC', qrToken: 'bq_dk_chidi_005', status: 'expired', expiresAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Kwame Asante', flightNumber: 'AW 102', pnr: 'GHA9L1', tagNumber: 'DSS-2025-78437', weight: 21.0, destination: 'DSS', qrToken: 'bq_dk_kwame_006', status: 'active', expiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Aissatou Ba', flightNumber: 'AF 722', pnr: 'SEN3Y7', tagNumber: 'DSS-2025-78438', weight: 32.0, destination: 'CDG', qrToken: 'bq_dk_aissatou_007', status: 'active', expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Yao Kouadio', flightNumber: 'HC 301', pnr: 'CIV8N4', tagNumber: 'DSS-2025-78439', weight: 19.5, destination: 'CMN', qrToken: 'bq_dk_yao_008', status: 'claimed', expiresAt: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000), claimedAt: new Date(Date.now() - 5 * 60 * 60 * 1000) },
-      { passengerName: 'Ousmane Ouédraogo', flightNumber: '2J 502', pnr: 'BFA6W2', tagNumber: 'DSS-2025-78440', weight: 25.0, destination: 'DSS', qrToken: 'bq_dk_ousmane_009', status: 'active', expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Mariama Diallo', flightNumber: 'KP 521', pnr: 'MLI5Q8', tagNumber: 'DSS-2025-78441', weight: 16.5, destination: 'ABJ', qrToken: 'bq_dk_mariama_010', status: 'active', expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Cheikh Sylla', flightNumber: 'SN 171', pnr: 'SEN1M3', tagNumber: 'DSS-2025-78442', weight: 28.0, destination: 'BRU', qrToken: 'bq_dk_cheikh_011', status: 'active', expiresAt: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000), claimedAt: null },
-      { passengerName: 'Adaobi Nwosu', flightNumber: 'DL 215', pnr: 'LOS7K5', tagNumber: 'DSS-2025-78443', weight: 22.3, destination: 'JFK', qrToken: 'bq_dk_adaobi_012', status: 'claimed', expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000), claimedAt: new Date(Date.now() - 1 * 60 * 60 * 1000) },
+      { passengerName: 'Moussa Diop', phone: '+221771234567', flightNumber: 'ET 927', pnr: 'TRV8K2', tagNumber: 'DSS-2025-78432', weight: 23.5, destination: 'ADD', qrToken: 'bq_dk_moussa_001', status: 'active', expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Fatou Sow', phone: '+221782345678', flightNumber: 'SS 203', pnr: 'MLL5R9', tagNumber: 'DSS-2025-78433', weight: 18.0, destination: 'BKO', qrToken: 'bq_dk_fatou_002', status: 'claimed', expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), lastScan: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+      { passengerName: 'Aminata Koné', phone: '+225070123456', flightNumber: 'HC 301', pnr: 'CIV7P3', tagNumber: 'DSS-2025-78434', weight: 30.2, destination: 'CMN', qrToken: 'bq_dk_aminata_003', status: 'active', expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Ibrahim Traoré', phone: '+22361234567', flightNumber: 'KP 521', pnr: 'MLI2X8', tagNumber: 'DSS-2025-78435', weight: 15.0, destination: 'ABJ', qrToken: 'bq_dk_ibrahim_004', status: 'active', expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Chidi Okonkwo', phone: '+2348012345678', flightNumber: 'P4 701', pnr: 'LOS4T6', tagNumber: 'DSS-2025-78436', weight: 27.8, destination: 'ACC', qrToken: 'bq_dk_chidi_005', status: 'expired', expiresAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Kwame Asante', phone: '+233241234567', flightNumber: 'AW 102', pnr: 'GHA9L1', tagNumber: 'DSS-2025-78437', weight: 21.0, destination: 'DSS', qrToken: 'bq_dk_kwame_006', status: 'active', expiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Aissatou Ba', phone: '+221763456789', flightNumber: 'AF 722', pnr: 'SEN3Y7', tagNumber: 'DSS-2025-78438', weight: 32.0, destination: 'CDG', qrToken: 'bq_dk_aissatou_007', status: 'active', expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Yao Kouadio', phone: '+225070987654', flightNumber: 'HC 301', pnr: 'CIV8N4', tagNumber: 'DSS-2025-78439', weight: 19.5, destination: 'CMN', qrToken: 'bq_dk_yao_008', status: 'claimed', expiresAt: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000), lastScan: new Date(Date.now() - 5 * 60 * 60 * 1000) },
+      { passengerName: 'Ousmane Ouédraogo', phone: '+22670123456', flightNumber: '2J 502', pnr: 'BFA6W2', tagNumber: 'DSS-2025-78440', weight: 25.0, destination: 'DSS', qrToken: 'bq_dk_ousmane_009', status: 'active', expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Mariama Diallo', phone: '+221775678901', flightNumber: 'KP 521', pnr: 'MLI5Q8', tagNumber: 'DSS-2025-78441', weight: 16.5, destination: 'ABJ', qrToken: 'bq_dk_mariama_010', status: 'active', expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Cheikh Sylla', phone: '+221789876543', flightNumber: 'SN 171', pnr: 'SEN1M3', tagNumber: 'DSS-2025-78442', weight: 28.0, destination: 'BRU', qrToken: 'bq_dk_cheikh_011', status: 'active', expiresAt: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000) },
+      { passengerName: 'Adaobi Nwosu', phone: '+2348098765432', flightNumber: 'DL 215', pnr: 'LOS7K5', tagNumber: 'DSS-2025-78443', weight: 22.3, destination: 'JFK', qrToken: 'bq_dk_adaobi_012', status: 'claimed', expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000), lastScan: new Date(Date.now() - 1 * 60 * 60 * 1000) },
     ]
 
     await db.baggageQR.createMany({ data: baggageData })

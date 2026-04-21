@@ -1,28 +1,27 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// GET /api/conversations - List conversations with message counts
+// GET /api/conversations - List conversations with user info
 export async function GET() {
   try {
     const conversations = await db.conversation.findMany({
       orderBy: { lastMessage: 'desc' },
       include: {
-        _count: {
-          select: { messages: true },
-        },
+        user: true,
       },
     })
 
     const formatted = conversations.map((conv) => ({
       id: conv.id,
-      userPhone: conv.userPhone,
-      userName: conv.userName,
+      userPhone: conv.user?.phone ?? null,
+      userName: conv.user?.name ?? null,
       language: conv.language,
       status: conv.status,
+      intent: conv.intent,
+      resolved: conv.resolved,
       lastMessage: conv.lastMessage,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
-      messageCount: conv._count.messages,
     }))
 
     return NextResponse.json({ data: formatted })
