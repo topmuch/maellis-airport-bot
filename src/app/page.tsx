@@ -10,6 +10,8 @@ import { TransportModule } from '@/components/dashboard/modules/TransportModule'
 import { PaymentsModule } from '@/components/dashboard/modules/PaymentsModule'
 import { EmergencyModule } from '@/components/dashboard/modules/EmergencyModule'
 import { ConversationsModule } from '@/components/dashboard/modules/ConversationsModule'
+import { DemoModule } from '@/components/dashboard/modules/DemoModule'
+import { DocsModule } from '@/components/dashboard/modules/DocsModule'
 import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
 
 const modules: Record<ModuleKey, React.ComponentType> = {
@@ -21,6 +23,8 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   payments: PaymentsModule,
   emergency: EmergencyModule,
   conversations: ConversationsModule,
+  demo: DemoModule,
+  docs: DocsModule,
   settings: SettingsModule,
 }
 

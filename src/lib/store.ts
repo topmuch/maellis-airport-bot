@@ -9,6 +9,8 @@ export type ModuleKey =
   | 'payments'
   | 'emergency'
   | 'conversations'
+  | 'demo'
+  | 'docs'
   | 'settings'
 
 interface NavigationStore {

@@ -1,0 +1,49 @@
+{$DOMAIN:maellis.aero} {
+    # Dashboard (Frontend)
+    handle / {
+        reverse_proxy dashboard:3000
+    }
+
+    # Bot API
+    handle /webhook* {
+        reverse_proxy bot-service:3005
+    }
+
+    handle /chat {
+        reverse_proxy bot-service:3005
+    }
+
+    handle /health {
+        reverse_proxy bot-service:3005
+    }
+
+    handle /airports* {
+        reverse_proxy bot-service:3005
+    }
+
+    handle /track/* {
+        reverse_proxy bot-service:3005
+    }
+
+    handle /flight/* {
+        reverse_proxy bot-service:3005
+    }
+
+    handle /baggage/* {
+        reverse_proxy bot-service:3005
+    }
+
+    # API routes for dashboard
+    handle /api/* {
+        reverse_proxy dashboard:3000
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}

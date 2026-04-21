@@ -12,6 +12,8 @@ import { generateBaggageQR, verifyBaggageToken, formatBaggageVerification } from
 import { getPaymentStatus, isCinetPayConfigured } from "./src/services/payment.service";
 import { generateResponse } from "./src/router";
 import { AIRPORT_CODES, findAirportCode, searchAirports } from "./src/airports";
+import { checkRateLimit, extractIdentifier, rateLimitHeaders } from "./src/middleware/rate-limiter";
+import { logger } from "./src/middleware/logger";
 
 import type { ChatRequest, ChatResponse, HealthStatus, FlightSearchParams } from "./src/types";
 
@@ -25,7 +27,7 @@ const SERVICE_VERSION = "2.0.0";
 // HTTP Response Helpers
 // ============================================================================
 
-function jsonResponse(data: unknown, status = 200) {
+function jsonResponse(data: unknown, status = 200, extraHeaders?: Record<string, string>) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -33,6 +35,7 @@ function jsonResponse(data: unknown, status = 200) {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
+      ...extraHeaders,
     },
   });
 }
@@ -48,8 +51,8 @@ function textResponse(text: string, status = 200) {
 // Request Router
 // ============================================================================
 
-console.log("🚀 MAELLIS Airport Bot Service v" + SERVICE_VERSION + " starting...");
-console.log(`📡 Port: ${SERVICE_PORT}`);
+logger.info("MAELLIS Airport Bot Service v" + SERVICE_VERSION + " starting...");
+logger.info(`Port: ${SERVICE_PORT}`);
 
 Bun.serve({
   port: SERVICE_PORT,
@@ -58,9 +61,12 @@ Bun.serve({
     const url = new URL(req.url);
     const method = req.method;
     const path = url.pathname;
+    const startTime = performance.now();
 
     // --- CORS preflight ---
     if (method === "OPTIONS") {
+      const duration = Math.round(performance.now() - startTime);
+      logger.request("OPTIONS", path, 204, duration);
       return new Response(null, {
         status: 204,
         headers: {
@@ -82,9 +88,13 @@ Bun.serve({
       const result = verifyWebhook(mode, token, challenge);
 
       if (result.verified) {
+        const duration = Math.round(performance.now() - startTime);
+        logger.request("GET", path, 200, duration);
         return textResponse(result.challenge, 200);
       }
 
+      const duration = Math.round(performance.now() - startTime);
+      logger.request("GET", path, 403, duration);
       return textResponse("Forbidden", 403);
     }
 
@@ -92,30 +102,47 @@ Bun.serve({
     // POST /webhook — Receive WhatsApp messages → AI → Respond
     // ================================================================
     if (method === "POST" && path === "/webhook") {
+      // Rate limiting
+      const identifier = extractIdentifier(req);
+      const rateLimitResult = checkRateLimit(identifier);
+
+      if (!rateLimitResult.allowed) {
+        const duration = Math.round(performance.now() - startTime);
+        logger.warn(`Rate limited ${identifier} on POST /webhook`);
+        logger.request("POST", path, 429, duration, identifier);
+        return jsonResponse(
+          { error: "Too Many Requests", retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000) },
+          429,
+          rateLimitHeaders(rateLimitResult),
+        );
+      }
+
       try {
         const body = await req.json();
-        console.log(
-          "📩 Webhook payload received:",
+        logger.info(
+          "Webhook payload received",
           JSON.stringify(body).slice(0, 200),
         );
 
         const parsed = parseWebhookPayload(body);
 
         if (!parsed.phone) {
-          console.log(
-            "ℹ️  No message in webhook payload (possibly status update)",
+          logger.info("No message in webhook payload (possibly status update)");
+          return jsonResponse(
+            { status: "ok" },
+            200,
+            rateLimitHeaders(rateLimitResult),
           );
-          return jsonResponse({ status: "ok" });
         }
 
-        console.log(
-          `📞 From: ${parsed.phone} | Type: ${parsed.messageType} | Text: ${parsed.messageText.slice(0, 80)}`,
+        logger.info(
+          `From: ${parsed.phone} | Type: ${parsed.messageType} | Text: ${parsed.messageText.slice(0, 80)}`,
         );
 
         // AI intent classification
         const aiResult = await analyzeIntent(parsed.messageText);
-        console.log(
-          `🎯 Intent: ${aiResult.intent} | Confidence: ${(aiResult.confidence * 100).toFixed(0)}% | Language: ${aiResult.language}`,
+        logger.info(
+          `Intent: ${aiResult.intent} | Confidence: ${(aiResult.confidence * 100).toFixed(0)}% | Language: ${aiResult.language}`,
         );
 
         // Also run keyword classifier for entity extraction
@@ -126,20 +153,29 @@ Bun.serve({
 
         // Send via WhatsApp API (fire-and-forget)
         sendWhatsAppMessage(parsed.phone, response).catch((err) => {
-          console.error("❌ WhatsApp send error (non-blocking):", err);
+          logger.error("WhatsApp send error (non-blocking)", String(err));
         });
 
-        return jsonResponse({
-          status: "processed",
-          intent: aiResult.intent,
-          confidence: aiResult.confidence,
-          language: aiResult.language,
-          entities: classified.entities,
-          messageType: parsed.messageType,
-          profileName: parsed.profileName,
-        });
+        const duration = Math.round(performance.now() - startTime);
+        logger.request("POST", path, 200, duration, identifier);
+
+        return jsonResponse(
+          {
+            status: "processed",
+            intent: aiResult.intent,
+            confidence: aiResult.confidence,
+            language: aiResult.language,
+            entities: classified.entities,
+            messageType: parsed.messageType,
+            profileName: parsed.profileName,
+          },
+          200,
+          rateLimitHeaders(rateLimitResult),
+        );
       } catch (err) {
-        console.error("❌ Error processing webhook:", err);
+        const duration = Math.round(performance.now() - startTime);
+        logger.error("Error processing webhook", String(err));
+        logger.request("POST", path, 500, duration, identifier);
         return jsonResponse({ error: "Internal server error" }, 500);
       }
     }
@@ -166,6 +202,8 @@ Bun.serve({
           cinetpay: isCinetPayConfigured(),
         },
       };
+      const duration = Math.round(performance.now() - startTime);
+      logger.request("GET", path, 200, duration);
       return jsonResponse(health);
     }
 
@@ -173,6 +211,21 @@ Bun.serve({
     // POST /chat — Test chat endpoint (returns JSON)
     // ================================================================
     if (method === "POST" && path === "/chat") {
+      // Rate limiting
+      const identifier = extractIdentifier(req);
+      const rateLimitResult = checkRateLimit(identifier);
+
+      if (!rateLimitResult.allowed) {
+        const duration = Math.round(performance.now() - startTime);
+        logger.warn(`Rate limited ${identifier} on POST /chat`);
+        logger.request("POST", path, 429, duration, identifier);
+        return jsonResponse(
+          { error: "Too Many Requests", retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000) },
+          429,
+          rateLimitHeaders(rateLimitResult),
+        );
+      }
+
       try {
         const body = (await req.json()) as ChatRequest;
         const { message, phone } = body;
@@ -184,14 +237,14 @@ Bun.serve({
           );
         }
 
-        console.log(
-          `💬 Chat test | Phone: ${phone ?? "anonymous"} | Message: ${message.slice(0, 80)}`,
+        logger.info(
+          `Chat test | Phone: ${phone ?? "anonymous"} | Message: ${message.slice(0, 80)}`,
         );
 
         // AI intent classification
         const aiResult = await analyzeIntent(message);
-        console.log(
-          `🎯 Intent: ${aiResult.intent} | Confidence: ${(aiResult.confidence * 100).toFixed(0)}% | Language: ${aiResult.language}`,
+        logger.info(
+          `Intent: ${aiResult.intent} | Confidence: ${(aiResult.confidence * 100).toFixed(0)}% | Language: ${aiResult.language}`,
         );
 
         // Also run keyword classifier for entity extraction
@@ -210,9 +263,14 @@ Bun.serve({
           timestamp: new Date().toISOString(),
         };
 
-        return jsonResponse(chatResponse);
+        const duration = Math.round(performance.now() - startTime);
+        logger.request("POST", path, 200, duration, identifier);
+
+        return jsonResponse(chatResponse, 200, rateLimitHeaders(rateLimitResult));
       } catch (err) {
-        console.error("❌ Error processing chat:", err);
+        const duration = Math.round(performance.now() - startTime);
+        logger.error("Error processing chat", String(err));
+        logger.request("POST", path, 500, duration, identifier);
         return jsonResponse({ error: "Internal server error" }, 500);
       }
     }
@@ -225,9 +283,13 @@ Bun.serve({
 
       if (search) {
         const results = searchAirports(search);
+        const duration = Math.round(performance.now() - startTime);
+        logger.request("GET", path, 200, duration);
         return jsonResponse({ results, count: results.length });
       }
 
+      const duration = Math.round(performance.now() - startTime);
+      logger.request("GET", path, 200, duration);
       return jsonResponse({
         airports: AIRPORT_CODES,
         count: Object.keys(AIRPORT_CODES).length,
@@ -256,6 +318,8 @@ Bun.serve({
         );
       }
 
+      const duration = Math.round(performance.now() - startTime);
+      logger.request("GET", path, 200, duration);
       return jsonResponse({
         valid: true,
         data: verification,
@@ -277,6 +341,8 @@ Bun.serve({
       }
 
       const status = await getFlightStatus(flightNumber);
+      const duration = Math.round(performance.now() - startTime);
+      logger.request("GET", path, 200, duration);
       return jsonResponse({
         flight: status,
         source: isAviationStackConfigured()
@@ -322,6 +388,8 @@ Bun.serve({
           passengers: body.passengers,
         });
 
+        const duration = Math.round(performance.now() - startTime);
+        logger.request("POST", path, 200, duration);
         return jsonResponse({
           flights,
           route: { from: depCode, to: arrCode },
@@ -332,7 +400,9 @@ Bun.serve({
             : "mock data",
         });
       } catch (err) {
-        console.error("❌ Error searching flights:", err);
+        const duration = Math.round(performance.now() - startTime);
+        logger.error("Error searching flights", String(err));
+        logger.request("POST", path, 500, duration);
         return jsonResponse({ error: "Internal server error" }, 500);
       }
     }
@@ -364,9 +434,13 @@ Bun.serve({
           destination,
         });
 
+        const duration = Math.round(performance.now() - startTime);
+        logger.request("POST", path, 200, duration);
         return jsonResponse(result);
       } catch (err) {
-        console.error("❌ Error generating baggage QR:", err);
+        const duration = Math.round(performance.now() - startTime);
+        logger.error("Error generating baggage QR", String(err));
+        logger.request("POST", path, 500, duration);
         return jsonResponse({ error: "Internal server error" }, 500);
       }
     }
@@ -374,6 +448,8 @@ Bun.serve({
     // ================================================================
     // 404 — Not Found
     // ================================================================
+    const duration = Math.round(performance.now() - startTime);
+    logger.request(method, path, 404, duration);
     return jsonResponse(
       {
         error: "Not Found",
@@ -396,23 +472,21 @@ Bun.serve({
   },
 });
 
-console.log(
-  `✅ MAELLIS Airport Bot Service v${SERVICE_VERSION} running on http://localhost:${SERVICE_PORT}`,
-);
-console.log("📡 Endpoints:");
-console.log("   GET  /webhook           — Meta verification");
-console.log("   POST /webhook           — Receive WhatsApp messages");
-console.log("   GET  /health            — Health check");
-console.log("   POST /chat              — Test chat endpoint");
-console.log("   GET  /airports?q=       — Search airports");
-console.log("   GET  /track/:token      — Verify baggage QR");
-console.log("   GET  /flight/status/:id — Flight status");
-console.log("   POST /flight/search     — Search flights");
-console.log("   POST /baggage/generate  — Generate baggage QR");
+logger.info(`MAELLIS Airport Bot Service v${SERVICE_VERSION} running on http://localhost:${SERVICE_PORT}`);
+logger.info("Endpoints:");
+logger.info("   GET  /webhook           — Meta verification");
+logger.info("   POST /webhook           — Receive WhatsApp messages");
+logger.info("   GET  /health            — Health check");
+logger.info("   POST /chat              — Test chat endpoint");
+logger.info("   GET  /airports?q=       — Search airports");
+logger.info("   GET  /track/:token      — Verify baggage QR");
+logger.info("   GET  /flight/status/:id — Flight status");
+logger.info("   POST /flight/search     — Search flights");
+logger.info("   POST /baggage/generate  — Generate baggage QR");
 
 // Service configuration status
-console.log("\n🔧 Service Configuration:");
-console.log(`   WhatsApp:  ${isWhatsAppConfigured() ? "✅ configured" : "⚠️  not configured"}`);
-console.log(`   Groq AI:   ${isGroqConfigured() ? "✅ configured" : "⚠️  not configured (keyword fallback)"}`);
-console.log(`   AviationStack: ${isAviationStackConfigured() ? "✅ configured" : "⚠️  not configured (mock data)"}`);
-console.log(`   CinetPay:  ${isCinetPayConfigured() ? "✅ configured" : "⚠️  not configured (mock links)"}`);
+logger.info("Service Configuration:");
+logger.info(`   WhatsApp:  ${isWhatsAppConfigured() ? "configured" : "not configured"}`);
+logger.info(`   Groq AI:   ${isGroqConfigured() ? "configured" : "not configured (keyword fallback)"}`);
+logger.info(`   AviationStack: ${isAviationStackConfigured() ? "configured" : "not configured (mock data)"}`);
+logger.info(`   CinetPay:  ${isCinetPayConfigured() ? "configured" : "not configured (mock links)"}`);

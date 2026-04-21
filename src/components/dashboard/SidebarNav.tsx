@@ -9,6 +9,8 @@ import {
   CreditCard,
   ShieldAlert,
   MessageSquare,
+  Play,
+  BookOpen,
   Settings,
   type LucideIcon,
 } from 'lucide-react'
@@ -36,6 +38,8 @@ const navItems: NavItem[] = [
   { label: 'Paiements', icon: CreditCard, module: 'payments' },
   { label: 'Urgences', icon: ShieldAlert, module: 'emergency' },
   { label: 'Conversations', icon: MessageSquare, module: 'conversations' },
+  { label: 'Démonstration', icon: Play, module: 'demo' },
+  { label: 'Documentation', icon: BookOpen, module: 'docs' },
   { label: 'Paramètres', icon: Settings, module: 'settings' },
 ]
 
