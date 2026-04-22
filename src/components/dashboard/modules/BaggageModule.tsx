@@ -257,7 +257,8 @@ export function BaggageModule() {
       const res = await fetch('/api/baggage')
       if (res.ok) {
         const data = await res.json()
-        setBaggageList(data.items ?? data ?? [])
+        const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
+        setBaggageList(items)
         setStats({
           total: data.stats?.total ?? data.length ?? MOCK_STATS.total,
           active: data.stats?.active ?? MOCK_STATS.active,

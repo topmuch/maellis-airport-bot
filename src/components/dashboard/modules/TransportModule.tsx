@@ -382,7 +382,8 @@ export function TransportModule() {
       const res = await fetch('/api/transport')
       if (res.ok) {
         const data = await res.json()
-        setBookings(data.items ?? data ?? [])
+        const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
+        setBookings(items)
         setStats({
           total: data.stats?.total ?? data.length ?? MOCK_STATS.total,
           inProgress: data.stats?.inProgress ?? MOCK_STATS.inProgress,

@@ -348,7 +348,8 @@ export function LoungeModule() {
       const res = await fetch('/api/lounge')
       if (res.ok) {
         const data = await res.json()
-        setBookings(data.items ?? data ?? [])
+        const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
+        setBookings(items)
         setStats({
           total: data.stats?.total ?? data.length ?? MOCK_STATS.total,
           confirmed: data.stats?.confirmed ?? MOCK_STATS.confirmed,
