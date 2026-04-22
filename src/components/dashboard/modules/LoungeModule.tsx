@@ -219,7 +219,7 @@ function PaymentBadge({ payment }: { payment: LoungeBooking['payment'] }) {
   switch (payment) {
     case 'paid':
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+        <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
           Payé
         </Badge>
       )
@@ -244,7 +244,7 @@ function LoungeStatusBadge({ status }: { status: LoungeBooking['status'] }) {
   switch (status) {
     case 'confirmed':
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+        <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
           Confirmée
         </Badge>
       )
@@ -256,7 +256,7 @@ function LoungeStatusBadge({ status }: { status: LoungeBooking['status'] }) {
       )
     case 'checked_in':
       return (
-        <Badge className="bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100">
+        <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
           Enregistré
         </Badge>
       )
@@ -464,7 +464,7 @@ export function LoungeModule() {
         </div>
         <Dialog open={createOpen} onOpenChange={(open) => { if (!open) resetForm(); else setCreateOpen(true) }}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white">
               <Plus className="size-4" />
               Nouvelle Réservation
             </Button>
@@ -597,17 +597,17 @@ export function LoungeModule() {
                 </div>
               </div>
               {/* Price Preview */}
-              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 space-y-1">
-                <p className="text-sm text-emerald-700">Détail du prix</p>
-                <div className="flex justify-between text-sm text-emerald-600">
+              <div className="rounded-lg bg-orange-50 border border-orange-200 p-4 space-y-1">
+                <p className="text-sm text-orange-600">Détail du prix</p>
+                <div className="flex justify-between text-sm text-orange-500">
                   <span>Tarif de base</span>
                   <span>{formatPrice(BASE_PRICE)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-emerald-600">
+                <div className="flex justify-between text-sm text-orange-500">
                   <span>{form.guests} invité(s) × {form.duration}h × {formatPrice(GUEST_PER_HOUR_PRICE)}</span>
                   <span>{formatPrice(form.guests * form.duration * GUEST_PER_HOUR_PRICE)}</span>
                 </div>
-                <div className="border-t border-emerald-200 pt-1 flex justify-between font-bold text-emerald-800">
+                <div className="border-t border-orange-200 pt-1 flex justify-between font-bold text-orange-700">
                   <span>Total</span>
                   <span>{formatPrice(calculatedPrice)}</span>
                 </div>
@@ -618,7 +618,7 @@ export function LoungeModule() {
                 Annuler
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
                 onClick={handleCreate}
                 disabled={submitting}
               >
@@ -634,16 +634,16 @@ export function LoungeModule() {
         <StatCard
           title="Réservations Total"
           value={stats.total}
-          icon={<Crown className="size-6 text-emerald-600" />}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-50"
+          icon={<Crown className="size-6 text-orange-500" />}
+          colorClass="text-orange-500"
+          iconBgClass="bg-orange-50"
         />
         <StatCard
           title="Confirmées"
           value={stats.confirmed}
-          icon={<CheckCircle className="size-6 text-emerald-600" />}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-50"
+          icon={<CheckCircle className="size-6 text-orange-500" />}
+          colorClass="text-orange-500"
+          iconBgClass="bg-orange-50"
         />
         <StatCard
           title="En Attente"
@@ -673,7 +673,7 @@ export function LoungeModule() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="size-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+              <div className="size-8 animate-spin rounded-full border-4 border-orange-200 border-t-orange-500" />
             </div>
           ) : (
             <div className="max-h-[480px] overflow-auto">
@@ -722,7 +722,7 @@ export function LoungeModule() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleView(booking)}
-                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                            className="text-orange-500 border-orange-200 hover:bg-orange-50"
                           >
                             <Eye className="size-3.5" />
                             Voir
@@ -770,7 +770,7 @@ export function LoungeModule() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Prix:</span>
-                  <p className="font-bold text-emerald-600">{formatPrice(selectedBooking.price)}</p>
+                  <p className="font-bold text-orange-500">{formatPrice(selectedBooking.price)}</p>
                 </div>
               </div>
               <div className="flex gap-2">

@@ -141,8 +141,8 @@ const mockRecentConversations: RecentConversation[] = [
 ]
 
 const languageData = [
-  { code: 'FR', label: 'Français', pct: 65, color: 'bg-emerald-500' },
-  { code: 'EN', label: 'English', pct: 20, color: 'bg-teal-500' },
+  { code: 'FR', label: 'Français', pct: 65, color: 'bg-orange-500' },
+  { code: 'EN', label: 'English', pct: 20, color: 'bg-blue-500' },
   { code: 'WO', label: 'Wolof', pct: 10, color: 'bg-amber-500' },
   { code: 'AR', label: 'العربية', pct: 5, color: 'bg-rose-500' },
 ]
@@ -152,14 +152,14 @@ const languageData = [
 const trafficChartConfig = {
   messages: {
     label: 'Messages',
-    color: '#10b981',
+    color: '#f97316',
   },
 } satisfies ChartConfig
 
 const intentsChartConfig = {
   value: {
     label: 'Pourcentage',
-    color: '#14b8a6',
+    color: '#1e3a8a',
   },
 } satisfies ChartConfig
 
@@ -173,7 +173,7 @@ function getStatusBadge(status: string) {
   switch (status) {
     case 'active':
       return (
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
+        <Badge className="bg-orange-100 text-orange-600 border-orange-200 dark:bg-orange-800/30 dark:text-orange-400 dark:border-orange-700">
           Actif
         </Badge>
       )
@@ -237,8 +237,8 @@ export function OverviewModule() {
       change: '+12%',
       trend: 'up' as const,
       icon: MessageSquare,
-      iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      iconBg: 'bg-orange-100 dark:bg-orange-800/30',
+      iconColor: 'text-orange-500 dark:text-orange-400',
     },
     {
       title: 'Recherche Vols Aujourd\'hui',
@@ -246,8 +246,8 @@ export function OverviewModule() {
       change: '+8%',
       trend: 'up' as const,
       icon: Plane,
-      iconBg: 'bg-teal-100 dark:bg-teal-900/30',
-      iconColor: 'text-teal-600 dark:text-teal-400',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+      iconColor: 'text-blue-600 dark:text-blue-400',
     },
     {
       title: 'Alertes Actives',
@@ -295,17 +295,17 @@ export function OverviewModule() {
               <div className="text-2xl font-bold">{card.value}</div>
               <div className="flex items-center gap-1 mt-1">
                 {card.trend === 'up' ? (
-                  <TrendingUp className="size-3.5 text-emerald-500" />
+                  <TrendingUp className="size-3.5 text-orange-500" />
                 ) : (
-                  <TrendingDown className="size-3.5 text-emerald-500" />
+                  <TrendingDown className="size-3.5 text-orange-500" />
                 )}
                 <span
                   className={`text-xs font-medium ${
                     card.trend === 'up' && card.title === 'Alertes Actives'
                       ? 'text-red-500'
                       : card.trend === 'down'
-                        ? 'text-emerald-500'
-                        : 'text-emerald-500'
+                        ? 'text-orange-500'
+                        : 'text-orange-500'
                   }`}
                 >
                   {card.change}
@@ -335,8 +335,8 @@ export function OverviewModule() {
               >
                 <defs>
                   <linearGradient id="fillMessages" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f97316" stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -367,7 +367,7 @@ export function OverviewModule() {
                 <Area
                   type="monotone"
                   dataKey="messages"
-                  stroke="#10b981"
+                  stroke="#f97316"
                   fill="url(#fillMessages)"
                   strokeWidth={2}
                 />
@@ -413,7 +413,7 @@ export function OverviewModule() {
                 <ChartLegend content={<ChartLegendContent />} />
                 <Bar
                   dataKey="value"
-                  fill="#14b8a6"
+                  fill="#1e3a8a"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -483,7 +483,7 @@ export function OverviewModule() {
                     cy="50"
                     r="40"
                     fill="none"
-                    stroke="#10b981"
+                    stroke="#f97316"
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={`${94 * 2.51} ${100 * 2.51}`}
@@ -491,7 +491,7 @@ export function OverviewModule() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-2xl font-bold text-orange-500 dark:text-orange-400">
                     94%
                   </span>
                 </div>
@@ -514,7 +514,7 @@ export function OverviewModule() {
           <CardContent>
             <div className="flex flex-col items-center justify-center gap-3 py-2">
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-teal-600 dark:text-teal-400">
+                <span className="text-4xl font-bold text-blue-600 dark:text-blue-400">
                   1.2
                 </span>
                 <span className="text-lg text-muted-foreground">sec</span>
@@ -525,7 +525,7 @@ export function OverviewModule() {
                   (height, i) => (
                     <div
                       key={i}
-                      className="w-1.5 rounded-sm bg-teal-400/70"
+                      className="w-1.5 rounded-sm bg-blue-400/70"
                       style={{ height: `${height}%` }}
                     />
                   )

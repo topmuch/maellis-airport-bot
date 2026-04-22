@@ -57,18 +57,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       onOpenChange={setSidebarOpen}
     >
       {/* Sidebar */}
-      <Sidebar collapsible="icon" variant="sidebar" className="border-r-slate-200 dark:border-r-slate-800">
+      <Sidebar collapsible="icon" variant="sidebar" className="border-r-[#1e3a8a]/30 bg-[#1e3a8a] dark:bg-[#0f1d45] dark:border-r-[#0f1d45]">
         {/* Sidebar Header - Brand */}
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3 px-1">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white">
               <Plane className="size-5" />
             </div>
             <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-bold tracking-wide text-foreground">
+              <span className="text-sm font-bold tracking-wide text-white">
                 MAELLIS
               </span>
-              <span className="truncate text-[11px] text-muted-foreground">
+              <span className="truncate text-[11px] text-white/70">
                 Aéroport Dashboard
               </span>
             </div>
@@ -88,15 +88,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex items-center gap-3 px-1">
             <Avatar className="size-8 shrink-0">
               <AvatarImage src="/avatar-admin.png" alt="Admin" />
-              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold dark:bg-emerald-900/40 dark:text-emerald-400">
+              <AvatarFallback className="bg-blue-100 text-blue-800 text-xs font-semibold dark:bg-blue-900/30 dark:text-blue-300">
                 AD
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col overflow-hidden">
-              <span className="truncate text-xs font-medium text-foreground">
+              <span className="truncate text-xs font-medium text-white">
                 Admin Aéroport
               </span>
-              <span className="truncate text-[10px] text-muted-foreground">
+              <span className="truncate text-[10px] text-white/70">
                 admin@maellis.sn
               </span>
             </div>
@@ -119,7 +119,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex items-center gap-2">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
             <div className="flex items-center gap-2 md:hidden">
-              <div className="flex size-7 items-center justify-center rounded-md bg-emerald-600 text-white">
+              <div className="flex size-7 items-center justify-center rounded-md bg-orange-500 text-white">
                 <Plane className="size-4" />
               </div>
               <div className="flex flex-col">
@@ -160,7 +160,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     onClick={() => setSelectedLang(lang.code)}
                     className={`cursor-pointer ${
                       selectedLang === lang.code
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                        ? 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
                         : ''
                     }`}
                   >
@@ -192,7 +192,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     onClick={() => setSelectedLang(lang.code)}
                     className={`cursor-pointer ${
                       selectedLang === lang.code
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                        ? 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
                         : ''
                     }`}
                   >
@@ -213,7 +213,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <Bell className="size-4" />
                   {notificationCount > 0 && (
-                    <Badge className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-amber-500 p-0 text-[10px] text-white hover:bg-amber-500">
+                    <Badge className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-orange-500 p-0 text-[10px] text-white hover:bg-orange-500">
                       {notificationCount}
                     </Badge>
                   )}
@@ -251,7 +251,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Admin Avatar (Desktop) */}
             <Avatar className="hidden size-8 sm:block">
               <AvatarImage src="/avatar-admin.png" alt="Admin" />
-              <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold dark:bg-emerald-900/40 dark:text-emerald-400">
+              <AvatarFallback className="bg-blue-100 text-blue-800 text-xs font-semibold dark:bg-blue-900/30 dark:text-blue-300">
                 AD
               </AvatarFallback>
             </Avatar>

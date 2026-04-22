@@ -24,8 +24,8 @@ export function StatCard({
   changeType = 'up',
   icon: Icon,
   description,
-  iconColor = 'text-emerald-600 dark:text-emerald-400',
-  iconBgColor = 'bg-emerald-100 dark:bg-emerald-900/30',
+  iconColor = 'text-orange-600 dark:text-orange-400',
+  iconBgColor = 'bg-orange-500/10 dark:bg-orange-900/30',
   className,
 }: StatCardProps) {
   const isPositive = changeType === 'up'
@@ -48,7 +48,7 @@ export function StatCard({
               {change !== undefined && (
                 <div className="flex items-center gap-1">
                   {isPositive ? (
-                    <TrendingUp className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <TrendingUp className="size-3.5 text-green-600 dark:text-green-400" />
                   ) : (
                     <TrendingDown className="size-3.5 text-red-500 dark:text-red-400" />
                   )}
@@ -56,7 +56,7 @@ export function StatCard({
                     className={cn(
                       'text-xs font-medium',
                       isPositive
-                        ? 'text-emerald-600 dark:text-emerald-400'
+                        ? 'text-green-600 dark:text-green-400'
                         : 'text-red-500 dark:text-red-400'
                     )}
                   >

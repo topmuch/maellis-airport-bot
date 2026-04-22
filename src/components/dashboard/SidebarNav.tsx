@@ -66,21 +66,21 @@ export function SidebarNav() {
               tooltip={item.label}
               className={
                 isActive
-                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 hover:text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 dark:hover:text-emerald-300'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 hover:text-orange-300'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
               }
             >
               <Icon
                 className={`size-5 shrink-0 ${
                   isActive
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-muted-foreground'
+                    ? 'text-orange-400'
+                    : 'text-white/70'
                 }`}
               />
               {!isCollapsed && <span>{item.label}</span>}
             </SidebarMenuButton>
             {!isCollapsed && item.badge && item.badge > 0 && (
-              <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-semibold text-white">
+              <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-semibold text-white">
                 {item.badge}
               </span>
             )}

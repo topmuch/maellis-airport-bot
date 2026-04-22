@@ -46,22 +46,22 @@ const LANG_LABELS: Record<string, string> = {
 }
 
 const LANG_COLORS: Record<string, string> = {
-  fr: 'bg-teal-500/15 text-teal-700 border-teal-200',
-  en: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
+  fr: 'bg-blue-500/15 text-blue-700 border-blue-200',
+  en: 'bg-orange-500/15 text-orange-600 border-orange-200',
   ar: 'bg-amber-500/15 text-amber-700 border-amber-200',
   wo: 'bg-orange-500/15 text-orange-700 border-orange-200',
 }
 
 const INTENT_COLORS: Record<string, string> = {
   flight_search: 'bg-sky-500/15 text-sky-700 border-sky-200',
-  flight_status: 'bg-teal-500/15 text-teal-700 border-teal-200',
+  flight_status: 'bg-blue-500/15 text-blue-700 border-blue-200',
   baggage_qr: 'bg-purple-500/15 text-purple-700 border-purple-200',
   lounge_booking: 'bg-amber-500/15 text-amber-700 border-amber-200',
   transport_booking: 'bg-orange-500/15 text-orange-700 border-orange-200',
-  payment_help: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
+  payment_help: 'bg-orange-500/15 text-orange-600 border-orange-200',
   emergency: 'bg-red-500/15 text-red-700 border-red-200',
   greeting: 'bg-gray-500/15 text-gray-600 border-gray-200',
-  help: 'bg-teal-500/15 text-teal-700 border-teal-200',
+  help: 'bg-blue-500/15 text-blue-700 border-blue-200',
   unknown: 'bg-gray-400/15 text-gray-500 border-gray-300',
 }
 
@@ -306,8 +306,8 @@ function formatRelativeTime(dateStr: string): string {
 
 function getAvatarColor(phone: string): string {
   const colors = [
-    'bg-emerald-600',
-    'bg-teal-600',
+    'bg-orange-500',
+    'bg-blue-600',
     'bg-amber-600',
     'bg-orange-600',
     'bg-red-600',
@@ -450,7 +450,7 @@ export function ConversationsModule() {
             <ScrollArea className="h-[500px] md:h-[600px]">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="border-emerald-600 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+                  <div className="border-orange-500 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
                 </div>
               ) : (
                 <div>
@@ -460,7 +460,7 @@ export function ConversationsModule() {
                       onClick={() => handleSelectConversation(conv.id)}
                       className={`flex w-full items-start gap-3 border-b px-3 py-3 text-left transition-colors hover:bg-muted/50 ${
                         selectedId === conv.id
-                          ? 'bg-emerald-50 dark:bg-emerald-950/30'
+                          ? 'bg-orange-50 dark:bg-orange-900/30'
                           : ''
                       }`}
                     >
@@ -498,7 +498,7 @@ export function ConversationsModule() {
                             {LANG_LABELS[conv.language] || conv.language}
                           </Badge>
                           {unreadCounts[conv.id] > 0 && (
-                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[10px] font-bold text-white">
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">
                               {unreadCounts[conv.id]}
                             </span>
                           )}
@@ -561,7 +561,7 @@ export function ConversationsModule() {
                   </Badge>
                   {selectedConversation.status === 'active' && (
                     <Badge
-                      className="bg-emerald-500/15 text-emerald-700 border-emerald-200"
+                      className="bg-orange-500/15 text-orange-600 border-orange-200"
                       variant="outline"
                     >
                       <BadgeCheck className="mr-1 h-3 w-3" />
@@ -586,7 +586,7 @@ export function ConversationsModule() {
                           className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                             msg.direction === 'inbound'
                               ? 'rounded-bl-md bg-muted text-foreground'
-                              : 'rounded-br-md bg-emerald-600 text-white'
+                              : 'rounded-br-md bg-orange-500 text-white'
                           }`}
                         >
                           <div className="text-sm whitespace-pre-wrap leading-relaxed">
@@ -596,7 +596,7 @@ export function ConversationsModule() {
                             className={`mt-1.5 flex items-center gap-2 ${
                               msg.direction === 'inbound'
                                 ? 'text-muted-foreground'
-                                : 'text-emerald-100'
+                                : 'text-orange-100'
                             }`}
                           >
                             <span className="text-[10px]">

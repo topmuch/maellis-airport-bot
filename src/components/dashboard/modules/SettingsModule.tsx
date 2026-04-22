@@ -177,7 +177,7 @@ function GeneralTab({
                 type="checkbox"
                 checked={languages.includes(lang.code)}
                 onChange={() => toggleLang(lang.code)}
-                className="accent-emerald-600"
+                className="accent-orange-500"
               />
               <span className="text-sm">{lang.label}</span>
             </label>
@@ -202,7 +202,7 @@ function GeneralTab({
 
       <div className="flex justify-end">
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="bg-orange-500 hover:bg-orange-600 text-white"
           onClick={handleSave}
           disabled={saving}
         >
@@ -249,7 +249,7 @@ function WhatsAppTab({
         <Badge
           className={`${
             isConnected
-              ? 'bg-emerald-500/15 text-emerald-700 border-emerald-200'
+              ? 'bg-orange-500/15 text-orange-600 border-orange-200'
               : 'bg-red-500/15 text-red-700 border-red-200'
           }`}
           variant="outline"
@@ -342,7 +342,7 @@ function WhatsAppTab({
 
       <div className="flex justify-end">
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="bg-orange-500 hover:bg-orange-600 text-white"
           onClick={handleSave}
           disabled={saving}
         >
@@ -447,7 +447,7 @@ function AITab({
           step="0.1"
           value={temperature}
           onChange={(e) => setTemperature(parseFloat(e.target.value))}
-          className="w-full max-w-sm accent-emerald-600"
+          className="w-full max-w-sm accent-orange-500"
         />
         <div className="flex justify-between text-xs text-muted-foreground max-w-sm">
           <span>Précis (0)</span>
@@ -485,7 +485,7 @@ function AITab({
 
       <div className="flex justify-end">
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="bg-orange-500 hover:bg-orange-600 text-white"
           onClick={handleSave}
           disabled={saving}
         >
@@ -673,7 +673,7 @@ function PaymentsTab({
 
       <div className="flex justify-end">
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="bg-orange-500 hover:bg-orange-600 text-white"
           onClick={handleSave}
           disabled={saving}
         >
@@ -786,7 +786,7 @@ function EmergencyTab({
 
       <div className="flex justify-end">
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="bg-orange-500 hover:bg-orange-600 text-white"
           onClick={handleSave}
           disabled={saving}
         >
@@ -863,7 +863,7 @@ export function SettingsModule() {
       {loading ? (
         <Card>
           <CardContent className="flex items-center justify-center py-12">
-            <div className="border-emerald-600 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+            <div className="border-orange-500 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
           </CardContent>
         </Card>
       ) : (

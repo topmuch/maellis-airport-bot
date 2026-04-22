@@ -255,7 +255,7 @@ function VehicleTypeBadge({ type }: { type: TransportBooking['vehicleType'] }) {
       )
     case 'shuttle':
       return (
-        <Badge className="bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100">
+        <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
           Navigation
           Navette
         </Badge>
@@ -268,7 +268,7 @@ function VehicleTypeBadge({ type }: { type: TransportBooking['vehicleType'] }) {
       )
     case 'bus':
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+        <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
           Bus
         </Badge>
       )
@@ -287,13 +287,13 @@ function TransportStatusBadge({ status }: { status: TransportBooking['status'] }
       )
     case 'confirmed':
       return (
-        <Badge className="bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100">
+        <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
           Confirmée
         </Badge>
       )
     case 'in_progress':
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+        <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
           En cours
         </Badge>
       )
@@ -498,7 +498,7 @@ export function TransportModule() {
         </div>
         <Dialog open={createOpen} onOpenChange={(open) => { if (!open) resetForm(); else setCreateOpen(true) }}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white">
               <Plus className="size-4" />
               Nouvelle Course
             </Button>
@@ -617,16 +617,16 @@ export function TransportModule() {
               </div>
               {/* Price Preview */}
               {form.vehicleType && (
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 flex items-center justify-between">
+                <div className="rounded-lg bg-orange-50 border border-orange-200 p-4 flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-emerald-700">
+                    <p className="text-sm text-orange-600">
                       Tarif {VEHICLE_LABELS[form.vehicleType] || form.vehicleType}
                     </p>
-                    <p className="text-xs text-emerald-600">
+                    <p className="text-xs text-orange-500">
                       {form.pickup} → {form.dropoff}
                     </p>
                   </div>
-                  <p className="text-lg font-bold text-emerald-800">{formatPrice(calculatedPrice)}</p>
+                  <p className="text-lg font-bold text-orange-700">{formatPrice(calculatedPrice)}</p>
                 </div>
               )}
             </div>
@@ -635,7 +635,7 @@ export function TransportModule() {
                 Annuler
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
                 onClick={handleCreate}
                 disabled={submitting}
               >
@@ -651,23 +651,23 @@ export function TransportModule() {
         <StatCard
           title="Courses Total"
           value={stats.total}
-          icon={<Car className="size-6 text-emerald-600" />}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-50"
+          icon={<Car className="size-6 text-orange-500" />}
+          colorClass="text-orange-500"
+          iconBgClass="bg-orange-50"
         />
         <StatCard
           title="En Cours"
           value={stats.inProgress}
-          icon={<Navigation className="size-6 text-teal-600" />}
-          colorClass="text-teal-600"
-          iconBgClass="bg-teal-50"
+          icon={<Navigation className="size-6 text-blue-600" />}
+          colorClass="text-blue-600"
+          iconBgClass="bg-blue-50"
         />
         <StatCard
           title="Terminées"
           value={stats.completed}
-          icon={<CheckCircle className="size-6 text-emerald-600" />}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-50"
+          icon={<CheckCircle className="size-6 text-orange-500" />}
+          colorClass="text-orange-500"
+          iconBgClass="bg-orange-50"
         />
       </div>
 
@@ -690,7 +690,7 @@ export function TransportModule() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="size-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+              <div className="size-8 animate-spin rounded-full border-4 border-orange-200 border-t-orange-500" />
             </div>
           ) : (
             <div className="max-h-[480px] overflow-auto">
@@ -739,7 +739,7 @@ export function TransportModule() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleView(booking)}
-                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                            className="text-orange-500 border-orange-200 hover:bg-orange-50"
                           >
                             <Eye className="size-3.5" />
                             Voir
@@ -793,7 +793,7 @@ export function TransportModule() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Prix:</span>
-                  <p className="font-bold text-emerald-600">{formatPrice(selectedBooking.price)}</p>
+                  <p className="font-bold text-orange-500">{formatPrice(selectedBooking.price)}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Statut:</span>
@@ -803,22 +803,22 @@ export function TransportModule() {
                 </div>
               </div>
               {/* Route visualization */}
-              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4">
+              <div className="rounded-lg bg-orange-50 border border-orange-200 p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-center gap-1">
-                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
-                    <div className="h-8 w-0.5 bg-emerald-300" />
-                    <Navigation className="size-4 text-emerald-600" />
-                    <div className="h-8 w-0.5 bg-emerald-300" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-teal-600" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />
+                    <div className="h-8 w-0.5 bg-orange-300" />
+                    <Navigation className="size-4 text-orange-500" />
+                    <div className="h-8 w-0.5 bg-orange-300" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-blue-600" />
                   </div>
                   <div className="flex flex-col gap-4">
                     <div>
-                      <p className="text-xs text-emerald-600">Départ</p>
+                      <p className="text-xs text-orange-500">Départ</p>
                       <p className="text-sm font-medium">{selectedBooking.pickup}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-teal-600">Arrivée</p>
+                      <p className="text-xs text-blue-600">Arrivée</p>
                       <p className="text-sm font-medium">{selectedBooking.dropoff}</p>
                     </div>
                   </div>

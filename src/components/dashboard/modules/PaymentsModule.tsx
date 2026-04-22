@@ -69,10 +69,10 @@ const PROVIDER_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  success: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
-  completed: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
+  success: 'bg-orange-500/15 text-orange-600 border-orange-200',
+  completed: 'bg-orange-500/15 text-orange-600 border-orange-200',
   pending: 'bg-amber-500/15 text-amber-700 border-amber-200',
-  processing: 'bg-teal-500/15 text-teal-700 border-teal-200',
+  processing: 'bg-blue-500/15 text-blue-700 border-blue-200',
   failed: 'bg-red-500/15 text-red-700 border-red-200',
 }
 
@@ -270,12 +270,12 @@ function StatCard({
           {change && (
             <div className="mt-0.5 flex items-center gap-1">
               {change.startsWith('+') ? (
-                <TrendingUp className={`h-3.5 w-3.5 ${changeColor || 'text-emerald-600'}`} />
+                <TrendingUp className={`h-3.5 w-3.5 ${changeColor || 'text-orange-500'}`} />
               ) : (
                 <TrendingDown className={`h-3.5 w-3.5 ${changeColor || 'text-red-600'}`} />
               )}
               <span
-                className={`text-xs font-medium ${changeColor || (change.startsWith('+') ? 'text-emerald-600' : 'text-red-600')}`}
+                className={`text-xs font-medium ${changeColor || (change.startsWith('+') ? 'text-orange-500' : 'text-red-600')}`}
               >
                 {change}
               </span>
@@ -361,14 +361,14 @@ export function PaymentsModule() {
           value={`${totalAmount.toLocaleString('fr-FR')} FCFA`}
           change="+18%"
           icon={DollarSign}
-          iconColor="bg-emerald-600"
+          iconColor="bg-orange-500"
         />
         <StatCard
           title="Paiements Aujourd'hui"
           value={`${todayTotal.toLocaleString('fr-FR')} FCFA`}
           change="+5%"
           icon={CreditCard}
-          iconColor="bg-teal-600"
+          iconColor="bg-blue-600"
         />
         <StatCard
           title="Orange Money"
@@ -501,7 +501,7 @@ export function PaymentsModule() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="border-emerald-600 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+              <div className="border-orange-500 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
             </div>
           ) : (
             <div className="max-h-[500px] overflow-y-auto">

@@ -178,13 +178,13 @@ function StatusBadge({ status }: { status: BaggageEntry['status'] }) {
   switch (status) {
     case 'active':
       return (
-        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+        <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
           Actif
         </Badge>
       )
     case 'claimed':
       return (
-        <Badge className="bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100">
+        <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
           Récupéré
         </Badge>
       )
@@ -373,7 +373,7 @@ export function BaggageModule() {
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white">
               <Plus className="size-4" />
               Nouveau QR
             </Button>
@@ -463,7 +463,7 @@ export function BaggageModule() {
                 Annuler
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
                 onClick={handleCreate}
                 disabled={submitting}
               >
@@ -479,16 +479,16 @@ export function BaggageModule() {
         <StatCard
           title="Total QR Générés"
           value={stats.total}
-          icon={<QrCode className="size-6 text-emerald-600" />}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-50"
+          icon={<QrCode className="size-6 text-orange-500" />}
+          colorClass="text-orange-500"
+          iconBgClass="bg-orange-50"
         />
         <StatCard
           title="QR Actifs"
           value={stats.active}
-          icon={<CheckCircle className="size-6 text-emerald-600" />}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-50"
+          icon={<CheckCircle className="size-6 text-orange-500" />}
+          colorClass="text-orange-500"
+          iconBgClass="bg-orange-50"
         />
         <StatCard
           title="QR Expirés"
@@ -518,7 +518,7 @@ export function BaggageModule() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="size-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+              <div className="size-8 animate-spin rounded-full border-4 border-orange-200 border-t-orange-500" />
             </div>
           ) : (
             <div className="max-h-[480px] overflow-auto">
@@ -561,7 +561,7 @@ export function BaggageModule() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleViewQR(entry)}
-                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                            className="text-orange-500 border-orange-200 hover:bg-orange-50"
                           >
                             <Eye className="size-3.5" />
                             Voir QR
@@ -616,9 +616,9 @@ export function BaggageModule() {
                 </div>
               </div>
               {/* QR Placeholder */}
-              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 p-6">
-                <QrCode className="size-24 text-emerald-600" />
-                <p className="text-sm font-medium text-emerald-700">{selectedBaggage.tagNumber}</p>
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-orange-300 bg-orange-50/50 p-6">
+                <QrCode className="size-24 text-orange-500" />
+                <p className="text-sm font-medium text-orange-600">{selectedBaggage.tagNumber}</p>
                 <StatusBadge status={selectedBaggage.status} />
               </div>
             </div>

@@ -50,7 +50,7 @@ function CopyButton({ text }: { text: string }) {
       variant="ghost"
       size="sm"
       onClick={handleCopy}
-      className="h-7 gap-1 px-2 text-xs text-gray-500 hover:text-emerald-600"
+      className="h-7 gap-1 px-2 text-xs text-gray-500 hover:text-orange-500"
     >
       {copied ? (
         <>
@@ -162,7 +162,7 @@ function ConfigurationTab() {
       {/* Environment Variables */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Globe className="size-5 text-emerald-600" />
+          <Globe className="size-5 text-orange-500" />
           Variables d&apos;Environnement
         </h3>
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
@@ -181,7 +181,7 @@ function ConfigurationTab() {
               {envVariables.map((env) => (
                 <TableRow key={env.key}>
                   <TableCell>
-                    <code className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                    <code className="rounded bg-orange-50 px-1.5 py-0.5 text-xs font-medium text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
                       {env.key}
                     </code>
                   </TableCell>
@@ -203,7 +203,7 @@ function ConfigurationTab() {
       {/* WhatsApp Setup */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <svg className="size-5 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="size-5 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
           </svg>
           Configuration WhatsApp
@@ -221,7 +221,7 @@ function ConfigurationTab() {
             'Copiez les variables WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN et WHATSAPP_PHONE_NUMBER_ID dans votre .env',
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-3">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-600 dark:bg-orange-800/40 dark:text-orange-400">
                 {i + 1}
               </div>
               <p className="text-sm text-gray-700 dark:text-gray-300">{step}</p>
@@ -235,7 +235,7 @@ function ConfigurationTab() {
       {/* Groq AI Setup */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Code className="size-5 text-emerald-600" />
+          <Code className="size-5 text-orange-500" />
           Configuration IA Groq
         </h3>
         <div className="space-y-3">
@@ -247,7 +247,7 @@ function ConfigurationTab() {
             'Testez la connexion: bun run dev puis accédez à /api/bot/chat',
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-3">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-600 dark:bg-orange-800/40 dark:text-orange-400">
                 {i + 1}
               </div>
               <p className="text-sm text-gray-700 dark:text-gray-300">{step}</p>
@@ -261,7 +261,7 @@ function ConfigurationTab() {
       {/* AviationStack Setup */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Plane className="size-5 text-emerald-600" />
+          <Plane className="size-5 text-orange-500" />
           Configuration AviationStack
         </h3>
         <div className="space-y-3">
@@ -273,7 +273,7 @@ function ConfigurationTab() {
             'Le bot utilisera les données simulées si la clé est absente',
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-3">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-600 dark:bg-orange-800/40 dark:text-orange-400">
                 {i + 1}
               </div>
               <p className="text-sm text-gray-700 dark:text-gray-300">{step}</p>
@@ -287,7 +287,7 @@ function ConfigurationTab() {
       {/* CinetPay Setup */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Shield className="size-5 text-emerald-600" />
+          <Shield className="size-5 text-orange-500" />
           Configuration CinetPay (Paiements)
         </h3>
         <div className="space-y-3">
@@ -300,7 +300,7 @@ function ConfigurationTab() {
             'Configurez les URLs de callback pour les notifications de paiement',
           ].map((step, i) => (
             <div key={i} className="flex items-start gap-3">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-600 dark:bg-orange-800/40 dark:text-orange-400">
                 {i + 1}
               </div>
               <p className="text-sm text-gray-700 dark:text-gray-300">{step}</p>
@@ -333,7 +333,7 @@ const apiEndpoints = [
 function getMethodColor(method: string) {
   switch (method) {
     case 'GET':
-      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+      return 'bg-orange-100 text-orange-700 dark:bg-orange-800/30 dark:text-orange-400'
     case 'POST':
       return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
     case 'PUT':
@@ -357,7 +357,7 @@ function ServicesApiTab() {
       {/* Endpoints Table */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Terminal className="size-5 text-emerald-600" />
+          <Terminal className="size-5 text-orange-500" />
           Endpoints API
         </h3>
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
@@ -398,7 +398,7 @@ function ServicesApiTab() {
       {/* POST /chat Example */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <ChevronRight className="size-5 text-emerald-600" />
+          <ChevronRight className="size-5 text-orange-500" />
           Exemple: POST /chat
         </h3>
         <div className="space-y-4">
@@ -438,7 +438,7 @@ function ServicesApiTab() {
       {/* POST /flight/search Example */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <ChevronRight className="size-5 text-emerald-600" />
+          <ChevronRight className="size-5 text-orange-500" />
           Exemple: POST /flight/search
         </h3>
         <div className="space-y-4">
@@ -486,7 +486,7 @@ function ServicesApiTab() {
       {/* POST /baggage/generate Example */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <ChevronRight className="size-5 text-emerald-600" />
+          <ChevronRight className="size-5 text-orange-500" />
           Exemple: POST /baggage/generate
         </h3>
         <div className="space-y-4">
@@ -533,7 +533,7 @@ function DeploymentTab() {
       {/* Docker Compose */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Database className="size-5 text-emerald-600" />
+          <Database className="size-5 text-orange-500" />
           Docker Compose
         </h3>
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
@@ -610,7 +610,7 @@ docker compose down`} />
       {/* Vercel + Railway */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Rocket className="size-5 text-emerald-600" />
+          <Rocket className="size-5 text-orange-500" />
           Vercel + Railway
         </h3>
         <div className="space-y-3">
@@ -651,7 +651,7 @@ docker compose down`} />
                 <ol className="space-y-1.5">
                   {item.steps.map((step, j) => (
                     <li key={j} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="mt-0.5 size-5 shrink-0 rounded-full bg-emerald-50 text-center text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <span className="mt-0.5 size-5 shrink-0 rounded-full bg-orange-50 text-center text-xs font-medium text-orange-600 dark:bg-orange-800/30 dark:text-orange-400">
                         {j + 1}
                       </span>
                       {step}
@@ -669,7 +669,7 @@ docker compose down`} />
       {/* VPS Deployment */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Terminal className="size-5 text-emerald-600" />
+          <Terminal className="size-5 text-orange-500" />
           VPS (Déploiement Manuelle)
         </h3>
         <CodeBlock
@@ -705,7 +705,7 @@ pm2 startup`}
       {/* Caddy HTTPS */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Shield className="size-5 text-emerald-600" />
+          <Shield className="size-5 text-orange-500" />
           Caddy HTTPS
         </h3>
         <CodeBlock
@@ -738,7 +738,7 @@ votre-domaine.com {
       {/* Cron Jobs */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Settings className="size-5 text-emerald-600" />
+          <Settings className="size-5 text-orange-500" />
           Tâches Planifiées (Cron)
         </h3>
         <CodeBlock
@@ -762,7 +762,7 @@ votre-domaine.com {
       {/* Production Env Vars */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Globe className="size-5 text-emerald-600" />
+          <Globe className="size-5 text-orange-500" />
           Variables de Production
         </h3>
         <CodeBlock
@@ -857,7 +857,7 @@ function TroubleshootingTab() {
       {/* Issues Table */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Wrench className="size-5 text-emerald-600" />
+          <Wrench className="size-5 text-orange-500" />
           Problèmes Courants et Solutions
         </h3>
         <div className="space-y-4">
@@ -877,8 +877,8 @@ function TroubleshootingTab() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/20">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                <div className="rounded-lg bg-orange-50 p-3 dark:bg-orange-900/20">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-400">
                     Solution
                   </p>
                   <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
@@ -896,7 +896,7 @@ function TroubleshootingTab() {
       {/* Log Locations */}
       <section>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-          <Settings className="size-5 text-emerald-600" />
+          <Settings className="size-5 text-orange-500" />
           Emplacement des Logs
         </h3>
         <div className="overflow-x-auto rounded-lg border">
@@ -970,11 +970,11 @@ export function DocsModule() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/30 dark:via-background dark:to-teal-950/20">
+      <Card className="border-orange-200 bg-gradient-to-br from-orange-50 via-white to-blue-50 dark:from-orange-900/30 dark:via-background dark:to-blue-900/20">
         <CardContent className="p-6">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
-              <BookOpen className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex size-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-800/40">
+              <BookOpen className="size-5 text-orange-500 dark:text-orange-400" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">

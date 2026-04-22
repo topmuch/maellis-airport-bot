@@ -152,15 +152,15 @@ const featureCards = [
     icon: Plane,
     title: 'Recherche de Vols',
     description: 'AviationStack en temps réel',
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-50',
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-50',
   },
   {
     icon: MapPin,
     title: 'Statut de Vol',
     description: 'Portes, terminaux, retards',
-    color: 'text-teal-600',
-    bgColor: 'bg-teal-50',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
   },
   {
     icon: QrCode,
@@ -227,9 +227,9 @@ const exampleButtons = [
 function getIntentColor(intent: string) {
   switch (intent) {
     case 'greeting':
-      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+      return 'bg-orange-100 text-orange-700 dark:bg-orange-800/30 dark:text-orange-400'
     case 'help':
-      return 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400'
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
     case 'flight_status':
       return 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400'
     case 'flight_search':
@@ -346,15 +346,15 @@ export function DemoModule() {
   return (
     <div className="space-y-6">
       {/* Hero Section */}
-      <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/30 dark:via-background dark:to-teal-950/20">
+      <Card className="border-orange-200 bg-gradient-to-br from-orange-50 via-white to-blue-50 dark:from-orange-900/30 dark:via-background dark:to-blue-900/20">
         <CardContent className="p-6 md:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <Badge className="bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-700">
+                <Badge className="bg-orange-500 px-3 py-1 text-sm text-white hover:bg-orange-600">
                   MAELLIS
                 </Badge>
-                <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                <Badge variant="outline" className="border-orange-300 text-orange-600">
                   v1.0.0
                 </Badge>
               </div>
@@ -368,8 +368,8 @@ export function DemoModule() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Sparkles className="size-5 text-emerald-600" />
-              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              <Sparkles className="size-5 text-orange-500" />
+              <span className="text-sm font-medium text-orange-600 dark:text-orange-400">
                 IA Propulsée par Groq Llama-3
               </span>
             </div>
@@ -385,7 +385,7 @@ export function DemoModule() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex size-3 items-center justify-center">
-                  <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <div className="size-2 rounded-full bg-orange-500 animate-pulse" />
                 </div>
                 <CardTitle className="text-lg">Chat Interactif</CardTitle>
               </div>
@@ -414,12 +414,12 @@ export function DemoModule() {
                   <div
                     className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
                       msg.role === 'bot'
-                        ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                        ? 'bg-orange-100 dark:bg-orange-800/40'
                         : 'bg-gray-200 dark:bg-gray-800'
                     }`}
                   >
                     {msg.role === 'bot' ? (
-                      <Bot className="size-4 text-emerald-600 dark:text-emerald-400" />
+                      <Bot className="size-4 text-orange-500 dark:text-orange-400" />
                     ) : (
                       <User className="size-4 text-gray-600 dark:text-gray-400" />
                     )}
@@ -429,7 +429,7 @@ export function DemoModule() {
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-emerald-600 text-white rounded-br-md'
+                        ? 'bg-orange-500 text-white rounded-br-md'
                         : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100 rounded-bl-md'
                     }`}
                   >
@@ -451,7 +451,7 @@ export function DemoModule() {
                     <div
                       className={`mt-1 text-[10px] ${
                         msg.role === 'user'
-                          ? 'text-emerald-200'
+                          ? 'text-orange-200'
                           : 'text-gray-400 dark:text-gray-500'
                       }`}
                     >
@@ -467,8 +467,8 @@ export function DemoModule() {
               {/* Typing Indicator */}
               {isTyping && (
                 <div className="flex gap-2">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
-                    <Bot className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-800/40">
+                    <Bot className="size-4 text-orange-500 dark:text-orange-400" />
                   </div>
                   <div className="rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 dark:bg-gray-800">
                     <div className="flex gap-1">
@@ -496,7 +496,7 @@ export function DemoModule() {
                 <Button
                   onClick={() => handleSend()}
                   disabled={isTyping || !inputValue.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-orange-500 hover:bg-orange-600"
                 >
                   <Send className="size-4" />
                 </Button>
@@ -519,7 +519,7 @@ export function DemoModule() {
               <Button
                 key={i}
                 variant="outline"
-                className="w-full justify-start gap-2 text-left font-normal hover:border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                className="w-full justify-start gap-2 text-left font-normal hover:border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30"
                 onClick={() => handleSend(btn)}
                 disabled={isTyping}
               >
@@ -598,10 +598,10 @@ export function DemoModule() {
             {techStack.map((tech) => (
               <div
                 key={tech}
-                className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/30"
+                className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-700 dark:bg-orange-900/30"
               >
-                <CheckCircle className="size-4 shrink-0 text-emerald-600" />
-                <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                <CheckCircle className="size-4 shrink-0 text-orange-500" />
+                <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
                   {tech}
                 </span>
               </div>
@@ -611,14 +611,14 @@ export function DemoModule() {
       </Card>
 
       {/* Contact CTA */}
-      <Card className="border-emerald-200 bg-gradient-to-r from-emerald-600 to-teal-600">
+      <Card className="border-orange-200 bg-gradient-to-r from-orange-500 to-blue-600">
         <CardContent className="p-6 md:p-8">
           <div className="flex flex-col items-center text-center md:flex-row md:text-left md:justify-between">
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-white md:text-2xl">
                 Intéressé par MAELLIS ?
               </h2>
-              <p className="text-emerald-100">
+              <p className="text-orange-100">
                 Contactez-nous pour une démonstration personnalisée
               </p>
             </div>

@@ -78,7 +78,7 @@ const SEVERITY_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   open: 'bg-red-500/15 text-red-700 border-red-200',
   acknowledged: 'bg-amber-500/15 text-amber-700 border-amber-200',
-  resolved: 'bg-emerald-500/15 text-emerald-700 border-emerald-200',
+  resolved: 'bg-orange-500/15 text-orange-600 border-orange-200',
   escalated: 'bg-purple-500/15 text-purple-700 border-purple-200',
 }
 
@@ -518,23 +518,23 @@ export function EmergencyModule() {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500">
               <CheckCircle className="h-6 w-6 text-white" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Résolues Aujourd&apos;hui</p>
-              <p className="text-2xl font-bold text-emerald-600">{resolvedCount}</p>
+              <p className="text-2xl font-bold text-orange-500">{resolvedCount}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600">
               <Timer className="h-6 w-6 text-white" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Temps Moyen Résolution</p>
-              <p className="text-2xl font-bold text-teal-600">12 min</p>
+              <p className="text-2xl font-bold text-blue-600">12 min</p>
             </div>
           </CardContent>
         </Card>
@@ -550,7 +550,7 @@ export function EmergencyModule() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="border-emerald-600 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+              <div className="border-orange-500 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
             </div>
           ) : (
             <div className="max-h-[500px] overflow-y-auto">
@@ -649,7 +649,7 @@ export function EmergencyModule() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 h-7 text-xs"
+                                className="border-orange-300 text-orange-600 hover:bg-orange-50 h-7 text-xs"
                                 onClick={() => handleResolve(alert.id)}
                               >
                                 <CheckCircle className="mr-1 h-3 w-3" />
@@ -657,7 +657,7 @@ export function EmergencyModule() {
                               </Button>
                             )}
                             {alert.status === 'resolved' && (
-                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+                              <CheckCircle className="h-4 w-4 text-orange-500" />
                             )}
                           </div>
                         </TableCell>

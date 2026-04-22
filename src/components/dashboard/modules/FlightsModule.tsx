@@ -309,7 +309,7 @@ function getFlightStatusBadge(status: string) {
       )
     case 'departed':
       return (
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 flex items-center gap-1">
+        <Badge className="bg-orange-100 text-orange-600 border-orange-200 dark:bg-orange-800/30 dark:text-orange-400 dark:border-orange-700 flex items-center gap-1">
           <Plane className="size-3" />
           Décollé
         </Badge>
@@ -344,7 +344,7 @@ function getSearchResultBadge(status: string) {
   switch (status) {
     case 'available':
       return (
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
+        <Badge className="bg-orange-100 text-orange-600 border-orange-200 dark:bg-orange-800/30 dark:text-orange-400 dark:border-orange-700">
           Disponible
         </Badge>
       )
@@ -773,7 +773,7 @@ export function FlightsModule() {
           <div className="flex flex-wrap gap-2">
             {[
               { label: 'Programmé', count: flightStatuses.filter((f) => f.status === 'scheduled').length, color: 'bg-slate-100 text-slate-700 dark:bg-slate-800/30 dark:text-slate-400' },
-              { label: 'Décollé', count: flightStatuses.filter((f) => f.status === 'departed').length, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+              { label: 'Décollé', count: flightStatuses.filter((f) => f.status === 'departed').length, color: 'bg-orange-100 text-orange-600 dark:bg-orange-800/30 dark:text-orange-400' },
               { label: 'Retardé', count: flightStatuses.filter((f) => f.status === 'delayed').length, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
               { label: 'Arrivé', count: flightStatuses.filter((f) => f.status === 'arrived').length, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
               { label: 'Annulé', count: flightStatuses.filter((f) => f.status === 'cancelled').length, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
