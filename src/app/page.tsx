@@ -10,6 +10,10 @@ import { TransportModule } from '@/components/dashboard/modules/TransportModule'
 import { PaymentsModule } from '@/components/dashboard/modules/PaymentsModule'
 import { EmergencyModule } from '@/components/dashboard/modules/EmergencyModule'
 import { ConversationsModule } from '@/components/dashboard/modules/ConversationsModule'
+import { AnalyticsModule } from '@/components/dashboard/modules/AnalyticsModule'
+import { TeamModule } from '@/components/dashboard/modules/TeamModule'
+import { ReportsModule } from '@/components/dashboard/modules/ReportsModule'
+import { ModuleManagement } from '@/components/dashboard/modules/ModuleManagement'
 import { DemoModule } from '@/components/dashboard/modules/DemoModule'
 import { DocsModule } from '@/components/dashboard/modules/DocsModule'
 import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
@@ -23,6 +27,10 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   payments: PaymentsModule,
   emergency: EmergencyModule,
   conversations: ConversationsModule,
+  analytics: AnalyticsModule,
+  team: TeamModule,
+  reports: ReportsModule,
+  modules: ModuleManagement,
   demo: DemoModule,
   docs: DocsModule,
   settings: SettingsModule,
