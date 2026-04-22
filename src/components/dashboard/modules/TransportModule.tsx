@@ -651,22 +651,22 @@ export function TransportModule() {
         <StatCard
           title="Courses Total"
           value={stats.total}
-          icon={<Car className="size-6 text-sky-500" />}
-          colorClass="text-sky-500"
+          icon={<Car className="size-6 text-sky-600 dark:text-sky-400" />}
+          colorClass="text-sky-600 dark:text-sky-400"
           iconBgClass="bg-sky-100 dark:bg-sky-900/30"
         />
         <StatCard
           title="En Cours"
           value={stats.inProgress}
-          icon={<Navigation className="size-6 text-blue-500" />}
-          colorClass="text-blue-500"
+          icon={<Navigation className="size-6 text-blue-600 dark:text-blue-400" />}
+          colorClass="text-blue-600 dark:text-blue-400"
           iconBgClass="bg-blue-100 dark:bg-blue-900/30"
         />
         <StatCard
           title="Terminées"
           value={stats.completed}
-          icon={<CheckCircle className="size-6 text-emerald-500" />}
-          colorClass="text-emerald-500"
+          icon={<CheckCircle className="size-6 text-emerald-600 dark:text-emerald-400" />}
+          colorClass="text-emerald-600 dark:text-emerald-400"
           iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
         />
       </div>

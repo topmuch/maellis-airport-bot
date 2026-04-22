@@ -635,22 +635,22 @@ export function LoungeModule() {
         <StatCard
           title="Réservations Total"
           value={stats.total}
-          icon={<Crown className="size-6 text-violet-500" />}
-          colorClass="text-violet-500"
+          icon={<Crown className="size-6 text-violet-600 dark:text-violet-400" />}
+          colorClass="text-violet-600 dark:text-violet-400"
           iconBgClass="bg-violet-100 dark:bg-violet-900/30"
         />
         <StatCard
           title="Confirmées"
           value={stats.confirmed}
-          icon={<CheckCircle className="size-6 text-emerald-500" />}
-          colorClass="text-emerald-500"
+          icon={<CheckCircle className="size-6 text-emerald-600 dark:text-emerald-400" />}
+          colorClass="text-emerald-600 dark:text-emerald-400"
           iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
         />
         <StatCard
           title="En Attente"
           value={stats.pending}
-          icon={<Clock className="size-6 text-amber-500" />}
-          colorClass="text-amber-500"
+          icon={<Clock className="size-6 text-amber-600 dark:text-amber-400" />}
+          colorClass="text-amber-600 dark:text-amber-400"
           iconBgClass="bg-amber-100 dark:bg-amber-900/30"
         />
       </div>

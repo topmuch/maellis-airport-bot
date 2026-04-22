@@ -480,22 +480,22 @@ export function BaggageModule() {
         <StatCard
           title="Total QR Générés"
           value={stats.total}
-          icon={<QrCode className="size-6 text-orange-500" />}
-          colorClass="text-orange-500"
+          icon={<QrCode className="size-6 text-orange-600 dark:text-orange-400" />}
+          colorClass="text-orange-600 dark:text-orange-400"
           iconBgClass="bg-orange-100 dark:bg-orange-900/30"
         />
         <StatCard
           title="QR Actifs"
           value={stats.active}
-          icon={<CheckCircle className="size-6 text-emerald-500" />}
-          colorClass="text-emerald-500"
+          icon={<CheckCircle className="size-6 text-emerald-600 dark:text-emerald-400" />}
+          colorClass="text-emerald-600 dark:text-emerald-400"
           iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
         />
         <StatCard
           title="QR Expirés"
           value={stats.expired}
-          icon={<Clock className="size-6 text-rose-500" />}
-          colorClass="text-rose-500"
+          icon={<Clock className="size-6 text-rose-600 dark:text-rose-400" />}
+          colorClass="text-rose-600 dark:text-rose-400"
           iconBgClass="bg-rose-100 dark:bg-rose-900/30"
         />
       </div>
