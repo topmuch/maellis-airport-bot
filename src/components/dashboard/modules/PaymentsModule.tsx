@@ -247,6 +247,7 @@ function StatCard({
   change,
   icon: Icon,
   iconColor,
+  borderColor,
   changeColor,
 }: {
   title: string
@@ -254,10 +255,11 @@ function StatCard({
   change?: string
   icon: React.ElementType
   iconColor: string
+  borderColor: string
   changeColor?: string
 }) {
   return (
-    <Card>
+    <Card className={`border-l-4 ${borderColor} overflow-hidden`}>
       <CardContent className="flex items-center gap-4">
         <div
           className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${iconColor}`}
@@ -270,12 +272,12 @@ function StatCard({
           {change && (
             <div className="mt-0.5 flex items-center gap-1">
               {change.startsWith('+') ? (
-                <TrendingUp className={`h-3.5 w-3.5 ${changeColor || 'text-orange-500'}`} />
+                <TrendingUp className={`h-3.5 w-3.5 ${changeColor || 'text-emerald-500'}`} />
               ) : (
-                <TrendingDown className={`h-3.5 w-3.5 ${changeColor || 'text-red-600'}`} />
+                <TrendingDown className={`h-3.5 w-3.5 ${changeColor || 'text-rose-500'}`} />
               )}
               <span
-                className={`text-xs font-medium ${changeColor || (change.startsWith('+') ? 'text-orange-500' : 'text-red-600')}`}
+                className={`text-xs font-medium ${changeColor || (change.startsWith('+') ? 'text-emerald-500' : 'text-rose-500')}`}
               >
                 {change}
               </span>
@@ -361,26 +363,30 @@ export function PaymentsModule() {
           value={`${totalAmount.toLocaleString('fr-FR')} FCFA`}
           change="+18%"
           icon={DollarSign}
-          iconColor="bg-orange-500"
+          iconColor="bg-emerald-500"
+          borderColor="border-l-emerald-500"
         />
         <StatCard
           title="Paiements Aujourd'hui"
           value={`${todayTotal.toLocaleString('fr-FR')} FCFA`}
           change="+5%"
           icon={CreditCard}
-          iconColor="bg-blue-600"
+          iconColor="bg-orange-500"
+          borderColor="border-l-orange-500"
         />
         <StatCard
           title="Orange Money"
           value="67%"
           icon={Smartphone}
-          iconColor="bg-orange-500"
+          iconColor="bg-violet-500"
+          borderColor="border-l-violet-500"
         />
         <StatCard
           title="Wave"
           value="33%"
           icon={Waves}
           iconColor="bg-sky-500"
+          borderColor="border-l-sky-500"
         />
       </div>
 

@@ -289,7 +289,7 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon, colorClass, iconBgClass }: StatCardProps) {
   return (
-    <Card>
+    <Card className={`border-l-4 ${colorClass.replace('text-', 'border-l-')} overflow-hidden`}>
       <CardContent className="flex items-center gap-4">
         <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBgClass}`}>
           {icon}
@@ -634,23 +634,23 @@ export function LoungeModule() {
         <StatCard
           title="Réservations Total"
           value={stats.total}
-          icon={<Crown className="size-6 text-orange-500" />}
-          colorClass="text-orange-500"
-          iconBgClass="bg-orange-50"
+          icon={<Crown className="size-6 text-violet-500" />}
+          colorClass="text-violet-500"
+          iconBgClass="bg-violet-100 dark:bg-violet-900/30"
         />
         <StatCard
           title="Confirmées"
           value={stats.confirmed}
-          icon={<CheckCircle className="size-6 text-orange-500" />}
-          colorClass="text-orange-500"
-          iconBgClass="bg-orange-50"
+          icon={<CheckCircle className="size-6 text-emerald-500" />}
+          colorClass="text-emerald-500"
+          iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
         />
         <StatCard
           title="En Attente"
           value={stats.pending}
-          icon={<Clock className="size-6 text-amber-600" />}
-          colorClass="text-amber-600"
-          iconBgClass="bg-amber-50"
+          icon={<Clock className="size-6 text-amber-500" />}
+          colorClass="text-amber-500"
+          iconBgClass="bg-amber-100 dark:bg-amber-900/30"
         />
       </div>
 

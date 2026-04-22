@@ -326,7 +326,7 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon, colorClass, iconBgClass }: StatCardProps) {
   return (
-    <Card>
+    <Card className={`border-l-4 ${colorClass.replace('text-', 'border-l-')} overflow-hidden`}>
       <CardContent className="flex items-center gap-4">
         <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBgClass}`}>
           {icon}
@@ -651,23 +651,23 @@ export function TransportModule() {
         <StatCard
           title="Courses Total"
           value={stats.total}
-          icon={<Car className="size-6 text-orange-500" />}
-          colorClass="text-orange-500"
-          iconBgClass="bg-orange-50"
+          icon={<Car className="size-6 text-sky-500" />}
+          colorClass="text-sky-500"
+          iconBgClass="bg-sky-100 dark:bg-sky-900/30"
         />
         <StatCard
           title="En Cours"
           value={stats.inProgress}
-          icon={<Navigation className="size-6 text-blue-600" />}
-          colorClass="text-blue-600"
-          iconBgClass="bg-blue-50"
+          icon={<Navigation className="size-6 text-blue-500" />}
+          colorClass="text-blue-500"
+          iconBgClass="bg-blue-100 dark:bg-blue-900/30"
         />
         <StatCard
           title="Terminées"
           value={stats.completed}
-          icon={<CheckCircle className="size-6 text-orange-500" />}
-          colorClass="text-orange-500"
-          iconBgClass="bg-orange-50"
+          icon={<CheckCircle className="size-6 text-emerald-500" />}
+          colorClass="text-emerald-500"
+          iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
         />
       </div>
 

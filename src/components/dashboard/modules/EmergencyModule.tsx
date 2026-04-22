@@ -494,47 +494,47 @@ export function EmergencyModule() {
 
       {/* Stats Row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="border-l-4 border-l-red-500 overflow-hidden">
           <CardContent className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-600">
-              <ShieldAlert className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30">
+              <ShieldAlert className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Alertes Ouvertes</p>
-              <p className="text-2xl font-bold text-red-600">{openCount}</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{openCount}</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-amber-500 overflow-hidden">
           <CardContent className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500">
-              <Clock className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
+              <Clock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">En Cours de Traitement</p>
-              <p className="text-2xl font-bold text-amber-600">{inProgressCount}</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{inProgressCount}</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-orange-500 overflow-hidden">
           <CardContent className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500">
-              <CheckCircle className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-100 dark:bg-orange-900/30">
+              <CheckCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Résolues Aujourd&apos;hui</p>
-              <p className="text-2xl font-bold text-orange-500">{resolvedCount}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{resolvedCount}</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-cyan-500 overflow-hidden">
           <CardContent className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600">
-              <Timer className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-100 dark:bg-cyan-900/30">
+              <Timer className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Temps Moyen Résolution</p>
-              <p className="text-2xl font-bold text-blue-600">12 min</p>
+              <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">12 min</p>
             </div>
           </CardContent>
         </Card>

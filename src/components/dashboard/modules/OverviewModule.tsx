@@ -12,7 +12,7 @@ import {
   Clock,
   Zap,
 } from 'lucide-react'
-import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Cell } from 'recharts'
 import {
   Card,
   CardContent,
@@ -83,13 +83,13 @@ const trafficData = [
 ]
 
 const intentsData = [
-  { name: 'vols', value: 45 },
-  { name: 'bagages', value: 15 },
-  { name: 'transport', value: 12 },
-  { name: 'lounge', value: 8 },
-  { name: 'paiements', value: 10 },
-  { name: 'urgences', value: 5 },
-  { name: 'autres', value: 5 },
+  { name: 'vols', value: 45, fill: '#f97316' },
+  { name: 'bagages', value: 15, fill: '#10b981' },
+  { name: 'transport', value: 12, fill: '#0ea5e9' },
+  { name: 'lounge', value: 8, fill: '#8b5cf6' },
+  { name: 'paiements', value: 10, fill: '#f59e0b' },
+  { name: 'urgences', value: 5, fill: '#f43f5e' },
+  { name: 'autres', value: 5, fill: '#6b7280' },
 ]
 
 const mockRecentConversations: RecentConversation[] = [
@@ -142,9 +142,9 @@ const mockRecentConversations: RecentConversation[] = [
 
 const languageData = [
   { code: 'FR', label: 'Français', pct: 65, color: 'bg-orange-500' },
-  { code: 'EN', label: 'English', pct: 20, color: 'bg-blue-500' },
+  { code: 'EN', label: 'English', pct: 20, color: 'bg-sky-500' },
   { code: 'WO', label: 'Wolof', pct: 10, color: 'bg-amber-500' },
-  { code: 'AR', label: 'العربية', pct: 5, color: 'bg-rose-500' },
+  { code: 'AR', label: 'العربية', pct: 5, color: 'bg-violet-500' },
 ]
 
 // ─── Chart configs ───────────────────────────────────────────────────────────
@@ -159,8 +159,14 @@ const trafficChartConfig = {
 const intentsChartConfig = {
   value: {
     label: 'Pourcentage',
-    color: '#1e3a8a',
   },
+  vols: { label: 'Vols', color: '#f97316' },
+  bagages: { label: 'Bagages', color: '#10b981' },
+  transport: { label: 'Transport', color: '#0ea5e9' },
+  lounge: { label: 'Lounge', color: '#8b5cf6' },
+  paiements: { label: 'Paiements', color: '#f59e0b' },
+  urgences: { label: 'Urgences', color: '#f43f5e' },
+  autres: { label: 'Autres', color: '#6b7280' },
 } satisfies ChartConfig
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -237,8 +243,10 @@ export function OverviewModule() {
       change: '+12%',
       trend: 'up' as const,
       icon: MessageSquare,
-      iconBg: 'bg-orange-100 dark:bg-orange-800/30',
-      iconColor: 'text-orange-500 dark:text-orange-400',
+      iconBg: 'bg-orange-100 dark:bg-orange-900/30',
+      iconColor: 'text-orange-600 dark:text-orange-400',
+      borderClass: 'border-l-orange-500',
+      valueColor: 'text-orange-600 dark:text-orange-400',
     },
     {
       title: 'Recherche Vols Aujourd\'hui',
@@ -246,8 +254,10 @@ export function OverviewModule() {
       change: '+8%',
       trend: 'up' as const,
       icon: Plane,
-      iconBg: 'bg-blue-100 dark:bg-blue-900/30',
-      iconColor: 'text-blue-600 dark:text-blue-400',
+      iconBg: 'bg-sky-100 dark:bg-sky-900/30',
+      iconColor: 'text-sky-600 dark:text-sky-400',
+      borderClass: 'border-l-sky-500',
+      valueColor: 'text-sky-600 dark:text-sky-400',
     },
     {
       title: 'Alertes Actives',
@@ -255,8 +265,10 @@ export function OverviewModule() {
       change: '-25%',
       trend: 'down' as const,
       icon: ShieldAlert,
-      iconBg: 'bg-amber-100 dark:bg-amber-900/30',
-      iconColor: 'text-amber-600 dark:text-amber-400',
+      iconBg: 'bg-rose-100 dark:bg-rose-900/30',
+      iconColor: 'text-rose-600 dark:text-rose-400',
+      borderClass: 'border-l-rose-500',
+      valueColor: 'text-rose-600 dark:text-rose-400',
     },
     {
       title: 'Revenus Aujourd\'hui',
@@ -264,8 +276,10 @@ export function OverviewModule() {
       change: '+15%',
       trend: 'up' as const,
       icon: DollarSign,
-      iconBg: 'bg-rose-100 dark:bg-rose-900/30',
-      iconColor: 'text-rose-600 dark:text-rose-400',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      borderClass: 'border-l-emerald-500',
+      valueColor: 'text-emerald-600 dark:text-emerald-400',
     },
   ]
 
@@ -282,30 +296,30 @@ export function OverviewModule() {
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((card) => (
-          <Card key={card.title} className="gap-4">
+          <Card key={card.title} className={`gap-4 border-l-4 ${card.borderClass} overflow-hidden`}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardDescription className="text-sm font-medium">
                 {card.title}
               </CardDescription>
-              <div className={`rounded-lg p-2 ${card.iconBg}`}>
-                <card.icon className={`size-4 ${card.iconColor}`} />
+              <div className={`rounded-xl p-2.5 ${card.iconBg}`}>
+                <card.icon className={`size-5 ${card.iconColor}`} />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{card.value}</div>
+              <div className={`text-2xl font-bold ${card.valueColor}`}>{card.value}</div>
               <div className="flex items-center gap-1 mt-1">
                 {card.trend === 'up' ? (
-                  <TrendingUp className="size-3.5 text-orange-500" />
+                  <TrendingUp className="size-3.5 text-emerald-500" />
                 ) : (
-                  <TrendingDown className="size-3.5 text-orange-500" />
+                  <TrendingDown className="size-3.5 text-rose-500" />
                 )}
                 <span
                   className={`text-xs font-medium ${
                     card.trend === 'up' && card.title === 'Alertes Actives'
-                      ? 'text-red-500'
-                      : card.trend === 'down'
-                        ? 'text-orange-500'
-                        : 'text-orange-500'
+                      ? 'text-rose-500'
+                      : card.trend === 'up'
+                        ? 'text-emerald-500'
+                        : 'text-rose-500'
                   }`}
                 >
                   {card.change}
@@ -411,11 +425,11 @@ export function OverviewModule() {
                   }
                 />
                 <ChartLegend content={<ChartLegendContent />} />
-                <Bar
-                  dataKey="value"
-                  fill="#1e3a8a"
-                  radius={[4, 4, 0, 0]}
-                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {intentsData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -425,10 +439,12 @@ export function OverviewModule() {
       {/* Quick Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Languages */}
-        <Card>
+        <Card className="border-l-4 border-l-violet-500 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Globe className="size-4 text-muted-foreground" />
+              <div className="flex size-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                <Globe className="size-4 text-violet-600 dark:text-violet-400" />
+              </div>
               Langues Utilisées
             </CardTitle>
           </CardHeader>
@@ -458,10 +474,12 @@ export function OverviewModule() {
         </Card>
 
         {/* Resolution Rate */}
-        <Card>
+        <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Zap className="size-4 text-muted-foreground" />
+              <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                <Zap className="size-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
               Taux de Résolution
             </CardTitle>
           </CardHeader>
@@ -483,7 +501,7 @@ export function OverviewModule() {
                     cy="50"
                     r="40"
                     fill="none"
-                    stroke="#f97316"
+                    stroke="#10b981"
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={`${94 * 2.51} ${100 * 2.51}`}
@@ -491,7 +509,7 @@ export function OverviewModule() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-orange-500 dark:text-orange-400">
+                  <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                     94%
                   </span>
                 </div>
@@ -504,17 +522,19 @@ export function OverviewModule() {
         </Card>
 
         {/* Average Response Time */}
-        <Card>
+        <Card className="border-l-4 border-l-cyan-500 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="size-4 text-muted-foreground" />
+              <div className="flex size-8 items-center justify-center rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
+                <Clock className="size-4 text-cyan-600 dark:text-cyan-400" />
+              </div>
               Temps de Réponse Moyen
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col items-center justify-center gap-3 py-2">
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-blue-600 dark:text-blue-400">
+                <span className="text-4xl font-bold text-cyan-600 dark:text-cyan-400">
                   1.2
                 </span>
                 <span className="text-lg text-muted-foreground">sec</span>
@@ -525,7 +545,7 @@ export function OverviewModule() {
                   (height, i) => (
                     <div
                       key={i}
-                      className="w-1.5 rounded-sm bg-blue-400/70"
+                      className="w-1.5 rounded-sm bg-cyan-400/70"
                       style={{ height: `${height}%` }}
                     />
                   )

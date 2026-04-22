@@ -211,7 +211,7 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon, colorClass, iconBgClass }: StatCardProps) {
   return (
-    <Card>
+    <Card className={`border-l-4 ${colorClass.replace('text-', 'border-l-')} overflow-hidden`}>
       <CardContent className="flex items-center gap-4">
         <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBgClass}`}>
           {icon}
@@ -481,21 +481,21 @@ export function BaggageModule() {
           value={stats.total}
           icon={<QrCode className="size-6 text-orange-500" />}
           colorClass="text-orange-500"
-          iconBgClass="bg-orange-50"
+          iconBgClass="bg-orange-100 dark:bg-orange-900/30"
         />
         <StatCard
           title="QR Actifs"
           value={stats.active}
-          icon={<CheckCircle className="size-6 text-orange-500" />}
-          colorClass="text-orange-500"
-          iconBgClass="bg-orange-50"
+          icon={<CheckCircle className="size-6 text-emerald-500" />}
+          colorClass="text-emerald-500"
+          iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
         />
         <StatCard
           title="QR Expirés"
           value={stats.expired}
-          icon={<Clock className="size-6 text-amber-600" />}
-          colorClass="text-amber-600"
-          iconBgClass="bg-amber-50"
+          icon={<Clock className="size-6 text-rose-500" />}
+          colorClass="text-rose-500"
+          iconBgClass="bg-rose-100 dark:bg-rose-900/30"
         />
       </div>
 
