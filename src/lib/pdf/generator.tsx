@@ -1,4 +1,4 @@
-import { pdf } from '@react-pdf/renderer'
+import { renderToBuffer } from '@react-pdf/renderer'
 import {
   RevenueReportPDF,
   ActivityReportPDF,
@@ -15,9 +15,7 @@ import {
  */
 export async function generateRevenuePDF(data: RevenueReportData): Promise<Buffer> {
   try {
-    const document = <RevenueReportPDF data={data} />
-    const instance = pdf(document)
-    const buffer = await instance.toBuffer()
+    const buffer = await renderToBuffer(<RevenueReportPDF data={data} />)
     return Buffer.from(buffer)
   } catch (error) {
     console.error('Error generating revenue PDF:', error)
@@ -36,9 +34,7 @@ export async function generateRevenuePDF(data: RevenueReportData): Promise<Buffe
  */
 export async function generateActivityPDF(data: ActivityReportData): Promise<Buffer> {
   try {
-    const document = <ActivityReportPDF data={data} />
-    const instance = pdf(document)
-    const buffer = await instance.toBuffer()
+    const buffer = await renderToBuffer(<ActivityReportPDF data={data} />)
     return Buffer.from(buffer)
   } catch (error) {
     console.error('Error generating activity PDF:', error)

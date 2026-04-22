@@ -4,6 +4,10 @@
  * Reads existing conversations with JSON messages in the `messages` field,
  * parses each message, and creates corresponding `ConversationMessage` records.
  *
+ * Supports both formats:
+ * - Legacy: { direction: "inbound"|"outbound", content: "...", intent?: "...", timestamp?: "..." }
+ * - New: { role: "user"|"assistant"|"system"|"agent", content: "...", intent?: "...", timestamp?: "..." }
+ *
  * Usage: bun run scripts/migrate-conversations.ts
  */
 
@@ -13,12 +17,29 @@ const db = new PrismaClient()
 
 interface LegacyMessage {
   role?: string
+  direction?: string
   content?: string
   intent?: string
+  messageType?: string
   entities?: unknown
   language?: string
   metadata?: unknown
   timestamp?: string
+}
+
+function directionToRole(direction: string): string {
+  switch (direction.toLowerCase()) {
+    case 'inbound':
+      return 'user'
+    case 'outbound':
+      return 'assistant'
+    case 'system':
+      return 'system'
+    case 'agent':
+      return 'agent'
+    default:
+      return direction
+  }
 }
 
 async function migrate() {
@@ -62,26 +83,52 @@ async function migrate() {
       }
 
       const legacyMessages = parsed as LegacyMessage[]
-      const validMessages = legacyMessages.filter(
-        (m) => m.role && m.content
-      )
 
-      if (validMessages.length === 0) {
+      // Check if already migrated (has ConversationMessage records)
+      const existingCount = await db.conversationMessage.count({
+        where: { conversationId: conv.id },
+      })
+      if (existingCount > 0) {
+        console.log(`  ⏭️  Conversation ${conv.id}: already has ${existingCount} messages, skipping`)
         skipped++
         continue
       }
 
-      const now = new Date()
-      const records = validMessages.map((msg, index) => ({
-        conversationId: conv.id,
-        role: msg.role!,
-        content: msg.content!,
-        intent: msg.intent ?? null,
-        entities: msg.entities ? JSON.stringify(msg.entities) : null,
-        language: msg.language ?? conv.language,
-        metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
-        createdAt: msg.timestamp ? new Date(msg.timestamp) : new Date(now.getTime() + index),
-      }))
+      const records = legacyMessages
+        .map((msg, index) => {
+          // Determine role from direction or role field
+          let role = msg.role || (msg.direction ? directionToRole(msg.direction) : 'user')
+
+          // Determine content - handle both 'content' field names
+          const content = msg.content
+          if (!content) return null
+
+          return {
+            conversationId: conv.id,
+            role,
+            content,
+            intent: msg.intent ?? null,
+            entities: msg.entities ? JSON.stringify(msg.entities) : null,
+            language: msg.language ?? conv.language,
+            metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
+            createdAt: msg.timestamp ? new Date(msg.timestamp) : new Date(Date.now() + index),
+          }
+        })
+        .filter(Boolean) as Array<{
+          conversationId: string
+          role: string
+          content: string
+          intent: string | null
+          entities: string | null
+          language: string
+          metadata: string | null
+          createdAt: Date
+        }>
+
+      if (records.length === 0) {
+        skipped++
+        continue
+      }
 
       await db.conversationMessage.createMany({
         data: records,
