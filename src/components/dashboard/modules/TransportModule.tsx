@@ -256,7 +256,6 @@ function VehicleTypeBadge({ type }: { type: TransportBooking['vehicleType'] }) {
     case 'shuttle':
       return (
         <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
-          Navigation
           Navette
         </Badge>
       )
