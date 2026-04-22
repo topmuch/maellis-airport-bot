@@ -35,11 +35,22 @@ import {
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+interface TransportProvider {
+  id: string
+  name: string
+  type: string
+  baseFare: number
+  perKmRate: number
+  minFare: number
+  airportCode: string
+  isActive: boolean
+}
+
 interface TransportBooking {
   id: string
   ref: string
   passenger: string
-  vehicleType: 'taxi' | 'shuttle' | 'private' | 'bus'
+  vehicleType: 'taxi' | 'shuttle' | 'private' | 'bus' | string
   pickup: string
   dropoff: string
   date: string
@@ -58,7 +69,7 @@ interface TransportStats {
 interface CreateTransportForm {
   passenger: string
   phone: string
-  vehicleType: string
+  providerId: string
   pickup: string
   dropoff: string
   date: string
@@ -242,6 +253,22 @@ const MOCK_STATS: TransportStats = {
   completed: 133,
 }
 
+const MOCK_PROVIDERS: TransportProvider[] = [
+  { id: 'mock-taxi-1', name: 'Taxi Dakar Express', type: 'taxi', baseFare: 2000, perKmRate: 800, minFare: 5000, airportCode: 'DSS', isActive: true },
+  { id: 'mock-shuttle-1', name: 'Navette Aéroport Sud', type: 'shuttle', baseFare: 1000, perKmRate: 400, minFare: 5000, airportCode: 'DSS', isActive: true },
+  { id: 'mock-private-1', name: 'Dakar Premium Cars', type: 'private', baseFare: 5000, perKmRate: 1500, minFare: 15000, airportCode: 'DSS', isActive: true },
+  { id: 'mock-bus-1', name: 'Bus AIBD Collectif', type: 'bus', baseFare: 500, perKmRate: 200, minFare: 3000, airportCode: 'DSS', isActive: true },
+]
+
+// Emoji map for vehicle types
+const VEHICLE_EMOJIS: Record<string, string> = {
+  taxi: '🚕',
+  shuttle: '🚌',
+  private: '🚗',
+  bus: '🚐',
+  vtc: '🚕',
+}
+
 // ── Badge Components ────────────────────────────────────────────────────────
 
 function VehicleTypeBadge({ type }: { type: TransportBooking['vehicleType'] }) {
@@ -344,6 +371,8 @@ function StatCard({ title, value, icon, colorClass, iconBgClass }: StatCardProps
 export function TransportModule() {
   const [bookings, setBookings] = useState<TransportBooking[]>([])
   const [stats, setStats] = useState<TransportStats>(MOCK_STATS)
+  const [providers, setProviders] = useState<TransportProvider[]>([])
+  const [providersLoaded, setProvidersLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -357,7 +386,7 @@ export function TransportModule() {
   const [form, setForm] = useState<CreateTransportForm>({
     passenger: '',
     phone: '',
-    vehicleType: '',
+    providerId: '',
     pickup: '',
     dropoff: '',
     date: '',
@@ -365,9 +394,19 @@ export function TransportModule() {
     passengers: 1,
   })
 
-  // ── Price Calculation ──────────────────────────────────────────────────
+  // ── Provider Helpers ──────────────────────────────────────────────────
 
-  const calculatedPrice = form.vehicleType ? VEHICLE_PRICES[form.vehicleType] || 0 : 0
+  const selectedProvider = providers.find((p) => p.id === form.providerId)
+
+  const selectedProviderLabel = selectedProvider
+    ? `${VEHICLE_EMOJIS[selectedProvider.type] || ''} ${selectedProvider.name} (${selectedProvider.type})`
+    : ''
+
+  // ── Price Calculation (client-side estimate for display; server calculates final) ──
+
+  const estimatedClientPrice = selectedProvider
+    ? Math.max(selectedProvider.baseFare + 10 * selectedProvider.perKmRate, selectedProvider.minFare)
+    : 0
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA'
@@ -375,23 +414,83 @@ export function TransportModule() {
 
   // ── Data Fetching ───────────────────────────────────────────────────────
 
+  const fetchProviders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/transport/providers?airport=DSS')
+      if (res.ok) {
+        const json = await res.json()
+        const items: TransportProvider[] = json.data ?? json.items ?? json ?? []
+        if (Array.isArray(items) && items.length > 0) {
+          setProviders(items)
+          setProvidersLoaded(true)
+          return
+        }
+      }
+    } catch {
+      // Fallback to mock providers
+    }
+    setProviders(MOCK_PROVIDERS)
+    setProvidersLoaded(true)
+  }, [])
+
+  const normalizeBooking = (raw: Record<string, unknown>): TransportBooking => {
+    // Handle both new API shape (passengerName, pickupLocation, ...) and legacy/mock shape (passenger, pickup, ...)
+    return {
+      id: raw.id as string,
+      ref: (raw.bookingRef ?? raw.ref) as string,
+      passenger: (raw.passengerName ?? raw.passenger) as string,
+      vehicleType: (raw.vehicleType ?? raw.type) as TransportBooking['vehicleType'],
+      pickup: (raw.pickupLocation ?? raw.pickup) as string,
+      dropoff: (raw.dropoffLocation ?? raw.dropoff) as string,
+      date: (raw.pickupDate ?? raw.date) as string,
+      time: (raw.pickupTime ?? raw.time) as string,
+      driver: (raw.driverName ?? raw.driver) as string,
+      price: (raw.totalPrice ?? raw.estimatedPrice ?? raw.price ?? 0) as number,
+      status: (raw.status) as TransportBooking['status'],
+    }
+  }
+
   const fetchBookings = useCallback(async () => {
     setLoading(true)
+    // Try /api/transport/bookings first (requires auth, includes provider)
+    try {
+      const res = await fetch('/api/transport/bookings')
+      if (res.ok) {
+        const json = await res.json()
+        const items = json.data ?? json.items ?? json ?? []
+        if (Array.isArray(items) && items.length > 0) {
+          const normalized = items.map(normalizeBooking)
+          setBookings(normalized)
+          setStats({
+            total: normalized.length,
+            inProgress: normalized.filter((b) => b.status === 'in_progress' || b.status === 'confirmed').length,
+            completed: normalized.filter((b) => b.status === 'completed').length,
+          })
+          return
+        }
+      }
+    } catch {
+      // Not authenticated or unavailable, try legacy
+    }
+    // Fallback: try legacy /api/transport
     try {
       const res = await fetch('/api/transport')
       if (res.ok) {
-        const data = await res.json()
-        const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
-        setBookings(items)
-        setStats({
-          total: data.stats?.total ?? data.length ?? MOCK_STATS.total,
-          inProgress: data.stats?.inProgress ?? MOCK_STATS.inProgress,
-          completed: data.stats?.completed ?? MOCK_STATS.completed,
-        })
-        return
+        const json = await res.json()
+        const items = Array.isArray(json) ? json : (json.items ?? json.data ?? [])
+        if (Array.isArray(items) && items.length > 0) {
+          const normalized = items.map(normalizeBooking)
+          setBookings(normalized)
+          setStats({
+            total: json.stats?.total ?? normalized.length ?? MOCK_STATS.total,
+            inProgress: json.stats?.inProgress ?? MOCK_STATS.inProgress,
+            completed: json.stats?.completed ?? MOCK_STATS.completed,
+          })
+          return
+        }
       }
     } catch {
-      // Fallback
+      // Fallback to mock
     }
     setBookings(MOCK_TRANSPORT)
     setStats(MOCK_STATS)
@@ -400,7 +499,7 @@ export function TransportModule() {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      await fetchBookings()
+      await Promise.all([fetchBookings(), fetchProviders()])
       if (!cancelled) setLoading(false)
     }
     load()
@@ -410,17 +509,26 @@ export function TransportModule() {
   // ── Handlers ────────────────────────────────────────────────────────────
 
   const handleCreate = async () => {
-    if (!form.passenger || !form.vehicleType || !form.pickup || !form.dropoff || !form.date || !form.time) {
+    if (!form.passenger || !form.providerId || !form.pickup || !form.dropoff || !form.date || !form.time) {
       toast.error('Veuillez remplir tous les champs obligatoires')
       return
     }
 
     setSubmitting(true)
     try {
-      const res = await fetch('/api/transport', {
+      const res = await fetch('/api/transport/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, price: calculatedPrice }),
+        body: JSON.stringify({
+          providerId: form.providerId,
+          passengerName: form.passenger,
+          phone: form.phone,
+          pickupLocation: form.pickup,
+          dropoffLocation: form.dropoff,
+          pickupDate: form.date,
+          pickupTime: form.time,
+          passengers: form.passengers,
+        }),
       })
       if (res.ok) {
         toast.success('Réservation de transport créée avec succès')
@@ -428,22 +536,29 @@ export function TransportModule() {
         fetchBookings()
         return
       }
+      const errData = await res.json().catch(() => ({}))
+      toast.error(errData.error ?? 'Erreur lors de la création de la réservation')
     } catch {
-      // Local mock
+      // Server unavailable — fall through to local mock
     }
 
+    // Mock fallback: create a local booking
     const drivers = ['Moussa Balde', 'Ibrahima Fall', 'Pape Gueye', 'Cheikh Diop', 'Babacar Ndiaye']
+    const prov = providers.find((p) => p.id === form.providerId)
+    const mockPrice = prov
+      ? Math.max(prov.baseFare + 10 * prov.perKmRate, prov.minFare)
+      : VEHICLE_PRICES[form.providerId] || 15000
     const newBooking: TransportBooking = {
       id: `tp-${Date.now()}`,
       ref: `TRP-2024-${String(Date.now()).slice(-4)}`,
       passenger: form.passenger,
-      vehicleType: form.vehicleType as TransportBooking['vehicleType'],
+      vehicleType: (prov?.type ?? 'taxi') as TransportBooking['vehicleType'],
       pickup: form.pickup,
       dropoff: form.dropoff,
       date: form.date,
       time: form.time,
       driver: drivers[Math.floor(Math.random() * drivers.length)],
-      price: calculatedPrice,
+      price: mockPrice,
       status: 'pending',
     }
     setBookings((prev) => [newBooking, ...prev])
@@ -456,7 +571,7 @@ export function TransportModule() {
     setForm({
       passenger: '',
       phone: '',
-      vehicleType: '',
+      providerId: '',
       pickup: '',
       dropoff: '',
       date: '',
@@ -532,17 +647,18 @@ export function TransportModule() {
               <div className="grid gap-2">
                 <Label htmlFor="tp-vehicle">Type de Véhicule *</Label>
                 <Select
-                  value={form.vehicleType}
-                  onValueChange={(val) => setForm((f) => ({ ...f, vehicleType: val }))}
+                  value={form.providerId}
+                  onValueChange={(val) => setForm((f) => ({ ...f, providerId: val }))}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Sélectionner un type" />
+                    <SelectValue placeholder={providersLoaded ? "Sélectionner un type" : "Chargement..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="taxi">🚕 Taxi — {formatPrice(VEHICLE_PRICES.taxi)}</SelectItem>
-                    <SelectItem value="shuttle">🚌 Navette — {formatPrice(VEHICLE_PRICES.shuttle)}</SelectItem>
-                    <SelectItem value="private">🚗 Véhicule Privé — {formatPrice(VEHICLE_PRICES.private)}</SelectItem>
-                    <SelectItem value="bus">🚐 Bus — {formatPrice(VEHICLE_PRICES.bus)}</SelectItem>
+                    {providersLoaded && providers.map((prov) => (
+                      <SelectItem key={prov.id} value={prov.id}>
+                        {VEHICLE_EMOJIS[prov.type] ?? ''} {prov.name} — à partir de {formatPrice(prov.minFare)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -616,17 +732,20 @@ export function TransportModule() {
                 />
               </div>
               {/* Price Preview */}
-              {form.vehicleType && (
+              {form.providerId && selectedProvider && (
                 <div className="rounded-lg bg-orange-50 border border-orange-200 p-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm text-orange-600">
-                      Tarif {VEHICLE_LABELS[form.vehicleType] || form.vehicleType}
+                      {selectedProvider.name}
                     </p>
                     <p className="text-xs text-orange-500">
-                      {form.pickup} → {form.dropoff}
+                      {form.pickup} → {form.dropoff} — Prix estimé par le serveur
+                    </p>
+                    <p className="text-xs text-orange-400">
+                      À partir de {formatPrice(selectedProvider.minFare)} (base {formatPrice(selectedProvider.baseFare)} + {formatPrice(selectedProvider.perKmRate)}/km)
                     </p>
                   </div>
-                  <p className="text-lg font-bold text-orange-700">{formatPrice(calculatedPrice)}</p>
+                  <p className="text-lg font-bold text-orange-700">≈ {formatPrice(estimatedClientPrice)}</p>
                 </div>
               )}
             </div>

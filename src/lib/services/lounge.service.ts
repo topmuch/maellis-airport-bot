@@ -221,6 +221,7 @@ export async function createBooking(data: {
       durationHours: durationHours ?? 2,
       guests: guestCount,
       loungeName: lounge.name,
+      airportCode: lounge.airportCode,
       totalPrice,
       status: 'confirmed',
     },

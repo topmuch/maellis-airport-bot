@@ -80,6 +80,7 @@ const SEVERITY_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   open: 'bg-red-500/15 text-red-700 border-red-200',
   acknowledged: 'bg-amber-500/15 text-amber-700 border-amber-200',
+  in_progress: 'bg-amber-500/15 text-amber-700 border-amber-200',
   resolved: 'bg-orange-500/15 text-orange-600 border-orange-200',
   escalated: 'bg-purple-500/15 text-purple-700 border-purple-200',
 }
@@ -87,6 +88,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   open: 'Ouverte',
   acknowledged: 'Prise en charge',
+  in_progress: 'Prise en charge',
   resolved: 'Résolue',
   escalated: 'Escaladée',
 }
@@ -303,11 +305,12 @@ export function EmergencyModule() {
   useEffect(() => {
     async function fetchAlerts() {
       try {
-        const res = await fetch('/api/emergency')
+        const res = await fetch('/api/emergency/incidents')
         if (res.ok) {
           const json = await res.json()
-          if (json.data && json.data.length > 0) {
-            setAlerts(json.data)
+          const incidents = json.data || json
+          if (Array.isArray(incidents) && incidents.length > 0) {
+            setAlerts(incidents)
           } else {
             setAlerts(MOCK_ALERTS)
           }
@@ -325,19 +328,18 @@ export function EmergencyModule() {
 
   const handleAcknowledge = useCallback(async (id: string) => {
     try {
-      await fetch('/api/emergency', {
-        method: 'PATCH',
+      await fetch(`/api/emergency/incidents/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id,
-          status: 'acknowledged',
+          status: 'in_progress',
           assignedTo: 'Agent Connecté',
         }),
       })
       setAlerts((prev) =>
         prev.map((a) =>
           a.id === id
-            ? { ...a, status: 'acknowledged', assignedTo: 'Agent Connecté' }
+            ? { ...a, status: 'in_progress', assignedTo: 'Agent Connecté' }
             : a
         )
       )
@@ -348,10 +350,10 @@ export function EmergencyModule() {
 
   const handleResolve = useCallback(async (id: string) => {
     try {
-      await fetch('/api/emergency', {
-        method: 'PATCH',
+      await fetch(`/api/emergency/incidents/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: 'resolved' }),
+        body: JSON.stringify({ status: 'resolved' }),
       })
       setAlerts((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: 'resolved' } : a))
@@ -365,21 +367,25 @@ export function EmergencyModule() {
     if (!formPhone || !formDescription) return
     setSubmitting(true)
     try {
-      const res = await fetch('/api/emergency', {
+      const res = await fetch('/api/emergency/incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          airportCode: 'DSS',
           userPhone: formPhone,
-          userName: formName || null,
-          alertType: formType,
-          location: formLocation || null,
-          description: formDescription,
+          userName: formName || undefined,
+          category: formType,
           severity: formSeverity,
+          location: formLocation || undefined,
+          description: formDescription,
         }),
       })
       if (res.ok) {
-        const newAlert = await res.json()
-        setAlerts((prev) => [newAlert, ...prev])
+        const json = await res.json()
+        const newAlert = json.data?.incident || json.data
+        if (newAlert) {
+          setAlerts((prev) => [newAlert, ...prev])
+        }
         setDialogOpen(false)
         resetForm()
       }
@@ -401,7 +407,7 @@ export function EmergencyModule() {
 
   const openCount = alerts.filter((a) => a.status === 'open').length
   const inProgressCount = alerts.filter(
-    (a) => a.status === 'acknowledged' || a.status === 'escalated'
+    (a) => a.status === 'acknowledged' || a.status === 'in_progress' || a.status === 'escalated'
   ).length
   const resolvedCount = alerts.filter((a) => a.status === 'resolved').length
   const criticalCount = alerts.filter(
@@ -686,6 +692,7 @@ export function EmergencyModule() {
                             )}
                             {(alert.status === 'open' ||
                               alert.status === 'acknowledged' ||
+                              alert.status === 'in_progress' ||
                               alert.status === 'escaladed') && (
                               <Button
                                 size="sm"

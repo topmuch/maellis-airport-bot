@@ -55,11 +55,23 @@ interface LoungeStats {
   pending: number
 }
 
+interface LoungeOption {
+  id: string
+  airportCode: string
+  name: string
+  location: string
+  priceStandard: number
+  priceBusiness: number | null
+  maxCapacity: number
+  currentOccupancy: number
+  isOpen: boolean
+}
+
 interface CreateLoungeForm {
   passenger: string
   phone: string
   email: string
-  lounge: string
+  loungeId: string
   airport: string
   date: string
   time: string
@@ -311,6 +323,9 @@ export function LoungeModule() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Real lounge data from API
+  const [availableLounges, setAvailableLounges] = useState<LoungeOption[]>([])
+
   // Dialog states
   const [createOpen, setCreateOpen] = useState(false)
   const [viewOpen, setViewOpen] = useState(false)
@@ -322,7 +337,7 @@ export function LoungeModule() {
     passenger: '',
     phone: '',
     email: '',
-    lounge: '',
+    loungeId: '',
     airport: '',
     date: '',
     time: '',
@@ -330,17 +345,41 @@ export function LoungeModule() {
     duration: 2,
   })
 
-  // ── Price Calculation ──────────────────────────────────────────────────
+  // ── Derived Helpers ─────────────────────────────────────────────────────
 
-  const calculatedPrice = useMemo(() => {
+  const selectedLounge = useMemo(() => {
+    return availableLounges.find((l) => l.id === form.loungeId) ?? null
+  }, [availableLounges, form.loungeId])
+
+  const estimatedPrice = useMemo(() => {
+    if (selectedLounge) {
+      return selectedLounge.priceStandard * form.guests
+    }
+    // Fallback mock calculation when no real lounge selected
     return BASE_PRICE + (form.guests * form.duration * GUEST_PER_HOUR_PRICE)
-  }, [form.guests, form.duration])
+  }, [selectedLounge, form.guests, form.duration])
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA'
   }
 
   // ── Data Fetching ───────────────────────────────────────────────────────
+
+  const fetchLounges = useCallback(async (airportCode: string) => {
+    try {
+      const res = await fetch(`/api/lounges?airport=${airportCode}`)
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success && Array.isArray(json.data)) {
+          setAvailableLounges(json.data as LoungeOption[])
+          return
+        }
+      }
+    } catch {
+      // Fallback to empty – mock LOUNGES list will be used in select
+    }
+    setAvailableLounges([])
+  }, [])
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
@@ -349,9 +388,23 @@ export function LoungeModule() {
       if (res.ok) {
         const data = await res.json()
         const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
-        setBookings(items)
+        // Map DB fields to frontend interface
+        const mapped: LoungeBooking[] = items.map((b: Record<string, unknown>) => ({
+          id: b.id ?? '',
+          ref: b.bookingRef ?? b.ref ?? '',
+          passenger: b.passengerName ?? b.passenger ?? '',
+          lounge: b.loungeName ?? b.lounge ?? '',
+          airport: b.airportCode ?? b.airport ?? '',
+          date: b.bookingDate ?? b.date ?? '',
+          time: b.startTime ?? b.time ?? '',
+          guests: b.guests ?? 1,
+          price: b.totalPrice ?? b.price ?? 0,
+          payment: b.paymentStatus ?? b.payment ?? 'pending',
+          status: b.status ?? 'pending',
+        }))
+        setBookings(mapped)
         setStats({
-          total: data.stats?.total ?? data.length ?? MOCK_STATS.total,
+          total: data.stats?.total ?? mapped.length ?? MOCK_STATS.total,
           confirmed: data.stats?.confirmed ?? MOCK_STATS.confirmed,
           pending: data.stats?.pending ?? MOCK_STATS.pending,
         })
@@ -367,6 +420,8 @@ export function LoungeModule() {
   useEffect(() => {
     let cancelled = false
     const load = async () => {
+      // Fetch available lounges for DSS (default airport)
+      await fetchLounges('DSS')
       await fetchBookings()
       if (!cancelled) setLoading(false)
     }
@@ -377,38 +432,58 @@ export function LoungeModule() {
   // ── Handlers ────────────────────────────────────────────────────────────
 
   const handleCreate = async () => {
-    if (!form.passenger || !form.lounge || !form.airport || !form.date || !form.time) {
+    if (!form.passenger || !form.loungeId || !form.date || !form.time) {
       toast.error('Veuillez remplir tous les champs obligatoires')
       return
     }
 
     setSubmitting(true)
     try {
-      const res = await fetch('/api/lounge', {
+      const res = await fetch('/api/lounges/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, price: calculatedPrice }),
+        body: JSON.stringify({
+          loungeId: form.loungeId,
+          passengerName: form.passenger,
+          phone: form.phone,
+          email: form.email || undefined,
+          bookingDate: form.date,
+          startTime: form.time,
+          guests: form.guests,
+          durationHours: form.duration,
+          accessLevel: 'standard',
+        }),
       })
       if (res.ok) {
         toast.success('Réservation de salon créée avec succès')
         resetForm()
         fetchBookings()
+        setSubmitting(false)
+        return
+      }
+      // Handle API error responses
+      const errData = await res.json().catch(() => null)
+      if (errData?.error) {
+        toast.error(errData.error)
+        setSubmitting(false)
         return
       }
     } catch {
-      // Local mock
+      // Fall through to local mock
     }
 
+    // Local mock fallback
+    const loungeName = selectedLounge?.name ?? form.loungeId
     const newBooking: LoungeBooking = {
       id: `ln-${Date.now()}`,
       ref: `LNG-2024-${String(Date.now()).slice(-4)}`,
       passenger: form.passenger,
-      lounge: form.lounge,
+      lounge: loungeName,
       airport: form.airport,
       date: form.date,
       time: form.time,
       guests: form.guests,
-      price: calculatedPrice,
+      price: estimatedPrice,
       payment: 'pending',
       status: 'pending',
     }
@@ -416,7 +491,6 @@ export function LoungeModule() {
     setStats((prev) => ({ ...prev, total: prev.total + 1, pending: prev.pending + 1 }))
     toast.success('Réservation de salon créée avec succès')
     resetForm()
-    setSubmitting(false)
   }
 
   const resetForm = () => {
@@ -424,7 +498,7 @@ export function LoungeModule() {
       passenger: '',
       phone: '',
       email: '',
-      lounge: '',
+      loungeId: '',
       airport: '',
       date: '',
       time: '',
@@ -511,18 +585,24 @@ export function LoungeModule() {
               <div className="grid gap-2">
                 <Label htmlFor="lounge-select">Salon *</Label>
                 <Select
-                  value={form.lounge}
-                  onValueChange={(val) => setForm((f) => ({ ...f, lounge: val }))}
+                  value={form.loungeId}
+                  onValueChange={(val) => setForm((f) => ({ ...f, loungeId: val }))}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Sélectionner un salon" />
                   </SelectTrigger>
                   <SelectContent>
-                    {LOUNGES.map((l) => (
-                      <SelectItem key={l} value={l}>
-                        {l}
-                      </SelectItem>
-                    ))}
+                    {availableLounges.length > 0
+                      ? availableLounges.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>
+                            {l.name} — {l.location}
+                          </SelectItem>
+                        ))
+                      : LOUNGES.map((l) => (
+                          <SelectItem key={l} value={l}>
+                            {l}
+                          </SelectItem>
+                        ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -599,19 +679,43 @@ export function LoungeModule() {
               </div>
               {/* Price Preview */}
               <div className="rounded-lg bg-orange-50 border border-orange-200 p-4 space-y-1">
-                <p className="text-sm text-orange-600">Détail du prix</p>
-                <div className="flex justify-between text-sm text-orange-500">
-                  <span>Tarif de base</span>
-                  <span>{formatPrice(BASE_PRICE)}</span>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-orange-600">Détail du prix</p>
+                  {selectedLounge && (
+                    <span className="text-xs text-orange-400">Prix final calculé par le serveur</span>
+                  )}
                 </div>
-                <div className="flex justify-between text-sm text-orange-500">
-                  <span>{form.guests} invité(s) × {form.duration}h × {formatPrice(GUEST_PER_HOUR_PRICE)}</span>
-                  <span>{formatPrice(form.guests * form.duration * GUEST_PER_HOUR_PRICE)}</span>
-                </div>
-                <div className="border-t border-orange-200 pt-1 flex justify-between font-bold text-orange-700">
-                  <span>Total</span>
-                  <span>{formatPrice(calculatedPrice)}</span>
-                </div>
+                {selectedLounge ? (
+                  <>
+                    <div className="flex justify-between text-sm text-orange-500">
+                      <span>Tarif standard</span>
+                      <span>{formatPrice(selectedLounge.priceStandard)} / pers.</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-orange-500">
+                      <span>{form.guests} invité(s)</span>
+                      <span>{formatPrice(selectedLounge.priceStandard * form.guests)}</span>
+                    </div>
+                    <div className="border-t border-orange-200 pt-1 flex justify-between font-bold text-orange-700">
+                      <span>Total estimé</span>
+                      <span>{formatPrice(estimatedPrice)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm text-orange-500">
+                      <span>Tarif de base</span>
+                      <span>{formatPrice(BASE_PRICE)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-orange-500">
+                      <span>{form.guests} invité(s) × {form.duration}h × {formatPrice(GUEST_PER_HOUR_PRICE)}</span>
+                      <span>{formatPrice(form.guests * form.duration * GUEST_PER_HOUR_PRICE)}</span>
+                    </div>
+                    <div className="border-t border-orange-200 pt-1 flex justify-between font-bold text-orange-700">
+                      <span>Total estimé</span>
+                      <span>{formatPrice(estimatedPrice)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             <DialogFooter>
