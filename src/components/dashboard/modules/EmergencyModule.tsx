@@ -15,6 +15,8 @@ import {
   Plus,
   XCircle,
 } from 'lucide-react'
+import { useAirportSocket } from '@/hooks/useAirportSocket'
+import { showRealTimeNotification } from '@/components/dashboard/RealTimeNotificationToast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -258,6 +260,38 @@ export function EmergencyModule() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  // ── WebSocket temps réel ────────────────────────────────────────────────
+  const { isConnected } = useAirportSocket('DSS', {
+    onEmergencyAlert: (rawData: unknown) => {
+      const data = rawData as Partial<EmergencyAlert> & { id: string }
+      if (!data.id) return
+      const newAlert: EmergencyAlert = {
+        id: data.id,
+        userPhone: (data.userPhone as string) || '',
+        userName: (data.userName as string) ?? null,
+        alertType: (data.alertType as string) || 'other',
+        location: (data.location as string) ?? null,
+        description: (data.description as string) || '',
+        severity: (data.severity as string) || 'medium',
+        status: (data.status as string) || 'open',
+        assignedTo: (data.assignedTo as string) ?? null,
+        createdAt: (data.createdAt as string) || new Date().toISOString(),
+      }
+      setAlerts((prev) => [newAlert, ...prev])
+      showRealTimeNotification('emergency:alert', data as Record<string, unknown>)
+    },
+    onEmergencyUpdate: (rawData: unknown) => {
+      const data = rawData as Partial<EmergencyAlert> & { id: string }
+      if (!data.id) return
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === data.id ? { ...a, ...data } : a
+        )
+      )
+      showRealTimeNotification('emergency:update', data as Record<string, unknown>)
+    },
+  })
+
   // Form state
   const [formType, setFormType] = useState('medical')
   const [formPhone, setFormPhone] = useState('')
@@ -379,9 +413,16 @@ export function EmergencyModule() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Alertes d&apos;Urgence
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold tracking-tight">
+              Alertes d&apos;Urgence
+            </h2>
+            {isConnected && (
+              <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700 text-xs">
+                En temps réel
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground text-sm">
             Gestion des alertes SOS et situations d&apos;urgence
           </p>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { hashPassword } from '@/lib/auth'
 
 // POST /api/seed - Seed database with realistic African airport data
 export async function POST() {
@@ -24,9 +25,11 @@ export async function POST() {
     // ========================
     const admin = await db.admin.create({
       data: {
-        name: 'Admin Maellis',
-        email: 'admin@maellis.sn',
-        role: 'super_admin',
+        name: 'Admin MAELLIS',
+        email: 'admin@maellis.aero',
+        role: 'superadmin',
+        passwordHash: hashPassword('Admin@123'),
+        airportCode: 'DSS',
         isActive: true,
         lastLogin: new Date(),
       },

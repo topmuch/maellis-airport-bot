@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Users,
   Wifi,
@@ -18,6 +18,10 @@ import {
   TrendingUp,
   TrendingDown,
   Settings,
+  ClipboardList,
+  RefreshCw,
+  Search,
+  Filter,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -84,6 +88,29 @@ interface PermissionRow {
   agentSupport: boolean
   analyste: boolean
   finance: boolean
+}
+
+interface AuditLogEntry {
+  id: string
+  adminId: string | null
+  action: string
+  module: string
+  details: string | null
+  ipAddress: string | null
+  createdAt: string
+  admin: {
+    id: string
+    name: string
+    email: string
+    role: string
+  } | null
+}
+
+interface AuditPagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
 }
 
 // ─── Constants ───────────────────────────────────────────────────
@@ -168,6 +195,50 @@ const AIRPORTS = [
 ]
 
 const ROLES = ['Admin', 'Agent Support', 'Analyste', 'Finance', 'Superviseur']
+
+const ACTION_BADGE_COLORS: Record<string, string> = {
+  create: 'bg-orange-500/15 text-orange-700 border-orange-200 dark:text-orange-400 dark:border-orange-800',
+  update: 'bg-sky-500/15 text-sky-700 border-sky-200 dark:text-sky-400 dark:border-sky-800',
+  delete: 'bg-red-500/15 text-red-700 border-red-200 dark:text-red-400 dark:border-red-800',
+  login: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800',
+  logout: 'bg-gray-500/15 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-800',
+  export: 'bg-violet-500/15 text-violet-700 border-violet-200 dark:text-violet-400 dark:border-violet-800',
+  view: 'bg-gray-500/15 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-800',
+  configure: 'bg-amber-500/15 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800',
+}
+
+const MODULE_BADGE_COLORS: Record<string, string> = {
+  emergency: 'bg-red-500/15 text-red-700 border-red-200 dark:text-red-400 dark:border-red-800',
+  conversations: 'bg-orange-500/15 text-orange-700 border-orange-200 dark:text-orange-400 dark:border-orange-800',
+  team: 'bg-blue-500/15 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800',
+  reports: 'bg-violet-500/15 text-violet-700 border-violet-200 dark:text-violet-400 dark:border-violet-800',
+  settings: 'bg-amber-500/15 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800',
+  flights: 'bg-sky-500/15 text-sky-700 border-sky-200 dark:text-sky-400 dark:border-sky-800',
+  payments: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800',
+  auth: 'bg-gray-500/15 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-800',
+}
+
+const MODULE_LABELS: Record<string, string> = {
+  emergency: 'Urgences',
+  conversations: 'Conversations',
+  team: 'Équipe',
+  reports: 'Rapports',
+  settings: 'Paramètres',
+  flights: 'Vols',
+  payments: 'Paiements',
+  auth: 'Authentification',
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  create: 'Création',
+  update: 'Modification',
+  delete: 'Suppression',
+  login: 'Connexion',
+  logout: 'Déconnexion',
+  export: 'Export',
+  view: 'Consultation',
+  configure: 'Configuration',
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────
 function formatLoginTime(dateStr: string): string {
@@ -269,6 +340,10 @@ export function TeamModule() {
           <TabsTrigger value="logs" className="gap-1.5">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Logs de Connexion</span>
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-1.5">
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline">Journaux d&apos;Audit</span>
           </TabsTrigger>
         </TabsList>
 
@@ -722,7 +797,270 @@ export function TeamModule() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* ═══════════════════ TAB 4: Journaux d'Audit ═══════════════════ */}
+        <TabsContent value="audit" className="space-y-6">
+          <AuditLogsTab />
+        </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+// ─── Audit Logs Sub-Component ─────────────────────────────────────
+function AuditLogsTab() {
+  const [logs, setLogs] = useState<AuditLogEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [moduleFilter, setModuleFilter] = useState('all')
+  const [actionFilter, setActionFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [autoRefreshKey, setAutoRefreshKey] = useState(0)
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '100' })
+      if (moduleFilter !== 'all') params.set('module', moduleFilter)
+      if (actionFilter !== 'all') params.set('action', actionFilter)
+
+      const res = await fetch(`/api/audit-logs?${params.toString()}`)
+      if (res.ok) {
+        const json = await res.json()
+        setLogs(json.data)
+        setTotalPages(json.pagination.totalPages)
+      }
+    } catch {
+      // Silently fail — audit logs are non-critical UI
+    } finally {
+      setLoading(false)
+    }
+  }, [page, moduleFilter, actionFilter])
+
+  // Initial fetch + reset page on filter change
+  useEffect(() => {
+    setPage(1)
+  }, [moduleFilter, actionFilter])
+
+  useEffect(() => {
+    fetchLogs()
+  }, [fetchLogs, autoRefreshKey])
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    refreshTimerRef.current = setInterval(() => {
+      setAutoRefreshKey((k) => k + 1)
+    }, 30000)
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
+    }
+  }, [])
+
+  // Client-side search filter
+  const filteredLogs = logs.filter((log) => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.toLowerCase()
+    const adminName = log.admin?.name?.toLowerCase() || ''
+    const adminEmail = log.admin?.email?.toLowerCase() || ''
+    const details = log.details?.toLowerCase() || ''
+    return adminName.includes(q) || adminEmail.includes(q) || details.includes(q)
+  })
+
+  const handleExportCSV = () => {
+    const params = new URLSearchParams({ format: 'csv' })
+    if (moduleFilter !== 'all') params.set('module', moduleFilter)
+    window.open(`/api/audit-logs/export?${params.toString()}`, '_blank')
+  }
+
+  const moduleOptions = [
+    { value: 'all', label: 'Tous les modules' },
+    { value: 'emergency', label: 'Urgences' },
+    { value: 'conversations', label: 'Conversations' },
+    { value: 'team', label: 'Équipe' },
+    { value: 'reports', label: 'Rapports' },
+    { value: 'settings', label: 'Paramètres' },
+    { value: 'flights', label: 'Vols' },
+    { value: 'payments', label: 'Paiements' },
+    { value: 'auth', label: 'Authentification' },
+  ]
+
+  const actionOptions = [
+    { value: 'all', label: 'Toutes les actions' },
+    { value: 'create', label: 'Création' },
+    { value: 'update', label: 'Modification' },
+    { value: 'delete', label: 'Suppression' },
+    { value: 'login', label: 'Connexion' },
+    { value: 'logout', label: 'Déconnexion' },
+    { value: 'export', label: 'Export' },
+    { value: 'view', label: 'Consultation' },
+    { value: 'configure', label: 'Configuration' },
+  ]
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-base">Journaux d&apos;Audit</CardTitle>
+            <CardDescription className="text-xs">
+              {filteredLogs.length} entrée(s) affichée(s) — Actualisation automatique toutes les 30s
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setAutoRefreshKey((k) => k + 1)}
+              disabled={loading}
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Actualiser
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExportCSV}>
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Exporter CSV
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Filter Row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher par admin ou détails..."
+              className="h-8 pl-8 text-xs"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Select value={moduleFilter} onValueChange={setModuleFilter}>
+            <SelectTrigger className="w-[170px] h-8 text-xs">
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              <SelectValue placeholder="Module" />
+            </SelectTrigger>
+            <SelectContent>
+              {moduleOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={actionFilter} onValueChange={setActionFilter}>
+            <SelectTrigger className="w-[170px] h-8 text-xs">
+              <SelectValue placeholder="Action" />
+            </SelectTrigger>
+            <SelectContent>
+              {actionOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Audit Logs Table */}
+        <div className="max-h-[480px] overflow-y-auto">
+          {loading && logs.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="hidden lg:table-cell">Date</TableHead>
+                  <TableHead>Admin</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Module</TableHead>
+                  <TableHead className="hidden md:table-cell">Détails</TableHead>
+                  <TableHead className="hidden sm:table-cell">IP</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="hidden lg:table-cell">
+                      <span className="text-muted-foreground text-xs font-mono">
+                        {formatTimestamp(log.createdAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {log.admin?.name || 'Système'}
+                        </p>
+                        {log.admin?.email && (
+                          <p className="text-muted-foreground text-xs">{log.admin.email}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={ACTION_BADGE_COLORS[log.action] || ACTION_BADGE_COLORS.view}
+                        variant="outline"
+                      >
+                        {ACTION_LABELS[log.action] || log.action}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={MODULE_BADGE_COLORS[log.module] || MODULE_BADGE_COLORS.auth}
+                        variant="outline"
+                      >
+                        {MODULE_LABELS[log.module] || log.module}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-muted-foreground text-xs max-w-[220px] truncate block">
+                        {log.details || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <span className="text-muted-foreground text-xs font-mono">
+                        {log.ipAddress || '—'}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredLogs.length === 0 && !loading && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">
+                      Aucun journal d&apos;audit trouvé pour les filtres sélectionnés
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+
+        {/* Load More / Pagination */}
+        {page < totalPages && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Chargement...
+                </>
+              ) : (
+                'Charger plus'
+              )}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

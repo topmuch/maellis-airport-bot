@@ -27,6 +27,7 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
+import { RealTimeIndicator } from '@/components/dashboard/RealTimeIndicator'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -136,8 +137,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Right side: Language + Notifications + Avatar */}
+          {/* Right side: Real-time + Language + Notifications + Avatar */}
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Real-Time Indicator */}
+            <RealTimeIndicator />
             {/* Language Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

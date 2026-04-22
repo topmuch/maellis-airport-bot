@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   MessageSquare,
   Plane,
@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useAirportSocket } from '@/hooks/useAirportSocket'
 import {
   Table,
   TableBody,
@@ -218,6 +219,23 @@ function getIntentLabel(intent: string): string {
 export function OverviewModule() {
   const [kpi, setKpi] = useState<KpiData>(fallbackKpi)
   const [loading, setLoading] = useState(true)
+  const [recentConversations, setRecentConversations] = useState<RecentConversation[]>(mockRecentConversations)
+
+  // ── WebSocket temps réel ──────────────────────────────────────────────────
+  const handleStatsUpdate = useCallback((data: unknown) => {
+    const update = data as Partial<KpiData>
+    setKpi((prev) => ({ ...prev, ...update }))
+  }, [])
+
+  const handleConversationNew = useCallback((data: unknown) => {
+    const conv = data as RecentConversation
+    setRecentConversations((prev) => [conv, ...prev].slice(0, 5))
+  }, [])
+
+  const { isConnected: wsConnected } = useAirportSocket('DSS', {
+    onStatsUpdate: handleStatsUpdate,
+    onConversationNew: handleConversationNew,
+  })
 
   useEffect(() => {
     async function fetchStats() {
@@ -227,7 +245,6 @@ export function OverviewModule() {
         const data = await res.json()
         setKpi(data)
       } catch {
-        // Fallback to mock data
         setKpi(fallbackKpi)
       } finally {
         setLoading(false)
@@ -286,11 +303,20 @@ export function OverviewModule() {
   return (
     <div className="flex flex-col gap-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tableau de Bord</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Vue d&apos;ensemble de l&apos;activité du bot aéroport MAELLIS
-        </p>
+      <div className="flex items-center gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Tableau de Bord</h1>
+            {wsConnected && (
+              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700 text-xs">
+                ● Temps réel
+              </Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm mt-1">
+            Vue d&apos;ensemble de l&apos;activité du bot aéroport MAELLIS
+          </p>
+        </div>
       </div>
 
       {/* KPI Row */}
@@ -580,7 +606,7 @@ export function OverviewModule() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockRecentConversations.map((conv) => (
+              {recentConversations.map((conv) => (
                 <TableRow key={conv.id}>
                   <TableCell className="font-mono text-xs">
                     {conv.phone}

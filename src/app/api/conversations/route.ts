@@ -8,6 +8,11 @@ export async function GET() {
       orderBy: { lastMessage: 'desc' },
       include: {
         user: true,
+        _count: {
+          select: {
+            conversationMessages: true,
+          },
+        },
       },
     })
 
@@ -20,6 +25,7 @@ export async function GET() {
       intent: conv.intent,
       resolved: conv.resolved,
       lastMessage: conv.lastMessage,
+      messageCount: conv._count.conversationMessages,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
     }))
