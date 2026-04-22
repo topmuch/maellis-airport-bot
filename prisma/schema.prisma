@@ -112,8 +112,49 @@ model FlightStatus {
   terminal      String?
   status        String   @default("scheduled")
   delayMinutes  Int      @default(0)
+  aircraft        String?
+  estimatedDep    String?
+  estimatedArr    String?
+  departureCity   String?
+  arrivalCity     String?
+  aircraftType    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Flight notifications (gate changes, delays, etc.)
+// ─────────────────────────────────────────────
+model FlightNotification {
+  id              String   @id @default(cuid())
+  flightNumber    String
+  airline         String?
+  type            String
+  message         String
+  priority        String   @default("medium")
+  departureCode   String?
+  arrivalCode     String?
+  isRead          Boolean  @default(false)
+  isDismissed     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([flightNumber, isRead])
+  @@index([priority, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// Flight subscriptions (real-time alerts)
+// ─────────────────────────────────────────────
+model FlightSubscription {
+  id              String   @id @default(cuid())
+  flightNumber    String
+  phone           String
+  events          String   @default("delay,gate_change,cancellation")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([flightNumber, isActive])
 }
 
 // ─────────────────────────────────────────────
