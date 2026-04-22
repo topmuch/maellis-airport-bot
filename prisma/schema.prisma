@@ -9,7 +9,7 @@ datasource db {
 
 // ========================
 // MAELLIS AIRPORT BOT - Production Database Schema
-// Phase 3 Enhanced — SQLite (dev) / PostgreSQL-ready (production)
+// Phase 4 — Business Logic Modules (Lounge, Transport, Emergency, Partners)
 // ========================
 
 // ─────────────────────────────────────────────
@@ -202,15 +202,51 @@ model BaggageQR {
   updatedAt      DateTime  @updatedAt
 }
 
-// ─────────────────────────────────────────────
-// Lounge bookings
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// MODULE 1: SALONS VIP (LOUNGES) — Catalog + Bookings
+// ═══════════════════════════════════════════════
+
+model Lounge {
+  id            String   @id @default(cuid())
+  airportCode   String
+  name          String
+  description   String?
+  location      String   // ex: "Terminal 1, Porte B10"
+  imageUrl      String?
+
+  // Tarification
+  priceStandard Float
+  priceBusiness Float?
+  currency      String   @default("XOF")
+
+  // Capacités & Règles
+  maxCapacity     Int    @default(50)
+  currentOccupancy Int   @default(0)
+  isOpen          Boolean @default(true)
+  openingHours    String  // JSON: {"mon":"06:00-22:00",...}
+
+  // Accès
+  accessLevel   String   @default("all") // all, business, vip
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  bookings      LoungeBooking[]
+
+  @@unique([airportCode, name])
+  @@index([airportCode, isOpen])
+}
+
 model LoungeBooking {
   id            String   @id @default(cuid())
+  loungeId      String?
+  lounge        Lounge?  @relation(fields: [loungeId], references: [id])
+
+  // Champs existants (compatibilité ascendante)
   passengerName String
   phone         String
   email         String?
-  loungeName    String
+  loungeName    String   // Redondant pour compatibilité, sera remplacé par lounge.name
   airportCode   String
   guests        Int      @default(1)
   bookingDate   String
@@ -223,16 +259,48 @@ model LoungeBooking {
   status        String   @default("confirmed")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([loungeId, bookingDate])
+  @@index([status])
 }
 
-// ─────────────────────────────────────────────
-// Transport bookings
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// MODULE 2: TRANSPORT (TAXI/VTC) — Providers + Bookings
+// ═══════════════════════════════════════════════
+
+model TransportProvider {
+  id          String   @id @default(cuid())
+  airportCode String
+  name        String   // ex: "Taxi Officiel Dakar"
+  type        String   // taxi, vtc, shuttle, private
+  logoUrl     String?
+  isActive    Boolean  @default(true)
+
+  // Grille tarifaire
+  baseFare    Float    // Prise en charge en FCFA
+  perKmRate   Float    // Prix au km
+  minFare     Float    // Minimum à payer
+
+  contacts    String?  // JSON: {"phone":"+221...","email":"dispatch@...","whatsapp":"..."}
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings    TransportBooking[]
+
+  @@unique([airportCode, name])
+  @@index([airportCode, type, isActive])
+}
+
 model TransportBooking {
   id              String   @id @default(cuid())
+  providerId      String?
+  provider        TransportProvider? @relation(fields: [providerId], references: [id])
+
+  // Champs existants (compatibilité ascendante)
   passengerName   String
   phone           String
-  vehicleType     String
+  vehicleType     String   // Redondant pour compatibilité
   pickupLocation  String
   dropoffLocation String
   pickupDate      String
@@ -248,6 +316,94 @@ model TransportBooking {
   status          String   @default("pending")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Nouveaux champs calculés
+  distanceKm      Float?
+  estimatedPrice  Float?
+  finalPrice      Float?
+
+  @@index([providerId, status])
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 3: URGENCES & SÉCURITÉ — Contacts + Incidents
+// ═══════════════════════════════════════════════
+
+model EmergencyContact {
+  id          String   @id @default(cuid())
+  airportCode String
+  category    String   // medical, security, fire, police, lost_child, maintenance
+  name        String   // ex: "Infirmerie Terminal 1"
+  phoneNumber String
+  whatsappNum String?
+  email       String?
+  isPrimary   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([airportCode, category])
+  @@index([airportCode, isActive])
+}
+
+model EmergencyAlert {
+  id          String   @id @default(cuid())
+  userPhone   String
+  userName    String?
+  alertType   String   // medical, security, fire, police, lost_child, maintenance
+  location    String?
+  description String
+  severity    String   @default("medium") // low, medium, high, critical
+  status      String   @default("open") // open, in_progress, resolved, closed
+  assignedTo  String?  // ID du contact d'urgence ou nom
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([severity, status])
+}
+
+// ═══════════════════════════════════════════════
+// MODULE 4: PARTENAIRES (Agences/Compagnies)
+// ═══════════════════════════════════════════════
+
+model Partner {
+  id             String   @id @default(cuid())
+  airportCode    String
+  type           String   // travel_agency, airline, service_provider
+  name           String
+  logoUrl        String?
+  email          String   @unique
+  phone          String
+  contactPerson  String
+  commissionRate Float    @default(0.10)
+  contractStart  DateTime
+  contractEnd    DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users          PartnerUser[]
+
+  @@unique([airportCode, name])
+  @@index([airportCode, type, isActive])
+}
+
+model PartnerUser {
+  id         String   @id @default(cuid())
+  partnerId  String
+  partner    Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  email      String   @unique
+  name       String
+  password   String   // Hashed
+  role       String   @default("agent") // agent, manager
+  isActive   Boolean  @default(true)
+  lastLogin  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([partnerId])
 }
 
 // ─────────────────────────────────────────────
@@ -267,24 +423,6 @@ model Payment {
   errorMessage String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-}
-
-// ─────────────────────────────────────────────
-// Emergency / SOS alerts
-// ─────────────────────────────────────────────
-model EmergencyAlert {
-  id          String   @id @default(cuid())
-  userPhone   String
-  userName    String?
-  alertType   String
-  location    String?
-  description String
-  severity    String   @default("medium")
-  status      String   @default("open")
-  assignedTo  String?
-  resolution  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 // ─────────────────────────────────────────────

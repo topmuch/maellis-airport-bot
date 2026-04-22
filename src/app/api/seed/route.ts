@@ -7,6 +7,7 @@ export async function POST() {
   try {
     // Clean existing data (ordered by dependencies)
     await db.message.deleteMany()
+    await db.conversationMessage.deleteMany()
     await db.conversation.deleteMany()
     await db.user.deleteMany()
     await db.payment.deleteMany()
@@ -16,9 +17,14 @@ export async function POST() {
     await db.flightStatus.deleteMany()
     await db.flightSearch.deleteMany()
     await db.emergencyAlert.deleteMany()
+    await db.emergencyContact.deleteMany()
     await db.activityLog.deleteMany()
     await db.setting.deleteMany()
+    await db.partnerUser.deleteMany()
+    await db.partner.deleteMany()
     await db.admin.deleteMany()
+    await db.lounge.deleteMany()
+    await db.transportProvider.deleteMany()
 
     // ========================
     // 1. ADMIN
@@ -315,6 +321,69 @@ export async function POST() {
 
     await db.activityLog.createMany({ data: activityLogsData })
 
+    // ========================
+    // 12. LOUNGES (Catalog)
+    // ========================
+    const loungesData = [
+      { airportCode: 'DSS', name: 'Salon Teranga', description: 'Salon VIP principal de l\'AIBD — Espace lounge traditionnel sénégalais', location: 'Terminal 1, Étage, Porte B10', priceStandard: 25000, priceBusiness: 18000, maxCapacity: 50, currentOccupancy: 12, isOpen: true, openingHours: JSON.stringify({ mon: '05:00-23:00', tue: '05:00-23:00', wed: '05:00-23:00', thu: '05:00-23:00', fri: '05:00-23:00', sat: '05:00-23:00', sun: '06:00-22:00' }), accessLevel: 'all' },
+      { airportCode: 'DSS', name: 'Salon Sahel', description: 'Salon premium avec vue piste — Buffet gratuit et WiFi haut débit', location: 'Terminal 2, Porte A05', priceStandard: 35000, priceBusiness: 25000, maxCapacity: 30, currentOccupancy: 5, isOpen: true, openingHours: JSON.stringify({ mon: '06:00-22:00', tue: '06:00-22:00', wed: '06:00-22:00', thu: '06:00-22:00', fri: '06:00-22:00', sat: '06:00-22:00', sun: '06:00-22:00' }), accessLevel: 'business' },
+      { airportCode: 'DSS', name: 'Salon Premium International', description: 'Salon haut de gamme — Spa, douche, restauration à la carte', location: 'Terminal International, Porte C01', priceStandard: 50000, priceBusiness: 40000, maxCapacity: 25, currentOccupancy: 8, isOpen: true, openingHours: JSON.stringify({ mon: '06:00-23:30', tue: '06:00-23:30', wed: '06:00-23:30', thu: '06:00-23:30', fri: '06:00-23:30', sat: '06:00-23:30', sun: '07:00-22:00' }), accessLevel: 'vip' },
+      { airportCode: 'ABJ', name: 'Abidjan Sky Lounge', description: 'Salon moderne de l\'aéroport Félix Houphouët-Boigny', location: 'Aérogare, Niveau Supérieur', priceStandard: 30000, maxCapacity: 40, currentOccupancy: 3, isOpen: true, openingHours: JSON.stringify({ mon: '05:30-22:00', tue: '05:30-22:00', wed: '05:30-22:00', thu: '05:30-22:00', fri: '05:30-22:00', sat: '05:30-22:00', sun: '06:00-21:00' }), accessLevel: 'all' },
+      { airportCode: 'LOS', name: 'Lagos Premium Lounge', description: 'Lounge VIP international de Murtala Muhammed', location: 'Terminal International, Etag 1', priceStandard: 30000, maxCapacity: 60, currentOccupancy: 0, isOpen: true, openingHours: JSON.stringify({ mon: '05:00-23:00', tue: '05:00-23:00', wed: '05:00-23:00', thu: '05:00-23:00', fri: '05:00-23:00', sat: '05:00-23:00', sun: '06:00-22:00' }), accessLevel: 'business' },
+      { airportCode: 'ACC', name: 'Accra VIP Lounge', description: 'Salon VIP de Kotoka International Airport', location: 'Terminal Arrivées, Niveau 2', priceStandard: 15000, maxCapacity: 35, currentOccupancy: 7, isOpen: true, openingHours: JSON.stringify({ mon: '05:00-22:00', tue: '05:00-22:00', wed: '05:00-22:00', thu: '05:00-22:00', fri: '05:00-22:00', sat: '05:00-22:00', sun: '06:00-20:00' }), accessLevel: 'all' },
+    ]
+    await db.lounge.createMany({ data: loungesData })
+
+    // ========================
+    // 13. TRANSPORT PROVIDERS
+    // ========================
+    const transportProvidersData = [
+      { airportCode: 'DSS', name: 'Taxi Officiel AIBD', type: 'taxi', baseFare: 2000, perKmRate: 650, minFare: 3000, contacts: JSON.stringify({ phone: '+221336543210', email: 'dispatch@taxiaibd.sn', whatsapp: '+221771112233' }), isActive: true },
+      { airportCode: 'DSS', name: 'Yango Dakar', type: 'vtc', baseFare: 1500, perKmRate: 500, minFare: 2000, contacts: JSON.stringify({ phone: '+221338876543', email: 'support@yango.sn' }), isActive: true },
+      { airportCode: 'DSS', name: 'Heetch Sénégal', type: 'vtc', baseFare: 1500, perKmRate: 550, minFare: 2000, contacts: JSON.stringify({ phone: '+221334455666', email: 'partenariats@heetch.sn' }), isActive: true },
+      { airportCode: 'DSS', name: 'Navette AIBD Centre-ville', type: 'shuttle', baseFare: 5000, perKmRate: 0, minFare: 5000, contacts: JSON.stringify({ phone: '+221337778899' }), isActive: true },
+      { airportCode: 'DSS', name: 'SenLimousine', type: 'private', baseFare: 10000, perKmRate: 1000, minFare: 15000, contacts: JSON.stringify({ phone: '+221771112244', email: 'reservation@senlimousine.sn', whatsapp: '+221779990011' }), isActive: true },
+      { airportCode: 'ABJ', name: 'Taxi Aéroport Abidjan', type: 'taxi', baseFare: 1500, perKmRate: 400, minFare: 2000, contacts: JSON.stringify({ phone: '+225070011122' }), isActive: true },
+      { airportCode: 'LOS', name: 'Airport Taxi Lagos', type: 'taxi', baseFare: 2000, perKmRate: 500, minFare: 3000, contacts: JSON.stringify({ phone: '+234801112233' }), isActive: true },
+      { airportCode: 'ACC', name: 'Airport Cab Accra', type: 'taxi', baseFare: 1000, perKmRate: 350, minFare: 1500, contacts: JSON.stringify({ phone: '+233201112233' }), isActive: true },
+    ]
+    await db.transportProvider.createMany({ data: transportProvidersData })
+
+    // ========================
+    // 14. EMERGENCY CONTACTS
+    // ========================
+    const emergencyContactsData = [
+      { airportCode: 'DSS', category: 'medical', name: 'Infirmerie AIBD Terminal 1', phoneNumber: '+221338650101', email: 'infirmerie@aibd.sn', isPrimary: true },
+      { airportCode: 'DSS', category: 'medical', name: 'SAMU Aéroport', phoneNumber: '+221338650102', whatsappNum: '+221771110101', isPrimary: false },
+      { airportCode: 'DSS', category: 'security', name: 'Police aux Frontières AIBD', phoneNumber: '+221338650201', isPrimary: true },
+      { airportCode: 'DSS', category: 'security', name: 'Sûreté Aéroportuaire', phoneNumber: '+221338650202', isPrimary: false },
+      { airportCode: 'DSS', category: 'fire', name: 'Pompiers Aéroport AIBD', phoneNumber: '+221338650301', email: 'pompiers@aibd.sn', isPrimary: true },
+      { airportCode: 'DSS', category: 'police', name: 'Commissariat Aéroport', phoneNumber: '+221338650401', isPrimary: true },
+      { airportCode: 'DSS', category: 'lost_child', name: 'Service Accueil Mineurs', phoneNumber: '+221338650501', isPrimary: true },
+      { airportCode: 'DSS', category: 'maintenance', name: 'Service Technique AIBD', phoneNumber: '+221338650601', isPrimary: true },
+      { airportCode: 'ABJ', category: 'medical', name: 'Infirmerie Aéroport Abidjan', phoneNumber: '+225070012100', isPrimary: true },
+      { airportCode: 'ABJ', category: 'security', name: 'Sécurité Aéroportuaire ABJ', phoneNumber: '+225070012200', isPrimary: true },
+      { airportCode: 'LOS', category: 'medical', name: 'Airport Medical Center Lagos', phoneNumber: '+2348011122330', isPrimary: true },
+      { airportCode: 'LOS', category: 'security', name: 'FAAN Security Lagos', phoneNumber: '+2348011122440', isPrimary: true },
+      { airportCode: 'ACC', category: 'medical', name: 'Airport Clinic Accra', phoneNumber: '+233201112200', isPrimary: true },
+      { airportCode: 'ACC', category: 'security', name: 'Aviation Security Ghana', phoneNumber: '+233201112211', isPrimary: true },
+    ]
+    await db.emergencyContact.createMany({ data: emergencyContactsData })
+
+    // ========================
+    // 15. PARTNERS (Agences & Compagnies)
+    // ========================
+    const partnersData = [
+      { airportCode: 'DSS', type: 'travel_agency', name: 'Voyages Teranga', email: 'contact@voyagesteranga.sn', phone: '+221338650701', contactPerson: 'Awa Diop', commissionRate: 0.10, contractStart: new Date('2025-01-01'), isActive: true },
+      { airportCode: 'DSS', type: 'travel_agency', name: 'Saloum Voyages', email: 'info@saloumvoyages.sn', phone: '+221338650702', contactPerson: 'Mamadou Fall', commissionRate: 0.08, contractStart: new Date('2025-03-15'), isActive: true },
+      { airportCode: 'DSS', type: 'airline', name: 'Air Sénégal', email: 'partnerships@airsenegal.com', phone: '+221338650703', contactPerson: 'Ousmane Ndiaye', commissionRate: 0.05, contractStart: new Date('2025-01-01'), isActive: true },
+      { airportCode: 'DSS', type: 'airline', name: 'ASKY Airlines', email: 'dakar@askyairlines.com', phone: '+221338650704', contactPerson: 'Adama Sow', commissionRate: 0.06, contractStart: new Date('2025-02-01'), isActive: true },
+      { airportCode: 'DSS', type: 'service_provider', name: 'Wave Sénégal', email: 'partners@wave.sn', phone: '+221338650705', contactPerson: 'Mariama Ba', commissionRate: 0.02, contractStart: new Date('2025-01-01'), isActive: true },
+      { airportCode: 'ABJ', type: 'travel_agency', name: 'Agence Ivoire Voyage', email: 'contact@ivoirevoyage.ci', phone: '+225070012700', contactPerson: 'Koffi Yao', commissionRate: 0.10, contractStart: new Date('2025-02-01'), isActive: true },
+      { airportCode: 'LOS', type: 'travel_agency', name: 'Wakati Travels Lagos', email: 'bookings@wakati.ng', phone: '+2348011122700', contactPerson: 'Chidi Eze', commissionRate: 0.08, contractStart: new Date('2025-01-15'), isActive: true },
+    ]
+    await db.partner.createMany({ data: partnersData })
+
     // Count results
     const counts = {
       admins: await db.admin.count(),
@@ -323,10 +392,14 @@ export async function POST() {
       flightSearches: await db.flightSearch.count(),
       flightStatuses: await db.flightStatus.count(),
       baggageQRs: await db.baggageQR.count(),
+      lounges: await db.lounge.count(),
       loungeBookings: await db.loungeBooking.count(),
+      transportProviders: await db.transportProvider.count(),
       transportBookings: await db.transportBooking.count(),
       payments: await db.payment.count(),
+      emergencyContacts: await db.emergencyContact.count(),
       emergencyAlerts: await db.emergencyAlert.count(),
+      partners: await db.partner.count(),
       activityLogs: await db.activityLog.count(),
       settings: await db.setting.count(),
     }
