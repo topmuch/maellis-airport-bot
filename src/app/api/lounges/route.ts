@@ -3,7 +3,7 @@ import { requireAuth, requireRole } from '@/lib/auth';
 import { getLounges, createLounge } from '@/lib/services/lounge.service';
 
 // ---------------------------------------------------------------------------
-// GET /api/lounges?airport=DSS — Returns lounges for an airport
+// GET /api/lounges?airport=DSS&active=true — Returns lounges for an airport
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +25,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const lounges = await getLounges(airportCode);
+    // active=true (default) → only open lounges; active=false → all lounges
+    const activeParam = searchParams.get('active');
+    const activeOnly = activeParam === null ? true : activeParam === 'true';
+
+    const lounges = await getLounges(airportCode, activeOnly);
 
     return NextResponse.json({
       success: true,
@@ -58,7 +62,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validate required fields
-    const requiredFields: string[] = ['airportCode', 'name', 'location', 'priceStandard'];
+    const requiredFields: string[] = ['airportCode', 'name', 'priceStandard'];
     const missingFields = requiredFields.filter((field) => !body[field]);
 
     if (missingFields.length > 0) {
@@ -79,31 +83,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate price
-    if (typeof body.priceStandard !== 'number' || body.priceStandard < 0) {
+    // Validate price fields
+    const priceFields = ['priceStandard', 'priceBusiness', 'priceFirstClass', 'priceChild'];
+    for (const field of priceFields) {
+      if (body[field] !== undefined && (typeof body[field] !== 'number' || body[field] < 0)) {
+        return NextResponse.json(
+          { success: false, error: `${field} must be a non-negative number` },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (body.maxCapacity !== undefined && (typeof body.maxCapacity !== 'number' || body.maxCapacity < 1 || !Number.isInteger(body.maxCapacity))) {
       return NextResponse.json(
-        { success: false, error: 'priceStandard must be a non-negative number' },
+        { success: false, error: 'maxCapacity must be a positive integer' },
         { status: 400 },
       );
     }
 
-    if (body.priceBusiness !== undefined && (typeof body.priceBusiness !== 'number' || body.priceBusiness < 0)) {
+    // Validate time format if provided
+    if (body.openingTime && !/^\d{2}:\d{2}$/.test(body.openingTime)) {
       return NextResponse.json(
-        { success: false, error: 'priceBusiness must be a non-negative number' },
+        { success: false, error: 'openingTime must be in HH:mm format' },
         { status: 400 },
       );
+    }
+    if (body.closingTime && !/^\d{2}:\d{2}$/.test(body.closingTime)) {
+      return NextResponse.json(
+        { success: false, error: 'closingTime must be in HH:mm format' },
+        { status: 400 },
+      );
+    }
+
+    // Validate amenities — must be a JSON array if provided as string
+    let amenities = body.amenities;
+    if (amenities && typeof amenities === 'object') {
+      amenities = JSON.stringify(amenities);
     }
 
     const lounge = await createLounge({
       airportCode: body.airportCode,
       name: body.name,
       description: body.description,
+      terminal: body.terminal,
+      gateLocation: body.gateLocation,
       location: body.location,
       priceStandard: body.priceStandard,
       priceBusiness: body.priceBusiness,
+      priceFirstClass: body.priceFirstClass,
+      priceChild: body.priceChild,
       currency: body.currency,
       maxCapacity: body.maxCapacity,
+      openingTime: body.openingTime,
+      closingTime: body.closingTime,
       openingHours: body.openingHours,
+      amenities: amenities,
       accessLevel: body.accessLevel,
       imageUrl: body.imageUrl,
     });

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
-import { getBookings } from '@/lib/services/transport.service'
+import { getIncidentStats } from '@/lib/services/emergency.service'
 
-// GET /api/transport/bookings?providerId=xxx&status=xxx
+// GET /api/emergency/stats?airport=DSS — Incident statistics for dashboard
 export async function GET(request: NextRequest) {
   try {
     const authResult = await requireAuth(request)
-
     if (!authResult.success) {
       return NextResponse.json(
         { success: false, error: authResult.error },
@@ -15,20 +14,18 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const providerId = searchParams.get('providerId') ?? undefined
-    const status = searchParams.get('status') ?? undefined
+    const airportCode = searchParams.get('airport') || undefined
 
-    const bookings = await getBookings(providerId, status)
+    const stats = await getIncidentStats(airportCode)
 
     return NextResponse.json({
       success: true,
-      data: bookings,
-      count: bookings.length,
+      data: stats,
     })
   } catch (error) {
-    console.error('Error fetching transport bookings:', error)
+    console.error('Error fetching emergency stats:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch transport bookings' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     )
   }

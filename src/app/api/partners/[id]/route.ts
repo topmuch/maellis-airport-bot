@@ -18,16 +18,16 @@ export async function GET(
 
     if (!partner) {
       return NextResponse.json(
-        { error: 'Partner not found' },
+        { success: false, error: 'Partner not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({ data: partner })
+    return NextResponse.json({ success: true, data: partner })
   } catch (error) {
     console.error('Error fetching partner:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch partner' },
+      { success: false, error: 'Failed to fetch partner' },
       { status: 500 }
     )
   }
@@ -42,7 +42,7 @@ export async function PUT(
     const authResult = await requireRole('superadmin', 'airport_admin')(request)
     if (!authResult.success) {
       return NextResponse.json(
-        { error: authResult.error },
+        { success: false, error: authResult.error },
         { status: authResult.status }
       )
     }
@@ -53,45 +53,34 @@ export async function PUT(
     const existing = await getPartnerById(id)
     if (!existing) {
       return NextResponse.json(
-        { error: 'Partner not found' },
+        { success: false, error: 'Partner not found' },
         { status: 404 }
       )
     }
 
     const body = await request.json()
-    const {
-      airportCode,
-      type,
-      name,
-      email,
-      phone,
-      contactPerson,
-      commissionRate,
-      contractStart,
-      contractEnd,
-      logoUrl,
-      isActive,
-    } = body
 
-    const updated = await updatePartner(id, {
-      ...(airportCode !== undefined && { airportCode }),
-      ...(type !== undefined && { type }),
-      ...(name !== undefined && { name }),
-      ...(email !== undefined && { email }),
-      ...(phone !== undefined && { phone }),
-      ...(contactPerson !== undefined && { contactPerson }),
-      ...(commissionRate !== undefined && { commissionRate }),
-      ...(contractStart !== undefined && { contractStart }),
-      ...(contractEnd !== undefined && { contractEnd }),
-      ...(logoUrl !== undefined && { logoUrl }),
-      ...(isActive !== undefined && { isActive }),
+    const updated = await updatePartner(id, body)
+
+    return NextResponse.json({
+      success: true,
+      data: updated,
+      message: 'Partner updated successfully',
     })
-
-    return NextResponse.json({ data: updated })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error updating partner:', error)
+
+    const message = error instanceof Error ? error.message : 'Failed to update partner'
+
+    if (message === 'Partner not found') {
+      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    }
+    if (message.includes('already exists')) {
+      return NextResponse.json({ success: false, error: message }, { status: 409 })
+    }
+
     return NextResponse.json(
-      { error: 'Failed to update partner' },
+      { success: false, error: 'Failed to update partner' },
       { status: 500 }
     )
   }
@@ -106,7 +95,7 @@ export async function DELETE(
     const authResult = await requireRole('superadmin', 'airport_admin')(request)
     if (!authResult.success) {
       return NextResponse.json(
-        { error: authResult.error },
+        { success: false, error: authResult.error },
         { status: authResult.status }
       )
     }
@@ -117,7 +106,7 @@ export async function DELETE(
     const existing = await getPartnerById(id)
     if (!existing) {
       return NextResponse.json(
-        { error: 'Partner not found' },
+        { success: false, error: 'Partner not found' },
         { status: 404 }
       )
     }
@@ -125,13 +114,24 @@ export async function DELETE(
     const deactivated = await deactivatePartner(id)
 
     return NextResponse.json({
+      success: true,
       data: deactivated,
       message: 'Partner deactivated successfully',
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error deactivating partner:', error)
+
+    const message = error instanceof Error ? error.message : 'Failed to deactivate partner'
+
+    if (message === 'Partner not found') {
+      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    }
+    if (message.includes('already inactive')) {
+      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    }
+
     return NextResponse.json(
-      { error: 'Failed to deactivate partner' },
+      { success: false, error: 'Failed to deactivate partner' },
       { status: 500 }
     )
   }

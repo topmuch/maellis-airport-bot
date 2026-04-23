@@ -11,7 +11,7 @@ export async function PUT(
     const authResult = await requireRole('superadmin', 'airport_admin')(request)
     if (!authResult.success) {
       return NextResponse.json(
-        { error: authResult.error },
+        { success: false, error: authResult.error },
         { status: authResult.status }
       )
     }
@@ -24,7 +24,7 @@ export async function PUT(
     // At least one field must be provided
     if (!status && !assignedTo && !resolution) {
       return NextResponse.json(
-        { error: 'At least one of status, assignedTo, or resolution must be provided' },
+        { success: false, error: 'At least one of status, assignedTo, or resolution must be provided' },
         { status: 400 }
       )
     }
@@ -35,11 +35,21 @@ export async function PUT(
       resolution: resolution || undefined,
     })
 
-    return NextResponse.json({ data: updated })
-  } catch (error) {
+    return NextResponse.json({ success: true, data: updated })
+  } catch (error: unknown) {
     console.error('Error updating emergency incident:', error)
+
+    const message = error instanceof Error ? error.message : 'Failed to update emergency incident'
+
+    if (message.includes('not found')) {
+      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    }
+    if (message.startsWith('Invalid status')) {
+      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    }
+
     return NextResponse.json(
-      { error: 'Failed to update emergency incident' },
+      { success: false, error: 'Failed to update emergency incident' },
       { status: 500 }
     )
   }

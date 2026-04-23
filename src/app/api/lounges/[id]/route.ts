@@ -74,18 +74,14 @@ export async function PUT(
     const body = await request.json();
 
     // Validate numeric fields when provided
-    if (body.priceStandard !== undefined && (typeof body.priceStandard !== 'number' || body.priceStandard < 0)) {
-      return NextResponse.json(
-        { success: false, error: 'priceStandard must be a non-negative number' },
-        { status: 400 },
-      );
-    }
-
-    if (body.priceBusiness !== undefined && (typeof body.priceBusiness !== 'number' || body.priceBusiness < 0)) {
-      return NextResponse.json(
-        { success: false, error: 'priceBusiness must be a non-negative number' },
-        { status: 400 },
-      );
+    const priceFields = ['priceStandard', 'priceBusiness', 'priceFirstClass', 'priceChild'];
+    for (const field of priceFields) {
+      if (body[field] !== undefined && (typeof body[field] !== 'number' || body[field] < 0)) {
+        return NextResponse.json(
+          { success: false, error: `${field} must be a non-negative number` },
+          { status: 400 },
+        );
+      }
     }
 
     if (body.maxCapacity !== undefined && (typeof body.maxCapacity !== 'number' || body.maxCapacity < 1 || !Number.isInteger(body.maxCapacity))) {
@@ -109,11 +105,26 @@ export async function PUT(
       );
     }
 
+    // Validate time format if provided
+    if (body.openingTime && !/^\d{2}:\d{2}$/.test(body.openingTime)) {
+      return NextResponse.json(
+        { success: false, error: 'openingTime must be in HH:mm format' },
+        { status: 400 },
+      );
+    }
+    if (body.closingTime && !/^\d{2}:\d{2}$/.test(body.closingTime)) {
+      return NextResponse.json(
+        { success: false, error: 'closingTime must be in HH:mm format' },
+        { status: 400 },
+      );
+    }
+
     // Ensure at least one field is being updated
     const updatableFields = [
-      'name', 'description', 'location', 'imageUrl',
-      'priceStandard', 'priceBusiness', 'maxCapacity',
-      'currentOccupancy', 'isOpen', 'openingHours', 'accessLevel',
+      'name', 'description', 'terminal', 'gateLocation', 'location', 'imageUrl',
+      'priceStandard', 'priceBusiness', 'priceFirstClass', 'priceChild',
+      'maxCapacity', 'currentOccupancy', 'isOpen',
+      'openingTime', 'closingTime', 'openingHours', 'amenities', 'accessLevel',
     ];
     const hasUpdate = updatableFields.some((field) => body[field] !== undefined);
 
@@ -122,6 +133,11 @@ export async function PUT(
         { success: false, error: 'No valid fields to update' },
         { status: 400 },
       );
+    }
+
+    // Normalize amenities if it's an object
+    if (body.amenities !== undefined && typeof body.amenities === 'object') {
+      body.amenities = JSON.stringify(body.amenities);
     }
 
     const lounge = await updateLounge(id, body);
@@ -163,7 +179,7 @@ export async function PUT(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/lounges/[id] — Delete a lounge (admin only)
+// DELETE /api/lounges/[id] — Soft-delete a lounge (set isOpen=false, admin only)
 // ---------------------------------------------------------------------------
 export async function DELETE(
   request: NextRequest,
@@ -200,7 +216,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       data: result,
-      message: 'Lounge deleted successfully',
+      message: 'Lounge deactivated successfully',
     });
   } catch (error: unknown) {
     if (error instanceof Error) {

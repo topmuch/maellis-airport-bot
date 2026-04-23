@@ -22,6 +22,10 @@ import {
   RefreshCw,
   Search,
   Filter,
+  Handshake,
+  Mail,
+  Building2,
+  Clock,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +40,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -45,6 +52,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Select,
   SelectContent,
@@ -344,6 +354,10 @@ export function TeamModule() {
           <TabsTrigger value="audit" className="gap-1.5">
             <ClipboardList className="h-4 w-4" />
             <span className="hidden sm:inline">Journaux d&apos;Audit</span>
+          </TabsTrigger>
+          <TabsTrigger value="partners" className="gap-1.5">
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Partenaires</span>
           </TabsTrigger>
         </TabsList>
 
@@ -801,6 +815,10 @@ export function TeamModule() {
         <TabsContent value="audit" className="space-y-6">
           <AuditLogsTab />
         </TabsContent>
+        {/* ═══════════════════ TAB 5: Partenaires ═══════════════════ */}
+        <TabsContent value="partners" className="space-y-6">
+          <PartnersTab />
+        </TabsContent>
       </Tabs>
     </div>
   )
@@ -1058,9 +1076,433 @@ function AuditLogsTab() {
                 'Charger plus'
               )}
             </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+// ─── Partners Tab Sub-Component ───────────────────────────────────
+interface Partner {
+  id: string
+  name: string
+  type: string
+  email: string
+  phone?: string
+  contactPerson?: string
+  airportCode?: string
+  commissionRate?: number
+  contractStart?: string
+  contractEnd?: string
+  notes?: string
+  status: string
+  usersCount?: number
+  createdAt?: string
+}
+
+const PARTNER_TYPE_LABELS: Record<string, string> = {
+  TRAVEL_AGENCY: 'Agence de Voyage',
+  AIRLINE: 'Compagnie Aérienne',
+  SERVICE_PROVIDER: 'Prestataire',
+}
+
+const PARTNER_TYPE_COLORS: Record<string, string> = {
+  TRAVEL_AGENCY: 'bg-violet-100 text-violet-700',
+  AIRLINE: 'bg-sky-100 text-sky-700',
+  SERVICE_PROVIDER: 'bg-amber-100 text-amber-700',
+}
+
+const PARTNER_STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-amber-500/15 text-amber-700 border-amber-200',
+  active: 'bg-green-500/15 text-green-700 border-green-200',
+  inactive: 'bg-red-500/15 text-red-700 border-red-200',
+}
+
+const PARTNER_STATUS_LABELS: Record<string, string> = {
+  pending: 'En attente',
+  active: 'Actif',
+  inactive: 'Inactif',
+}
+
+const PARTNER_TYPE_OPTIONS = [
+  { value: 'TRAVEL_AGENCY', label: 'Agence de Voyage' },
+  { value: 'AIRLINE', label: 'Compagnie Aérienne' },
+  { value: 'SERVICE_PROVIDER', label: 'Prestataire' },
+]
+
+function PartnersTab() {
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [sendInvitation, setSendInvitation] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<Partner | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  // Form state
+  const [pType, setPType] = useState('TRAVEL_AGENCY')
+  const [pName, setPName] = useState('')
+  const [pEmail, setPEmail] = useState('')
+  const [pPhone, setPPhone] = useState('')
+  const [pContactPerson, setPContactPerson] = useState('')
+  const [pAirportCode, setPAirportCode] = useState('DSS')
+  const [pCommissionRate, setPCommissionRate] = useState('')
+  const [pContractStart, setPContractStart] = useState('')
+  const [pContractEnd, setPContractEnd] = useState('')
+  const [pNotes, setPNotes] = useState('')
+
+  // Fetch partners
+  useEffect(() => {
+    async function fetchPartners() {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/partners?airport=DSS')
+        if (res.ok) {
+          const json = await res.json()
+          const items = json.data ?? json ?? []
+          setPartners(Array.isArray(items) ? items : [])
+        } else {
+          setPartners([])
+        }
+      } catch {
+        setPartners([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPartners()
+  }, [])
+
+  const resetForm = () => {
+    setPType('TRAVEL_AGENCY'); setPName(''); setPEmail('')
+    setPPhone(''); setPContactPerson(''); setPAirportCode('DSS')
+    setPCommissionRate(''); setPContractStart(''); setPContractEnd('')
+    setPNotes(''); setSendInvitation(true)
+  }
+
+  const openDialog = () => {
+    resetForm()
+    setDialogOpen(true)
+  }
+
+  const handleSubmit = async () => {
+    if (!pName || !pEmail) {
+      toast.error('Nom et email sont requis')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const payload = {
+        type: pType,
+        name: pName,
+        email: pEmail,
+        phone: pPhone || undefined,
+        contactPerson: pContactPerson || undefined,
+        airportCode: pAirportCode,
+        commissionRate: pCommissionRate ? parseFloat(pCommissionRate) : undefined,
+        contractStart: pContractStart || undefined,
+        contractEnd: pContractEnd || undefined,
+        notes: pNotes || undefined,
+        sendInvitation,
+      }
+      const res = await fetch('/api/partners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        toast.success('Partenaire ajouté avec succès')
+        setDialogOpen(false)
+        resetForm()
+        // Re-fetch
+        const json = await res.json()
+        const newPartner = json.data || json
+        if (newPartner?.id) {
+          setPartners((prev) => [newPartner, ...prev])
+        } else {
+          const listRes = await fetch('/api/partners?airport=DSS')
+          if (listRes.ok) {
+            const listJson = await listRes.json()
+            const items = listJson.data ?? listJson ?? []
+            setPartners(Array.isArray(items) ? items : [])
+          }
+        }
+        if (sendInvitation) {
+          toast.success('Invitation envoyée par email')
+        }
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error ?? "Erreur lors de l'ajout")
+      }
+    } catch {
+      toast.error('Erreur réseau.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Stats
+  const totalPartners = partners.length
+  const activePartners = partners.filter((p) => p.status === 'active').length
+  const pendingPartners = partners.filter((p) => p.status === 'pending').length
+
+  return (
+    <>
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="border-l-4 border-l-orange-500 overflow-hidden">
+          <CardContent className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+              <Handshake className="h-6 w-6 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-muted-foreground text-sm">Total Partenaires</p>
+              <p className="text-2xl font-bold text-orange-600">{totalPartners}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-green-500 overflow-hidden">
+          <CardContent className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-100">
+              <CheckCircle2 className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-muted-foreground text-sm">Actifs</p>
+              <p className="text-2xl font-bold text-green-600">{activePartners}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500 overflow-hidden">
+          <CardContent className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+              <Clock className="h-6 w-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-muted-foreground text-sm">En attente</p>
+              <p className="text-2xl font-bold text-amber-600">{pendingPartners}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Partners Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Partenaires ({totalPartners})</CardTitle>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={openDialog}>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Inviter un partenaire</span>
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="border-orange-500 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+            </div>
+          ) : partners.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Handshake className="size-10 mb-3 opacity-40" />
+              <p>Aucun partenaire</p>
+            </div>
+          ) : (
+            <div className="max-h-[480px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="hidden sm:table-cell">Contact</TableHead>
+                    <TableHead className="hidden md:table-cell">Commission</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="hidden lg:table-cell">Utilisateurs</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {partners.map((partner) => (
+                    <TableRow key={partner.id}>
+                      <TableCell className="font-medium">{partner.name}</TableCell>
+                      <TableCell>
+                        <Badge className={PARTNER_TYPE_COLORS[partner.type] ?? 'bg-gray-100 text-gray-600'} variant="secondary">
+                          {PARTNER_TYPE_LABELS[partner.type] ?? partner.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-sm">
+                        {partner.contactPerson || partner.email}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm">
+                        {partner.commissionRate != null ? `${partner.commissionRate}%` : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={PARTNER_STATUS_COLORS[partner.status] ?? ''} variant="outline">
+                          {PARTNER_STATUS_LABELS[partner.status] ?? partner.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm">
+                        {partner.usersCount ?? 0}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Actions</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Mail className="mr-2 h-4 w-4" />
+                              Renvoyer l&apos;invitation
+                            </DropdownMenuItem>
+                            <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(partner)}>
+                              <UserX className="mr-2 h-4 w-4" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create Partner Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm() } }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Inviter un partenaire</DialogTitle>
+            <DialogDescription>
+              Ajoutez un nouveau partenaire et envoyez-lui une invitation par email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Type de partenaire *</Label>
+              <Select value={pType} onValueChange={setPType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PARTNER_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Nom de la société *</Label>
+              <Input placeholder="Ex: Voyages Dakar SARL" value={pName} onChange={(e) => setPName(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Email *</Label>
+                <Input type="email" placeholder="contact@partenaire.sn" value={pEmail} onChange={(e) => setPEmail(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Téléphone</Label>
+                <Input placeholder="+221 33 000 00 00" value={pPhone} onChange={(e) => setPPhone(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Personne de contact</Label>
+              <Input placeholder="Nom du responsable" value={pContactPerson} onChange={(e) => setPContactPerson(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Aéroport</Label>
+                <Select value={pAirportCode} onValueChange={setPAirportCode}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {AIRPORTS.filter((a) => ['DSS', 'ABJ', 'BKO', 'LOS', 'ACC'].includes(a.value)).map((apt) => (
+                      <SelectItem key={apt.value} value={apt.value}>{apt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Commission (%)</Label>
+                <Input type="number" min="0" max="100" step="0.1" placeholder="5.0" value={pCommissionRate} onChange={(e) => setPCommissionRate(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Début de contrat</Label>
+                <Input type="date" value={pContractStart} onChange={(e) => setPContractStart(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Fin de contrat</Label>
+                <Input type="date" value={pContractEnd} onChange={(e) => setPContractEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Notes</Label>
+              <Textarea placeholder="Informations complémentaires..." value={pNotes} onChange={(e) => setPNotes(e.target.value)} rows={2} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="send-invitation" checked={sendInvitation} onCheckedChange={(checked) => setSendInvitation(checked === true)} />
+              <Label htmlFor="send-invitation" className="cursor-pointer">
+                Envoyer une invitation par email
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm() }}>Annuler</Button>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={handleSubmit} disabled={submitting || !pName || !pEmail}>
+              {submitting ? 'Envoi en cours...' : 'Ajouter le partenaire'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le partenaire</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer <strong>{deleteTarget?.name}</strong> ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault()
+                if (!deleteTarget) return
+                setDeleting(true)
+                try {
+                  const res = await fetch(`/api/partners/${deleteTarget.id}`, { method: 'DELETE' })
+                  if (res.ok) {
+                    toast.success(`Partenaire ${deleteTarget.name} supprimé`)
+                    setPartners((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+                    setDeleteTarget(null)
+                  } else {
+                    const err = await res.json().catch(() => ({}))
+                    toast.error(err.error ?? 'Erreur lors de la suppression')
+                  }
+                } catch {
+                  toast.error('Erreur réseau.')
+                } finally {
+                  setDeleting(false)
+                }
+              }}
+            >
+              {deleting ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

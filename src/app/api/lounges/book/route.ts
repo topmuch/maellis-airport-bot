@@ -1,6 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createBooking } from '@/lib/services/lounge.service';
+import { requireAuth } from '@/lib/auth';
+import {
+  createBooking,
+  getLoungeBookings,
+} from '@/lib/services/lounge.service';
 import { sendLoungeConfirmation } from '@/lib/email';
+
+// ---------------------------------------------------------------------------
+// GET /api/lounges/book?loungeId=xxx&status=xxx&date=YYYY-MM-DD — List bookings
+// ---------------------------------------------------------------------------
+export async function GET(request: NextRequest) {
+  try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: authResult.status },
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const loungeId = searchParams.get('loungeId') || undefined;
+    const status = searchParams.get('status') || undefined;
+    const date = searchParams.get('date') || undefined;
+
+    // Validate date format if provided
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json(
+        { success: false, error: 'date must be in YYYY-MM-DD format' },
+        { status: 400 },
+      );
+    }
+
+    const bookings = await getLoungeBookings(loungeId, status, date);
+
+    return NextResponse.json({
+      success: true,
+      data: bookings,
+      count: bookings.length,
+    });
+  } catch (error) {
+    console.error('[GET /api/lounges/book] Error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 },
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/lounges/book — Create a lounge booking (no auth required for bot)
@@ -44,9 +90,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (body.accessLevel !== undefined && !['standard', 'business'].includes(body.accessLevel)) {
+    // Validate ticketClass if provided
+    const validTicketClasses = ['standard', 'business', 'first', 'child'];
+    if (body.ticketClass && !validTicketClasses.includes(body.ticketClass)) {
       return NextResponse.json(
-        { success: false, error: 'accessLevel must be "standard" or "business"' },
+        { success: false, error: `ticketClass must be one of: ${validTicketClasses.join(', ')}` },
         { status: 400 },
       );
     }
@@ -77,7 +125,9 @@ export async function POST(request: NextRequest) {
       startTime: body.startTime,
       durationHours: body.durationHours,
       guests: body.guests,
-      accessLevel: body.accessLevel,
+      ticketClass: body.ticketClass,
+      flightNumber: body.flightNumber,
+      paymentMethod: body.paymentMethod,
     });
 
     // Send confirmation email if email was provided (non-blocking)
@@ -127,7 +177,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (message.startsWith('Insufficient capacity')) {
+      if (message.startsWith('Insufficient capacity') || message.startsWith('Lounge is full')) {
         return NextResponse.json(
           { success: false, error: message },
           { status: 409 },

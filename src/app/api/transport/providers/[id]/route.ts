@@ -21,16 +21,16 @@ export async function GET(
 
     if (!provider) {
       return NextResponse.json(
-        { error: 'Transport provider not found' },
+        { success: false, error: 'Transport provider not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({ data: provider })
+    return NextResponse.json({ success: true, data: provider })
   } catch (error) {
     console.error('Error fetching transport provider:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch transport provider' },
+      { success: false, error: 'Failed to fetch transport provider' },
       { status: 500 }
     )
   }
@@ -46,7 +46,7 @@ export async function PUT(
 
     if (!authResult.success) {
       return NextResponse.json(
-        { error: authResult.error },
+        { success: false, error: authResult.error },
         { status: authResult.status }
       )
     }
@@ -57,7 +57,7 @@ export async function PUT(
     const existing = await getProviderById(id)
     if (!existing) {
       return NextResponse.json(
-        { error: 'Transport provider not found' },
+        { success: false, error: 'Transport provider not found' },
         { status: 404 }
       )
     }
@@ -67,37 +67,26 @@ export async function PUT(
       const validTypes = ['taxi', 'vtc', 'shuttle', 'private']
       if (!validTypes.includes(body.type)) {
         return NextResponse.json(
-          { error: `type must be one of: ${validTypes.join(', ')}` },
+          { success: false, error: `type must be one of: ${validTypes.join(', ')}` },
           { status: 400 }
         )
       }
     }
 
     // Validate numeric fields if provided
-    if (body.baseFare !== undefined && (typeof body.baseFare !== 'number' || body.baseFare < 0)) {
-      return NextResponse.json(
-        { error: 'baseFare must be a non-negative number' },
-        { status: 400 }
-      )
-    }
-
-    if (body.perKmRate !== undefined && (typeof body.perKmRate !== 'number' || body.perKmRate < 0)) {
-      return NextResponse.json(
-        { error: 'perKmRate must be a non-negative number' },
-        { status: 400 }
-      )
-    }
-
-    if (body.minFare !== undefined && (typeof body.minFare !== 'number' || body.minFare < 0)) {
-      return NextResponse.json(
-        { error: 'minFare must be a non-negative number' },
-        { status: 400 }
-      )
+    const numericFields = ['baseFare', 'perKmRate', 'minFare', 'nightSurcharge']
+    for (const field of numericFields) {
+      if (body[field] !== undefined && (typeof body[field] !== 'number' || body[field] < 0)) {
+        return NextResponse.json(
+          { success: false, error: `${field} must be a non-negative number` },
+          { status: 400 }
+        )
+      }
     }
 
     const provider = await updateProvider(id, body)
 
-    return NextResponse.json({ data: provider })
+    return NextResponse.json({ success: true, data: provider })
   } catch (error: unknown) {
     console.error('Error updating transport provider:', error)
 
@@ -108,19 +97,19 @@ export async function PUT(
       (error as { code: string }).code === 'P2002'
     ) {
       return NextResponse.json(
-        { error: 'A provider with this name already exists for this airport' },
+        { success: false, error: 'A provider with this name already exists for this airport' },
         { status: 409 }
       )
     }
 
     return NextResponse.json(
-      { error: 'Failed to update transport provider' },
+      { success: false, error: 'Failed to update transport provider' },
       { status: 500 }
     )
   }
 }
 
-// DELETE /api/transport/providers/[id] — Delete provider (admin only)
+// DELETE /api/transport/providers/[id] — Soft-delete provider (admin only)
 export async function DELETE(
   request: NextRequest,
   { params }: RouteParams
@@ -130,7 +119,7 @@ export async function DELETE(
 
     if (!authResult.success) {
       return NextResponse.json(
-        { error: authResult.error },
+        { success: false, error: authResult.error },
         { status: authResult.status }
       )
     }
@@ -140,32 +129,23 @@ export async function DELETE(
     const existing = await getProviderById(id)
     if (!existing) {
       return NextResponse.json(
-        { error: 'Transport provider not found' },
+        { success: false, error: 'Transport provider not found' },
         { status: 404 }
       )
     }
 
-    await deleteProvider(id)
+    const result = await deleteProvider(id)
 
-    return NextResponse.json({ message: 'Transport provider deleted successfully' })
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: 'Transport provider deactivated successfully',
+    })
   } catch (error: unknown) {
     console.error('Error deleting transport provider:', error)
 
-    // Foreign key constraint — provider has existing bookings
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code: string }).code === 'P2003'
-    ) {
-      return NextResponse.json(
-        { error: 'Cannot delete provider: existing bookings are linked to this provider. Deactivate it instead.' },
-        { status: 409 }
-      )
-    }
-
     return NextResponse.json(
-      { error: 'Failed to delete transport provider' },
+      { success: false, error: 'Failed to delete transport provider' },
       { status: 500 }
     )
   }

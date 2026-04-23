@@ -211,19 +211,28 @@ model Lounge {
   airportCode   String
   name          String
   description   String?
-  location      String   // ex: "Terminal 1, Porte B10"
+  terminal      String   @default("")   // ex: "Terminal 1"
+  gateLocation  String   @default("")   // ex: "Porte B10-B15"
+  location      String   @default("") // Compatibilité: concat terminal + gateLocation
   imageUrl      String?
 
-  // Tarification
-  priceStandard Float
-  priceBusiness Float?
+  // Tarification (4 niveaux de prix)
+  priceStandard Float    @default(0)   // Prix passager Eco
+  priceBusiness Float    @default(0)   // Prix passager Business
+  priceFirstClass Float   @default(0)   // Prix passager First Class (souvent gratuit)
+  priceChild     Float    @default(0)   // Prix enfant (-12 ans)
   currency      String   @default("XOF")
 
-  // Capacités & Règles
+  // Capacités & Horaires
   maxCapacity     Int    @default(50)
   currentOccupancy Int   @default(0)
   isOpen          Boolean @default(true)
-  openingHours    String  // JSON: {"mon":"06:00-22:00",...}
+  openingTime     String  @default("06:00")
+  closingTime     String  @default("22:00")
+  openingHours    String  @default("\"06:00-22:00\"") // JSON legacy compat
+
+  // Équipements
+  amenities      String  @default("[]") // JSON array: ["wifi","shower","food","bar","workspace"]
 
   // Accès
   accessLevel   String   @default("all") // all, business, vip
@@ -242,21 +251,31 @@ model LoungeBooking {
   loungeId      String?
   lounge        Lounge?  @relation(fields: [loungeId], references: [id])
 
-  // Champs existants (compatibilité ascendante)
+  // Info passager
   passengerName String
   phone         String
   email         String?
-  loungeName    String   // Redondant pour compatibilité, sera remplacé par lounge.name
+
+  // Redondant pour compatibilité
+  loungeName    String   @default("")
   airportCode   String
+
+  // Détails réservation
   guests        Int      @default(1)
   bookingDate   String
   startTime     String
   durationHours Int      @default(3)
+  ticketClass   String   @default("standard") // standard, business, first, child
+  flightNumber  String?
+
+  // Prix figé à la réservation
+  unitPrice     Float    @default(0) // Prix unitaire au moment de la résa
   totalPrice    Float
+
   paymentMethod String?
   paymentStatus String   @default("pending")
   bookingRef    String   @unique
-  status        String   @default("confirmed")
+  status        String   @default("confirmed") // confirmed, checked_in, completed, cancelled
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -277,11 +296,19 @@ model TransportProvider {
   isActive    Boolean  @default(true)
 
   // Grille tarifaire
-  baseFare    Float    // Prise en charge en FCFA
-  perKmRate   Float    // Prix au km
-  minFare     Float    // Minimum à payer
+  baseFare       Float   @default(0)   // Prise en charge en FCFA
+  perKmRate      Float   @default(0)   // Prix au km
+  minFare        Float   @default(0)   // Minimum à payer
+  nightSurcharge Float   @default(0)   // Majoration nuit (0.20 = 20%)
 
-  contacts    String?  // JSON: {"phone":"+221...","email":"dispatch@...","whatsapp":"..."}
+  // Contacts du partenaire
+  contactPhone   String  @default("")
+  contactEmail   String  @default("")
+  whatsappNumber String  @default("")
+  contacts       String? // JSON legacy
+
+  // Zones desservies
+  serviceZones   String  @default("[]") // JSON array: ["Dakar Centre","Almadies","Plateau"]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -297,30 +324,38 @@ model TransportBooking {
   providerId      String?
   provider        TransportProvider? @relation(fields: [providerId], references: [id])
 
-  // Champs existants (compatibilité ascendante)
+  // Info client
   passengerName   String
   phone           String
-  vehicleType     String   // Redondant pour compatibilité
+  email           String?
+
+  // Course
+  vehicleType     String   @default("") // Redondant pour compatibilité
   pickupLocation  String
   dropoffLocation String
   pickupDate      String
   pickupTime      String
   passengers      Int      @default(1)
-  totalPrice      Float
+
+  // Prix
+  totalPrice      Float    @default(0)
   paymentMethod   String?
   paymentStatus   String   @default("pending")
   bookingRef      String   @unique
+
+  // Chauffeur assigné
   driverName      String?
   driverPhone     String?
   vehiclePlate    String?
-  status          String   @default("pending")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
-  // Nouveaux champs calculés
+  // Champs calculés
   distanceKm      Float?
   estimatedPrice  Float?
   finalPrice      Float?
+
+  status          String   @default("pending") // requested, assigned, in_progress, completed, cancelled
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([providerId, status])
 }
@@ -332,13 +367,14 @@ model TransportBooking {
 model EmergencyContact {
   id          String   @id @default(cuid())
   airportCode String
-  category    String   // medical, security, fire, police, lost_child, maintenance
+  category    String   // medical, security, fire, police, lost_child, maintenance, other
   name        String   // ex: "Infirmerie Terminal 1"
   phoneNumber String
   whatsappNum String?
   email       String?
   isPrimary   Boolean  @default(false)
   isActive    Boolean  @default(true)
+  notes       String? // Notes internes
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -348,19 +384,21 @@ model EmergencyContact {
 
 model EmergencyAlert {
   id          String   @id @default(cuid())
+  airportCode String   @default("DSS")
   userPhone   String
+  userEmail   String?
   userName    String?
-  alertType   String   // medical, security, fire, police, lost_child, maintenance
-  location    String?
+  alertType   String   // medical, security, fire, police, lost_child, maintenance, other
+  location    String?  // JSON: {"terminal":"1","gate":"B12","description":"..."}
   description String
   severity    String   @default("medium") // low, medium, high, critical
-  status      String   @default("open") // open, in_progress, resolved, closed
+  status      String   @default("open") // open, acknowledged, in_progress, resolved, closed
   assignedTo  String?  // ID du contact d'urgence ou nom
   resolution  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([status, createdAt])
+  @@index([airportCode, status, createdAt])
   @@index([severity, status])
 }
 
@@ -371,16 +409,20 @@ model EmergencyAlert {
 model Partner {
   id             String   @id @default(cuid())
   airportCode    String
-  type           String   // travel_agency, airline, service_provider
+  type           String   // TRAVEL_AGENCY, AIRLINE, SERVICE_PROVIDER
   name           String
   logoUrl        String?
   email          String   @unique
   phone          String
   contactPerson  String
   commissionRate Float    @default(0.10)
-  contractStart  DateTime
+  contractStart  DateTime @default(now())
   contractEnd    DateTime?
-  isActive       Boolean  @default(true)
+  status         String   @default("pending") // pending, active, inactive
+  isActive       Boolean  @default(false)
+  inviteToken    String? // JWT token pour invitation
+  activatedAt    DateTime?
+  notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -397,7 +439,8 @@ model PartnerUser {
   email      String   @unique
   name       String
   password   String   // Hashed
-  role       String   @default("agent") // agent, manager
+  phone      String  @default("")
+  role       String   @default("agent") // agent, manager, admin
   isActive   Boolean  @default(true)
   lastLogin  DateTime?
   createdAt  DateTime @default(now())

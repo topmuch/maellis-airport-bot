@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
       pickupTime,
       passengers,
       distanceKm,
+      vehicleType,
+      paymentMethod,
     } = body
 
     // Validate required fields
@@ -31,6 +33,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         {
+          success: false,
           error:
             'providerId, passengerName, phone, pickupLocation, dropoffLocation, pickupDate, and pickupTime are required',
         },
@@ -49,15 +52,17 @@ export async function POST(request: NextRequest) {
       pickupTime,
       passengers: typeof passengers === 'number' ? passengers : undefined,
       distanceKm: typeof distanceKm === 'number' ? distanceKm : undefined,
+      vehicleType: typeof vehicleType === 'string' ? vehicleType : undefined,
+      paymentMethod: typeof paymentMethod === 'string' ? paymentMethod : undefined,
     })
 
     // Send confirmation email to passenger (fire-and-forget)
-    if (email) {
+    if (email && booking.provider) {
       sendTransportConfirmation(email, {
-        providerName: booking.provider?.name ?? '',
+        providerName: booking.provider.name,
         pickupLocation: booking.pickupLocation,
         dropoffLocation: booking.dropoffLocation,
-        pickupTime: booking.pickupTime,
+        pickupTime: `${booking.pickupDate} ${booking.pickupTime}`,
         estimatedPrice: String(booking.estimatedPrice ?? booking.totalPrice),
         bookingRef: booking.bookingRef,
       }).catch((err: unknown) => {
@@ -65,11 +70,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Notify driver/dispatch via provider contacts (fire-and-forget)
-    if (booking.provider?.contacts) {
-      try {
-        const contacts = JSON.parse(booking.provider.contacts)
-        sendDriverNotification(contacts.email || contacts.phone || '', {
+    // Notify driver/dispatch via provider contactEmail (fire-and-forget)
+    if (booking.provider) {
+      const notifyEmail = booking.provider.contactEmail || ''
+      if (notifyEmail) {
+        sendDriverNotification(notifyEmail, {
           passengerName,
           passengerPhone: phone,
           pickupLocation: booking.pickupLocation,
@@ -79,12 +84,10 @@ export async function POST(request: NextRequest) {
         }).catch((err: unknown) => {
           console.error('Failed to send driver notification:', err)
         })
-      } catch {
-        console.error('Failed to parse provider contacts JSON for notification')
       }
     }
 
-    return NextResponse.json({ data: booking }, { status: 201 })
+    return NextResponse.json({ success: true, data: booking }, { status: 201 })
   } catch (error: unknown) {
     console.error('Error creating transport booking:', error)
 
@@ -96,9 +99,9 @@ export async function POST(request: NextRequest) {
       message === 'Transport provider not found' ||
       message === 'Transport provider is currently inactive'
     ) {
-      return NextResponse.json({ error: message }, { status: 400 })
+      return NextResponse.json({ success: false, error: message }, { status: 400 })
     }
 
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
