@@ -13,6 +13,8 @@ export type ModuleKey =
   | 'analytics'
   | 'team'
   | 'reports'
+  | 'marketplace'
+  | 'ads'
   | 'modules'
   | 'demo'
   | 'docs'

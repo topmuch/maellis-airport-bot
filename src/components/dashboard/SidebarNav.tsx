@@ -17,6 +17,8 @@ import {
   Play,
   BookOpen,
   Settings,
+  Store,
+  Megaphone,
   type LucideIcon,
 } from 'lucide-react'
 import { useNavigationStore, type ModuleKey } from '@/lib/store'
@@ -47,6 +49,8 @@ const navItems: NavItem[] = [
   { label: 'Analytics', icon: BarChart3, module: 'analytics' },
   { label: 'Équipe', icon: Users, module: 'team' },
   { label: 'Rapports', icon: FileText, module: 'reports' },
+  { label: 'Marketplace', icon: Store, module: 'marketplace' },
+  { label: 'Publicité', icon: Megaphone, module: 'ads' },
   { label: 'Modules', icon: Puzzle, module: 'modules' },
   { label: 'Démonstration', icon: Play, module: 'demo' },
   { label: 'Documentation', icon: BookOpen, module: 'docs' },

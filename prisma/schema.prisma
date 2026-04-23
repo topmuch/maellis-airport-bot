@@ -10,6 +10,7 @@ datasource db {
 // ========================
 // MAELLIS AIRPORT BOT - Production Database Schema
 // Phase 4 — Business Logic Modules (Lounge, Transport, Emergency, Partners)
+// Phase 5 — Marketplace Marchands + Publicité & Monétisation
 // ========================
 
 // ─────────────────────────────────────────────
@@ -495,4 +496,229 @@ model Setting {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 9: MARKETPLACE MARCHANDS AÉROPORT
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Merchant {
+  id              String   @id @default(cuid())
+  airportCode     String
+  name            String
+  description     String?
+  logo            String?
+  category        String   // duty_free, restaurant, cafe, souvenir, fashion, electronics, pharmacy, other
+  terminal        String   @default("")
+  gate            String?
+  location        String?  // JSON: { x: number, y: number } coordonnées plan interactif
+  phone           String
+  email           String
+  openingHours    String   @default("{}") // JSON: { mon: {open: "08:00", close: "20:00"}, ... }
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  commissionRate  Float    @default(0.10) // 10% par défaut
+  paymentSchedule String   @default("weekly") // daily, weekly, monthly
+  totalSales      Float    @default(0)
+  totalOrders     Int      @default(0)
+  averageRating   Float    @default(0)
+  reviewsCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  products        Product[]
+  orders          Order[]
+  reviews         Review[]
+  advertisements  Advertisement[]
+
+  @@unique([airportCode, name])
+  @@index([airportCode, category, isActive])
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  merchantId      String
+  merchant        Merchant @relation(fields: [merchantId], references: [id])
+  name            String
+  description     String?
+  category        String   // perfume, alcohol, tobacco, food, beverage, clothing, accessory, electronics, book, other
+  price           Float
+  currency        String   @default("XOF")
+  images          String   @default("[]") // JSON array: ["https://..."]
+  stock           Int      @default(0)
+  isAvailable     Boolean  @default(true)
+  isPreOrder      Boolean  @default(false) // pré-commande duty-free
+  tags            String   @default("[]") // JSON array: ["bestseller", "promo", "new", "duty_free"]
+  discountPercent Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([merchantId, isAvailable])
+  @@index([category])
+}
+
+model Order {
+  id                  String   @id @default(cuid())
+  orderNumber         String   @unique // ex: "ORD-2026-001234"
+  merchantId          String
+  merchant            Merchant @relation(fields: [merchantId], references: [id])
+  airportCode         String
+  customerName        String
+  customerPhone       String
+  customerEmail       String?
+  flightNumber        String?  // Pour livraison à la porte
+  gate                String?  // Porte d'embarquement pour livraison
+  type                String   @default("pickup") // pickup, delivery_gate, reservation
+  status              String   @default("pending") // pending, confirmed, preparing, ready, completed, cancelled
+  items               OrderItem[]
+  subtotal            Float    @default(0)
+  tax                 Float    @default(0)
+  deliveryFee         Float    @default(0)
+  total               Float    @default(0)
+  currency            String   @default("XOF")
+  paymentMethod       String?  // orange_money, wave, card, cash
+  paymentStatus       String   @default("pending") // pending, paid, refunded
+  transactionId       String?
+  scheduledTime       DateTime? // Pour réservation table ou créneau retrait
+  notes               String?
+  qrCode              String?  // QR pour retrait
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([merchantId, status])
+  @@index([orderNumber])
+  @@index([customerPhone, status])
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       String   // Pas de FK — produit peut être modifié/supprimé, on garde l'historique
+  productName     String   // Dénominalisé pour précision historique
+  productImage    String?  // Dénominalisé
+  quantity        Int
+  unitPrice       Float    // Prix figé au moment de la commande
+  discount        Float    @default(0)
+  total           Float
+  customizations  String?  // JSON: { size: "L", color: "blue" }
+
+  @@index([orderId])
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  merchantId      String
+  merchant        Merchant @relation(fields: [merchantId], references: [id])
+  customerName    String
+  customerPhone   String
+  orderId         String?  // Achat vérifié si rempli
+  rating          Int      // 1-5
+  comment         String?
+  images          String   @default("[]") // JSON array: ["https://..."]
+  isVerified      Boolean  @default(true)
+  response        String?  // Réponse du marchand
+  respondedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([merchantId, rating])
+}
+
+model Wishlist {
+  id              String   @id @default(cuid())
+  customerPhone   String
+  productId       String
+  createdAt       DateTime @default(now())
+
+  @@unique([customerPhone, productId])
+  @@index([customerPhone])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 10: PUBLICITÉ & MONÉTISATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AdCampaign {
+  id              String   @id @default(cuid())
+  airportCode     String
+  name            String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  totalBudget     Float
+  spentBudget     Float    @default(0)
+  status          String   @default("draft") // draft, active, paused, completed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  advertisements  Advertisement[]
+
+  @@index([airportCode, status])
+}
+
+model Advertisement {
+  id              String   @id @default(cuid())
+  airportCode     String
+  campaignId      String?
+  campaign        AdCampaign? @relation(fields: [campaignId], references: [id])
+  merchantId      String?
+  merchant        Merchant? @relation(fields: [merchantId], references: [id])
+  title           String
+  description     String?
+  type            String   // banner, sponsored_message, push_notification, native, video
+  placement       String   // home, between_messages, bottom_banner, search_results, flight_status
+  imageUrl        String
+  videoUrl        String?
+  targetUrl       String?  // Lien destination
+  ctaText         String   @default("En savoir plus")
+  targetAudience  String?  // JSON: { destinations: ["CDG"], class: ["business"], frequency: "regular" }
+  startDate       DateTime
+  endDate         DateTime
+  budget          Float
+  budgetType      String   @default("total") // total, daily, cpm, cpc
+  cpmRate         Float?   // Coût pour 1000 impressions
+  cpcRate         Float?   // Coût par clic
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  conversions     Int      @default(0)
+  revenue         Float    @default(0)
+  status          String   @default("draft") // draft, pending, active, paused, completed, rejected
+  rejectionReason String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adImpressions   AdImpression[]
+
+  @@index([airportCode, status, startDate, endDate])
+  @@index([type, placement])
+}
+
+model AdImpression {
+  id              String   @id @default(cuid())
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  placement       String
+  deviceInfo      String?  // JSON: { os: "iOS", browser: "WhatsApp" }
+  location        String?  // JSON: { terminal: "1", gate: "B12" }
+  timestamp       DateTime @default(now())
+
+  adClicks        AdClick[]
+
+  @@index([advertisementId, timestamp])
+}
+
+model AdClick {
+  id              String   @id @default(cuid())
+  impressionId    String
+  impression      AdImpression @relation(fields: [impressionId], references: [id], onDelete: Cascade)
+  converted       Boolean  @default(false)
+  conversionValue Float    @default(0)
+  timestamp       DateTime @default(now())
+
+  @@index([impressionId])
 }

@@ -14,6 +14,8 @@ import { ConversationsModule } from '@/components/dashboard/modules/Conversation
 import { AnalyticsModule } from '@/components/dashboard/modules/AnalyticsModule'
 import { TeamModule } from '@/components/dashboard/modules/TeamModule'
 import { ReportsModule } from '@/components/dashboard/modules/ReportsModule'
+import { MarketplaceModule } from '@/components/dashboard/modules/MarketplaceModule'
+import { AdsModule } from '@/components/dashboard/modules/AdsModule'
 import { ModuleManagement } from '@/components/dashboard/modules/ModuleManagement'
 import { DemoModule } from '@/components/dashboard/modules/DemoModule'
 import { DocsModule } from '@/components/dashboard/modules/DocsModule'
@@ -32,6 +34,8 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   analytics: AnalyticsModule,
   team: TeamModule,
   reports: ReportsModule,
+  marketplace: MarketplaceModule,
+  ads: AdsModule,
   modules: ModuleManagement,
   demo: DemoModule,
   docs: DocsModule,
