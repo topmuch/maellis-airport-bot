@@ -110,36 +110,11 @@ export async function POST(request: Request) {
       }
 
       case 'email': {
-        const host = process.env.SMTP_HOST
-        const port = process.env.SMTP_PORT
-        if (!host || !port) {
-          result = { connected: false, message: 'SMTP non configuré (host/port manquant)' }
-          break
-        }
-        const start = Date.now()
         try {
-          // We can't do a real SMTP handshake from a serverless function easily,
-          // but we can verify the config exists
-          const missing: string[] = []
-          if (!process.env.SMTP_USER) missing.push('SMTP_USER')
-          if (!process.env.SMTP_PASS) missing.push('SMTP_PASS')
-          if (!process.env.EMAIL_FROM) missing.push('EMAIL_FROM')
-
-          if (missing.length > 0) {
-            result = {
-              connected: false,
-              message: `Configuration incomplète: ${missing.join(', ')}`,
-            }
-          } else {
-            const latency = Date.now() - start
-            result = {
-              connected: true,
-              message: `Configuré (${host}:${port})`,
-              latencyMs: latency,
-            }
-          }
+          const { testSmtpConnection } = await import('@/lib/email/core')
+          result = await testSmtpConnection()
         } catch {
-          result = { connected: false, message: 'Erreur vérification SMTP' }
+          result = { connected: false, message: 'Erreur vérification email' }
         }
         break
       }
