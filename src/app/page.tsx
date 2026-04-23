@@ -9,6 +9,7 @@ import { LoungeModule } from '@/components/dashboard/modules/LoungeModule'
 import { TransportModule } from '@/components/dashboard/modules/TransportModule'
 import { PaymentsModule } from '@/components/dashboard/modules/PaymentsModule'
 import { EmergencyModule } from '@/components/dashboard/modules/EmergencyModule'
+import { PartnersModule } from '@/components/dashboard/modules/PartnersModule'
 import { ConversationsModule } from '@/components/dashboard/modules/ConversationsModule'
 import { AnalyticsModule } from '@/components/dashboard/modules/AnalyticsModule'
 import { TeamModule } from '@/components/dashboard/modules/TeamModule'
@@ -26,6 +27,7 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   transport: TransportModule,
   payments: PaymentsModule,
   emergency: EmergencyModule,
+  partners: PartnersModule,
   conversations: ConversationsModule,
   analytics: AnalyticsModule,
   team: TeamModule,

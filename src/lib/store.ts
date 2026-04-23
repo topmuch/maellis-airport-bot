@@ -8,6 +8,7 @@ export type ModuleKey =
   | 'transport'
   | 'payments'
   | 'emergency'
+  | 'partners'
   | 'conversations'
   | 'analytics'
   | 'team'
