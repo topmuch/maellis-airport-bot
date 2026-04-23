@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import {
   getCampaignById,
   updateCampaign,
@@ -14,14 +13,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {
@@ -58,14 +49,6 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {
@@ -112,11 +95,6 @@ export async function PUT(
       message: 'Campaign updated successfully',
     });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-      }
-    }
     console.error('[PUT /api/ads/campaigns/:id] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -133,14 +111,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {
@@ -165,11 +135,6 @@ export async function DELETE(
       message: 'Campaign deleted successfully',
     });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-      }
-    }
     console.error('[DELETE /api/ads/campaigns/:id] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

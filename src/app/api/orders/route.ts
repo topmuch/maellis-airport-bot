@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { createOrder, getOrders } from '@/lib/services/merchant.service';
 
 // ---------------------------------------------------------------------------
@@ -122,18 +121,10 @@ export async function POST(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/orders?merchantId=xxx&status=xxx&customerPhone=xxx (auth required)
+// GET /api/orders?merchantId=xxx&status=xxx&customerPhone=xxx
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const merchantId = searchParams.get('merchantId') || undefined;
     const status = searchParams.get('status') || undefined;

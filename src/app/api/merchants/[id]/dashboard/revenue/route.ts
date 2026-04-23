@@ -1,30 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { getMerchantRevenue } from '@/lib/services/merchant.service';
 
-// ---------------------------------------------------------------------------
-// GET /api/merchants/dashboard/revenue?merchantId=xxx&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
-// ---------------------------------------------------------------------------
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const merchantId = searchParams.get('merchantId');
+    const { id: merchantId } = await params;
 
     if (!merchantId) {
       return NextResponse.json(
-        { success: false, error: 'Missing required query parameter: merchantId' },
+        { success: false, error: 'Merchant ID is required' },
         { status: 400 },
       );
     }
 
+    const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate') || undefined;
     const endDate = searchParams.get('endDate') || undefined;
 
@@ -46,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: revenue });
   } catch (error) {
-    console.error('[GET /api/merchants/dashboard/revenue] Error:', error);
+    console.error('[GET /api/merchants/:id/dashboard/revenue] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 },

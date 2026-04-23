@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { getProductById, updateProduct, deleteProduct } from '@/lib/services/merchant.service';
 
 // ---------------------------------------------------------------------------
@@ -39,21 +38,13 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// PUT /api/products/[id] — Update product (auth required)
+// PUT /api/products/[id] — Update product
 // ---------------------------------------------------------------------------
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {
@@ -126,15 +117,6 @@ export async function PUT(
       message: 'Product updated successfully',
     });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 },
-        );
-      }
-    }
-
     console.error(`[PUT /api/products/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -144,21 +126,13 @@ export async function PUT(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/products/[id] — Delete product (auth required)
+// DELETE /api/products/[id] — Delete product
 // ---------------------------------------------------------------------------
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {
@@ -183,15 +157,6 @@ export async function DELETE(
       message: 'Product deleted successfully',
     });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 },
-        );
-      }
-    }
-
     console.error(`[DELETE /api/products/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

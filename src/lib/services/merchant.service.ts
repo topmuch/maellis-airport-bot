@@ -322,7 +322,7 @@ export async function getMerchantDashboardStats(merchantId: string) {
       where: { id: merchantId },
       include: {
         products: {
-          select: { id: true, name: true, totalSold: true },
+          select: { id: true, name: true, price: true, stock: true },
           orderBy: { name: 'asc' },
           take: 5,
         },

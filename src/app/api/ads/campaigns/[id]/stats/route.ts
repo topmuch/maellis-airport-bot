@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { getCampaignStats } from '@/lib/services/ad.service';
 
 // ---------------------------------------------------------------------------
@@ -10,14 +9,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {

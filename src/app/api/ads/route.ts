@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import {
   getAds,
   createAd,
@@ -14,14 +13,6 @@ import {
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status },
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airport') || undefined;
     const placement = searchParams.get('placement') || undefined;
@@ -67,18 +58,10 @@ export async function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ads — Create ad (auth required)
+// POST /api/ads — Create ad
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const body = await request.json();
 
     // Validate required fields

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import {
   getCampaigns,
   createCampaign,
@@ -11,14 +10,6 @@ import {
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status },
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airport') || undefined;
     const status = searchParams.get('status') || undefined;
@@ -47,18 +38,10 @@ export async function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ads/campaigns — Create campaign (auth required)
+// POST /api/ads/campaigns — Create campaign
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const body = await request.json();
 
     // Validate required fields
@@ -120,11 +103,6 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-      }
-    }
     console.error('[POST /api/ads/campaigns] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { getAds } from '@/lib/services/ad.service';
 
 // ---------------------------------------------------------------------------
@@ -7,14 +6,6 @@ import { getAds } from '@/lib/services/ad.service';
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airport') || undefined;
 

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 // ---------------------------------------------------------------------------
-// GET /api/orders/[id] — Get order by ID or order number (auth required)
+// GET /api/orders/[id] — Get order by ID or order number
 // If the id starts with "ORD-", it's treated as an order number.
 // ---------------------------------------------------------------------------
 export async function GET(
@@ -11,14 +10,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {

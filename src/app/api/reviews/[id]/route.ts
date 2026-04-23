@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { respondToReview } from '@/lib/services/merchant.service';
 
 // ---------------------------------------------------------------------------
-// PUT /api/reviews/[id]/response — Respond to review (auth required)
+// PUT /api/reviews/[id]/response — Respond to review
 // ---------------------------------------------------------------------------
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id: reviewId } = await params;
 
     if (!reviewId) {
@@ -51,15 +42,6 @@ export async function PUT(
       message: 'Review response submitted successfully',
     });
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 },
-        );
-      }
-    }
-
     console.error(`[PUT /api/reviews/:id/response] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

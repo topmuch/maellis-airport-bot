@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { rejectAd } from '@/lib/services/ad.service';
 
 // ---------------------------------------------------------------------------
@@ -10,14 +9,6 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json(
-        { success: false, error: authResult.error || 'Unauthorized' },
-        { status: authResult.status || 401 },
-      );
-    }
-
     const { id } = await params;
 
     if (!id) {
@@ -52,9 +43,6 @@ export async function PUT(
     });
   } catch (error: unknown) {
     if (error instanceof Error) {
-      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-      }
       if (error.message.includes('Cannot reject ad')) {
         return NextResponse.json({ success: false, error: error.message }, { status: 400 });
       }
