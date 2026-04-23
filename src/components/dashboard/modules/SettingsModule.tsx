@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Save,
   Eye,
@@ -1107,18 +1107,36 @@ export function SettingsModule() {
     fetchSettings()
   }, [])
 
+  // Track pending saves to batch toast
+  const saveQueueRef = useRef<string[]>([])
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   const handleSave = useCallback(
     async (key: string, value: string) => {
       setSaving(true)
       try {
-        await fetch('/api/settings', {
+        const res = await fetch('/api/settings', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key, value }),
         })
-        setSettings((prev) => ({ ...prev, [key]: value }))
+        if (res.ok) {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          // Batch toast: only show once per save group
+          saveQueueRef.current.push(key)
+          if (!saveTimerRef.current) {
+            saveTimerRef.current = setTimeout(() => {
+              const count = saveQueueRef.current.length
+              toast.success(`${count} paramètre${count > 1 ? 's' : ''} sauvegardé${count > 1 ? 's' : ''}`)
+              saveQueueRef.current = []
+              saveTimerRef.current = null
+            }, 500)
+          }
+        } else {
+          toast.error(`Erreur sauvegarde: ${key}`)
+        }
       } catch {
-        // Silently fail - settings remain in local state
+        toast.error('Erreur réseau — paramètre non sauvegardé')
       } finally {
         setSaving(false)
       }
