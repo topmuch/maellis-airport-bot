@@ -19,11 +19,6 @@ export async function GET() {
     // ── 2. Average Response Time ─────────────────────────────────────────
     // Calculate from conversation messages: time between user message and bot response
     const recentConversations = await db.conversation.findMany({
-      where: {
-        messages: {
-          isEmpty: false,
-        },
-      },
       take: 100,
       orderBy: { createdAt: 'desc' },
       select: { id: true },

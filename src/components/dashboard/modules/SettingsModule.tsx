@@ -12,8 +12,14 @@ import {
   Brain,
   CreditCard,
   ShieldAlert,
+  Plug,
+  Plane,
+  Mail,
+  Lock,
+  Loader2,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { toast } from 'sonner'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -798,6 +804,276 @@ function EmergencyTab({
   )
 }
 
+// ─── Status Badge (extracted to avoid render-time component) ──
+function ConnectionStatusBadge({ status }: { status: 'idle' | 'loading' | 'connected' | 'error' }) {
+  if (status === 'loading') return <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200"><Loader2 className="mr-1 h-3 w-3 animate-spin" />En attente</Badge>
+  if (status === 'connected') return <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200"><Wifi className="mr-1 h-3 w-3" />Connecté</Badge>
+  if (status === 'error') return <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200"><WifiOff className="mr-1 h-3 w-3" />Déconnecté</Badge>
+  return <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-200">Non testé</Badge>
+}
+
+// ─── Tab Component: APIs & Intégrations ────────────────────────────
+function ApiIntegrationsTab({
+  settings,
+  saving,
+  onSave,
+}: {
+  settings: Record<string, string>
+  saving: boolean
+  onSave: (key: string, value: string) => void
+}) {
+  // ── State per group ──────────────────────────────────────────────────
+  const [aviationKey, setAviationKey] = useState(settings.aviation_stack_key || '')
+  const [groqKey, setGroqKey] = useState(settings.ai_api_key || '')
+  const [mapsKey, setMapsKey] = useState(settings.google_maps_key || '')
+  const [waPhoneId, setWaPhoneId] = useState(settings.whatsapp_phone_number_id || '')
+  const [waToken, setWaToken] = useState(settings.whatsapp_access_token || '')
+  const [waVerify, setWaVerify] = useState(settings.whatsapp_verify_token || '')
+  const [smtpHost, setSmtpHost] = useState(settings.smtp_host || '')
+  const [smtpPort, setSmtpPort] = useState(settings.smtp_port || '')
+  const [smtpUser, setSmtpUser] = useState(settings.smtp_user || '')
+  const [smtpPass, setSmtpPass] = useState(settings.smtp_password || '')
+  const [cinetpayKey, setCinetpayKey] = useState(settings.cinetpay_api_key || '')
+  const [cinetpaySiteId, setCinetpaySiteId] = useState(settings.cinetpay_site_id || '')
+  const [cinetpaySecret, setCinetpaySecret] = useState(settings.cinetpay_secret_key || '')
+  const [jwtSecret, setJwtSecret] = useState(settings.jwt_secret || '')
+
+  // Show/hide passwords
+  const [showAviation, setShowAviation] = useState(false)
+  const [showGroq, setShowGroq] = useState(false)
+  const [showMaps, setShowMaps] = useState(false)
+  const [showWaToken, setShowWaToken] = useState(false)
+  const [showSmtpPass, setShowSmtpPass] = useState(false)
+  const [showCinetpayKey, setShowCinetpayKey] = useState(false)
+  const [showCinetpaySecret, setShowCinetpaySecret] = useState(false)
+  const [showJwt, setShowJwt] = useState(false)
+
+  // Test connection status per group
+  const [testStatus, setTestStatus] = useState<Record<string, 'idle' | 'loading' | 'connected' | 'error'>>({})
+  const [testMessage, setTestMessage] = useState<Record<string, string>>({})
+
+  // ── Test handler ─────────────────────────────────────────────────────
+  const testConnection = async (type: string) => {
+    setTestStatus((prev) => ({ ...prev, [type]: 'loading' }))
+    setTestMessage((prev) => ({ ...prev, [type]: '' }))
+    try {
+      const res = await fetch('/api/settings/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      })
+      const json = await res.json()
+      if (json.success && json.data) {
+        setTestStatus((prev) => ({ ...prev, [type]: json.data.connected ? 'connected' : 'error' }))
+        setTestMessage((prev) => ({ ...prev, [type]: json.data.message }))
+        toast[json.data.connected ? 'success' : 'error'](json.data.message)
+      } else {
+        setTestStatus((prev) => ({ ...prev, [type]: 'error' }))
+        setTestMessage((prev) => ({ ...prev, [type]: json.error || 'Erreur' }))
+        toast.error(json.error || 'Erreur')
+      }
+    } catch {
+      setTestStatus((prev) => ({ ...prev, [type]: 'error' }))
+      setTestMessage((prev) => ({ ...prev, [type]: 'Erreur réseau' }))
+      toast.error('Erreur réseau')
+    }
+  }
+
+  // ── Save all ─────────────────────────────────────────────────────────
+  const handleSaveAll = () => {
+    onSave('aviation_stack_key', aviationKey)
+    onSave('google_maps_key', mapsKey)
+    onSave('whatsapp_phone_number_id', waPhoneId)
+    onSave('whatsapp_access_token', waToken)
+    onSave('whatsapp_verify_token', waVerify)
+    onSave('smtp_host', smtpHost)
+    onSave('smtp_port', smtpPort)
+    onSave('smtp_user', smtpUser)
+    onSave('smtp_password', smtpPass)
+    onSave('cinetpay_api_key', cinetpayKey)
+    onSave('cinetpay_site_id', cinetpaySiteId)
+    onSave('cinetpay_secret_key', cinetpaySecret)
+    onSave('jwt_secret', jwtSecret)
+  }
+
+  // ── Status badge (using extracted component) ──────────────────────────────
+  const statusFor = (group: string) => testStatus[group] || 'idle'
+
+  // ── Password input rendered inline (JSX in return, not a component declaration) ──
+
+  return (
+    <div className="space-y-8">
+      {/* ═══ 1. INTELLIGENCE & DONNÉES ═══ */}
+      <div className="space-y-4 rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30">
+              <Brain className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+            </div>
+            <div>
+              <h4 className="font-semibold">Intelligence & Données</h4>
+              <p className="text-xs text-muted-foreground">APIs pour le suivi des vols, IA et cartographie</p>
+            </div>
+          </div>
+          <ConnectionStatusBadge status={statusFor('aviation')} />
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">AviationStack API Key</Label>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => testConnection('aviation')} disabled={testStatus.aviation === 'loading'}>
+                {testStatus.aviation === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Tester'} Vols
+              </Button>
+            </div>
+            <div className="relative"><Input type={showAviation ? 'text' : 'password'} value={aviationKey} onChange={(e) => setAviationKey(e.target.value)} placeholder="AVIATION_STACK_KEY" /><button type="button" onClick={() => setShowAviation(!showAviation)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showAviation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+            <p className="text-xs text-muted-foreground">Pour le suivi des vols en temps réel (portes, retards).</p>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Groq / LLM API Key</Label>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => testConnection('groq')} disabled={testStatus.groq === 'loading'}>
+                {testStatus.groq === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Tester'} IA
+              </Button>
+            </div>
+            <div className="relative"><Input type={showGroq ? 'text' : 'password'} value={groqKey} onChange={(e) => setGroqKey(e.target.value)} placeholder="gsk_..." /><button type="button" onClick={() => setShowGroq(!showGroq)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showGroq ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+            <p className="text-xs text-muted-foreground">Pour l&apos;intelligence du chatbot (compréhension langage).</p>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label className="text-sm">Google Maps API Key</Label>
+            <div className="relative"><Input type={showMaps ? 'text' : 'password'} value={mapsKey} onChange={(e) => setMapsKey(e.target.value)} placeholder="AIza..." /><button type="button" onClick={() => setShowMaps(!showMaps)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showMaps ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+            <p className="text-xs text-muted-foreground">Pour calculer les distances Taxi/VTC.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ 2. COMMUNICATION ═══ */}
+      <div className="space-y-4 rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+              <MessageSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <h4 className="font-semibold">Communication</h4>
+              <p className="text-xs text-muted-foreground">WhatsApp Business & Email</p>
+            </div>
+          </div>
+          <ConnectionStatusBadge status={statusFor('whatsapp')} />
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">WhatsApp Cloud API</Label>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => testConnection('whatsapp')} disabled={testStatus.whatsapp === 'loading'}>
+                {testStatus.whatsapp === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Tester'} WhatsApp
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Phone Number ID</Label><Input value={waPhoneId} onChange={(e) => setWaPhoneId(e.target.value)} placeholder="ID du numéro" /></div>
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Access Token</Label><div className="relative"><Input type={showWaToken ? 'text' : 'password'} value={waToken} onChange={(e) => setWaToken(e.target.value)} placeholder="EAAGm0..." /><button type="button" onClick={() => setShowWaToken(!showWaToken)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showWaToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Verify Token</Label><Input value={waVerify} onChange={(e) => setWaVerify(e.target.value)} placeholder="Token de vérification" /></div>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Email (SMTP)</Label>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => testConnection('email')} disabled={testStatus.email === 'loading'}>
+                {testStatus.email === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Tester'} Email
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Hôte</Label><Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.example.com" /></div>
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Port</Label><Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" /></div>
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Utilisateur</Label><Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="user@example.com" /></div>
+              <div className="space-y-1"><Label className="text-xs text-muted-foreground">Mot de passe</Label><div className="relative"><Input type={showSmtpPass ? 'text' : 'password'} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="••••••" /><button type="button" onClick={() => setShowSmtpPass(!showSmtpPass)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showSmtpPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ 3. PAIEMENTS ═══ */}
+      <div className="space-y-4 rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+              <CreditCard className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <h4 className="font-semibold">Paiements</h4>
+              <p className="text-xs text-muted-foreground">CinetPay (Orange Money / Wave)</p>
+            </div>
+          </div>
+          <ConnectionStatusBadge status={statusFor('payment')} />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">CinetPay</Label>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => testConnection('payment')} disabled={testStatus.payment === 'loading'}>
+              {testStatus.payment === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Simuler'} Transaction
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1"><Label className="text-xs text-muted-foreground">API Key</Label><div className="relative"><Input type={showCinetpayKey ? 'text' : 'password'} value={cinetpayKey} onChange={(e) => setCinetpayKey(e.target.value)} placeholder="CINETPAY_API_KEY" /><button type="button" onClick={() => setShowCinetpayKey(!showCinetpayKey)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showCinetpayKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+            <div className="space-y-1"><Label className="text-xs text-muted-foreground">Site ID</Label><Input value={cinetpaySiteId} onChange={(e) => setCinetpaySiteId(e.target.value)} placeholder="Site ID" /></div>
+            <div className="space-y-1"><Label className="text-xs text-muted-foreground">Secret Key</Label><div className="relative"><Input type={showCinetpaySecret ? 'text' : 'password'} value={cinetpaySecret} onChange={(e) => setCinetpaySecret(e.target.value)} placeholder="Secret Key" /><button type="button" onClick={() => setShowCinetpaySecret(!showCinetpaySecret)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showCinetpaySecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+          </div>
+          <p className="text-xs text-muted-foreground">Pour accepter les paiements mobiles locaux.</p>
+        </div>
+      </div>
+
+      {/* ═══ 4. SÉCURITÉ ═══ */}
+      <div className="space-y-4 rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+              <Lock className="h-4 w-4 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <h4 className="font-semibold">Sécurité</h4>
+              <p className="text-xs text-muted-foreground">Clés de chiffrement et signatures</p>
+            </div>
+          </div>
+          <ConnectionStatusBadge status={statusFor('jwt')} />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">JWT Secret</Label>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setJwtSecret(crypto.randomUUID?.() || Math.random().toString(36).slice(2))}>Générer</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => testConnection('jwt')} disabled={testStatus.jwt === 'loading'}>
+                {testStatus.jwt === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Vérifier'}
+              </Button>
+            </div>
+          </div>
+          <div className="relative"><Input type={showJwt ? 'text' : 'password'} value={jwtSecret} onChange={(e) => setJwtSecret(e.target.value)} placeholder="Clé secrète JWT" /><button type="button" onClick={() => setShowJwt(!showJwt)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showJwt ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
+          <p className="text-xs text-muted-foreground">Clé secrète pour signer les tokens et QR codes Bagages.</p>
+        </div>
+      </div>
+
+      {/* ═══ SAVE ALL ═══ */}
+      <div className="flex justify-end pt-2">
+        <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={handleSaveAll} disabled={saving}>
+          <Save className="h-4 w-4" />
+          {saving ? 'Sauvegarde...' : 'Sauvegarder les configurations'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ──────────────────────────────────────────────
 export function SettingsModule() {
   const [settings, setSettings] = useState<Record<string, string>>({})
@@ -889,6 +1165,10 @@ export function SettingsModule() {
               <ShieldAlert className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Urgences</span>
             </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-1.5">
+              <Plug className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">APIs & Intégrations</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -968,6 +1248,25 @@ export function SettingsModule() {
               </CardHeader>
               <CardContent>
                 <EmergencyTab
+                  settings={settings}
+                  saving={saving}
+                  onSave={handleSave}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="integrations">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Plug className="h-4 w-4" />
+                  APIs & Intégrations
+                </CardTitle>
+                <CardDescription>Centralisation de toutes les clés et configurations de services tiers.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ApiIntegrationsTab
                   settings={settings}
                   saving={saving}
                   onSave={handleSave}
