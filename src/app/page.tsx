@@ -22,6 +22,7 @@ import { ModuleManagement } from '@/components/dashboard/modules/ModuleManagemen
 import { DemoModule } from '@/components/dashboard/modules/DemoModule'
 import { DocsModule } from '@/components/dashboard/modules/DocsModule'
 import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
+import { FAQModule } from '@/components/dashboard/modules/FAQModule'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
 import { LogoCloud } from '@/components/landing/LogoCloud'
@@ -56,6 +57,7 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   demo: DemoModule,
   docs: DocsModule,
   settings: SettingsModule,
+  faq: FAQModule,
 }
 
 export default function Home() {

@@ -21,6 +21,7 @@ export type ModuleKey =
   | 'demo'
   | 'docs'
   | 'settings'
+  | 'faq'
 
 interface NavigationStore {
   activeModule: ModuleKey

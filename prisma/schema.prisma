@@ -11,6 +11,7 @@ datasource db {
 // MAELLIS AIRPORT BOT - Production Database Schema
 // Phase 4 — Business Logic Modules (Lounge, Transport, Emergency, Partners)
 // Phase 5 — Marketplace Marchands + Publicité & Monétisation
+// Phase 6 — FAQ Intelligente & Analytics
 // ========================
 
 // ─────────────────────────────────────────────
@@ -1128,4 +1129,55 @@ model Invitation {
 
   inviter AuthUser?  @relation("InvitationSender", fields: [invitedBy], references: [id])
   usedUser AuthUser?  @relation("InvitationUsed", fields: [usedBy], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 14: FAQ INTELLIGENTE — Base de connaissances multilingue
+// ═══════════════════════════════════════════════════════════════════════════
+
+model FAQ {
+  id            String   @id @default(cuid())
+  airportCode   String   @default("DSS")
+  category      String   // baggage, money, transport, food, emergency, other
+  question      String   // JSON: { fr: "...", en: "...", wo: "...", ar: "..." }
+  answer        String   // JSON: { fr: "...", en: "...", wo: "...", ar: "..." }
+  keywords      String   @default("[]") // JSON array: ["parking", "voiture", "stationnement"]
+  priority      Int      @default(0) // Higher = shown first
+  isActive      Boolean  @default(true)
+  viewCount     Int      @default(0)
+  resolvedCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  analytics     FAQAnalytics[]
+
+  @@index([airportCode, category, isActive])
+}
+
+model FAQAnalytics {
+  id           String   @id @default(cuid())
+  airportCode  String   @default("DSS")
+  faqId        String?
+  faq          FAQ?     @relation(fields: [faqId], references: [id])
+  userQuestion String
+  matchedFAQ   Boolean
+  language     String   @default("fr")
+  score        Float?
+  timestamp    DateTime @default(now())
+
+  @@index([airportCode, timestamp])
+  @@index([matchedFAQ, timestamp])
+}
+
+model FAQSuggestion {
+  id             String   @id @default(cuid())
+  airportCode    String   @default("DSS")
+  question       String
+  proposedAnswer String?
+  category       String?
+  status         String   @default("pending") // pending, approved, rejected
+  suggestedBy    String   @default("user") // user, admin
+  createdAt      DateTime @default(now())
+
+  @@index([airportCode, status])
 }

@@ -21,6 +21,7 @@ import {
   ScanLine,
   Megaphone,
   Receipt,
+  CircleHelp,
   type LucideIcon,
 } from 'lucide-react'
 import { useNavigationStore, type ModuleKey } from '@/lib/store'
@@ -66,6 +67,7 @@ const navSections: NavSection[] = [
     title: 'COMMUNICATIONS',
     items: [
       { label: 'CONVERSATIONS', icon: MessageSquare, module: 'conversations' },
+      { label: 'FAQ INTELLIGENTE', icon: CircleHelp, module: 'faq' },
       { label: 'URGENCES', icon: ShieldAlert, module: 'emergency' },
     ],
   },
