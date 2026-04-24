@@ -30,6 +30,7 @@ export type ModuleKey =
   | 'health_pharmacy'
   | 'wifi'
   | 'checkin'
+  | 'music'
 
 interface NavigationStore {
   activeModule: ModuleKey

@@ -1504,3 +1504,48 @@ model Reward {
   @@index([type])
   @@index([expiresAt])
 }
+
+// ═══════════════════════════════════════════════════════════════
+// MODULE: SMARTLY ZEN MUSIC — YouTube Mini-Player
+// ═══════════════════════════════════════════════════════════════
+
+model MusicCategory {
+  id          String   @id @default(cuid())
+  name        String                       // "Chill", "Sénégal", "Focus", "Jazz"
+  slug        String   @unique              // "chill", "senegal", "focus", "jazz"
+  description String?
+  icon        String   @default("🎵")       // Emoji icon
+  color       String   @default("#F97316")  // Hex color for chip
+  imageUrl    String?                      // Optional category cover image
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tracks      MusicTrack[]
+
+  @@index([sortOrder])
+  @@index([isActive])
+}
+
+model MusicTrack {
+  id           String   @id @default(cuid())
+  categoryId   String
+  category     MusicCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  title        String                       // Track title (auto from YouTube or custom)
+  artist       String   @default("")         // Artist name
+  youtubeUrl   String                       // Original YouTube URL
+  youtubeId    String                       // Extracted video ID (e.g. "dQw4w9WgXcQ")
+  thumbnailUrl String                       // img.youtube.com/vi/{ID}/hqdefault.jpg
+  duration     String?                      // "3:45" if available
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  playCount    Int      @default(0)         // Number of times played
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([youtubeId])
+  @@index([categoryId, sortOrder])
+  @@index([isActive])
+  @@index([playCount, createdAt])
+}

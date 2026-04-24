@@ -22,6 +22,7 @@ import {
   Megaphone,
   Receipt,
   CircleHelp,
+  Music,
   Database,
   Building2,
   Trophy,
@@ -120,6 +121,7 @@ const navSections: NavSection[] = [
       { label: 'WiFi AÉROPORT', icon: Wifi, module: 'wifi' },
       { label: 'CHECK-IN', icon: TicketCheck, module: 'checkin' },
       { label: 'SMARTLY MILES', icon: Trophy, module: 'miles' },
+      { label: 'ZEN MUSIC', icon: Music, module: 'music' },
     ],
   },
   {

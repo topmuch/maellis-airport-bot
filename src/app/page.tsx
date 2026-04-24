@@ -31,6 +31,7 @@ import { HealthPharmacyModule } from '@/components/dashboard/modules/HealthPharm
 import { WifiModule } from '@/components/dashboard/modules/WifiModule'
 import { CheckinModule } from '@/components/dashboard/modules/CheckinModule'
 import { MilesModule } from '@/components/dashboard/modules/MilesModule'
+import { MusicModule } from '@/components/dashboard/modules/MusicModule'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
 import { LogoCloud } from '@/components/landing/LogoCloud'
@@ -74,6 +75,7 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   wifi: WifiModule,
   checkin: CheckinModule,
   miles: MilesModule,
+  music: MusicModule,
 }
 
 export default function Home() {
