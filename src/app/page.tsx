@@ -23,6 +23,7 @@ import { DemoModule } from '@/components/dashboard/modules/DemoModule'
 import { DocsModule } from '@/components/dashboard/modules/DocsModule'
 import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
 import { FAQModule } from '@/components/dashboard/modules/FAQModule'
+import { KnowledgeBaseModule } from '@/components/dashboard/modules/KnowledgeBaseModule'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
 import { LogoCloud } from '@/components/landing/LogoCloud'
@@ -58,6 +59,7 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   docs: DocsModule,
   settings: SettingsModule,
   faq: FAQModule,
+  knowledge_base: KnowledgeBaseModule,
 }
 
 export default function Home() {

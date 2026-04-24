@@ -22,6 +22,7 @@ export type ModuleKey =
   | 'docs'
   | 'settings'
   | 'faq'
+  | 'knowledge_base'
 
 interface NavigationStore {
   activeModule: ModuleKey
@@ -34,7 +35,7 @@ interface NavigationStore {
 }
 
 export const useNavigationStore = create<NavigationStore>((set) => ({
-  activeModule: 'overview',
+  activeModule: 'overview' as ModuleKey,
   sidebarOpen: true,
   showLanding: true,
   setActiveModule: (module) => set({ activeModule: module }),

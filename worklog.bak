@@ -79,3 +79,4 @@ Stage Summary:
 - Admin approval workflow (draft → pending → active/rejected)
 - Public tracking endpoints for WhatsApp bot integration
 - Dashboard stats and revenue reporting
+echo '<<exit>>'

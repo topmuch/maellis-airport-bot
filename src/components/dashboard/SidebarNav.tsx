@@ -22,6 +22,7 @@ import {
   Megaphone,
   Receipt,
   CircleHelp,
+  Database,
   type LucideIcon,
 } from 'lucide-react'
 import { useNavigationStore, type ModuleKey } from '@/lib/store'
@@ -68,6 +69,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'CONVERSATIONS', icon: MessageSquare, module: 'conversations' },
       { label: 'FAQ INTELLIGENTE', icon: CircleHelp, module: 'faq' },
+      { label: 'BASE DE CONNAISSANCES', icon: Database, module: 'knowledge_base' },
       { label: 'URGENCES', icon: ShieldAlert, module: 'emergency' },
     ],
   },

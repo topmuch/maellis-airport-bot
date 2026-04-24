@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { matchFAQ } from '@/lib/services/faq.service';
+import { ragQuery } from '@/lib/services/rag.service';
 
 const BOT_SERVICE_URL = 'http://localhost:3005';
 
@@ -100,10 +101,43 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Intelligent FAQ-based fallback when the bot service is unreachable.
- * Uses the FAQ matching system to provide relevant answers or suggestions.
+ * Intelligent RAG + FAQ-based fallback when the bot service is unreachable.
+ * Priority: 1) RAG Knowledge Base → 2) FAQ matching → 3) Default welcome
  */
 async function getFAQFallbackResponse(message: string): Promise<Record<string, unknown>> {
+  // ─── Step 1: Try RAG Knowledge Base first ────────────────────
+  try {
+    const ragResult = await ragQuery(message, 'DSS', { topK: 3, minScore: 0.1 });
+
+    if (ragResult.found && ragResult.results.length > 0) {
+      const sourcesText = ragResult.sources
+        .map((s, i) => `📄 *${i + 1}. ${s.title} (${s.fileName})`)
+        .join('\n');
+
+      // Build answer from top chunks
+      const answerParts = ragResult.results.slice(0, 2).map(r => {
+        const meta = r.metadata || {};
+        const sectionInfo = (meta.section || meta.title) ? `\n📊 *${meta.section || meta.title}*` : '';
+        return `*${r.content.trim()}*${sectionInfo}`;
+      });
+
+      return {
+        response:
+          `📚 *Réponse de la base de connaissances*\n\n` +
+          answerParts.join('\n\n---\n\n') +
+          `\n\n📎 *Sources*:\n${sourcesText}`,
+        intent: 'rag_matched',
+        fallback: true,
+        _ragMatched: true,
+        _ragScore: ragResult.results[0]?.score,
+        _ragSourceCount: ragResult.results.length,
+      };
+    }
+  } catch (ragError) {
+    console.error('RAG search failed, falling back to FAQ:', ragError);
+  }
+
+  // ─── Step 2: FAQ matching fallback ─────────────────────────────
   try {
     const result = await matchFAQ(message, 'DSS');
 
@@ -141,7 +175,7 @@ async function getFAQFallbackResponse(message: string): Promise<Record<string, u
     console.error('FAQ matching failed, using default fallback:', faqError);
   }
 
-  // Case 3: No FAQ match or error — return default welcome message
+  // ─── Step 3: Default welcome message ────────────────────────────
   return getDefaultFallbackResponse();
 }
 

@@ -12,6 +12,7 @@ datasource db {
 // Phase 4 — Business Logic Modules (Lounge, Transport, Emergency, Partners)
 // Phase 5 — Marketplace Marchands + Publicité & Monétisation
 // Phase 6 — FAQ Intelligente & Analytics
+// Phase 7 — RAG Knowledge Base (Retrieval-Augmented Generation)
 // ========================
 
 // ─────────────────────────────────────────────
@@ -1180,4 +1181,47 @@ model FAQSuggestion {
   createdAt      DateTime @default(now())
 
   @@index([airportCode, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 14: RAG KNOWLEDGE BASE — Retrieval-Augmented Generation
+// Documents uploadés par l'Admin pour enrichir les réponses du bot
+// ═══════════════════════════════════════════════════════════════════════════
+
+model KnowledgeBase {
+  id            String   @id @default(cuid())
+  airportCode   String   @default("DSS")
+  title         String
+  fileName      String
+  fileType      String                // pdf, txt, md
+  fileSize      Int      @default(0)
+  fileUrl       String?
+  content       String?               // Texte extrait (pour petits fichiers)
+  chunkCount    Int      @default(0)
+  isActive      Boolean  @default(true)
+  status        String   @default("pending") // pending, processing, indexed, error
+  errorMessage  String?
+  uploadedBy    String
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chunks        DocumentChunk[]
+
+  @@index([airportCode, isActive])
+  @@index([status])
+}
+
+model DocumentChunk {
+  id            String   @id @default(cuid())
+  kbId          String
+  knowledgeBase KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
+  content       String
+  chunkIndex    Int
+  tokenCount    Int      @default(0)
+  embedding     String?               // JSON string of float[]
+  embeddingModel String?
+  metadata      String   @default("{}")
+
+  @@index([kbId])
 }
