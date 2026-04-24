@@ -24,6 +24,8 @@ import { DocsModule } from '@/components/dashboard/modules/DocsModule'
 import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
 import { FAQModule } from '@/components/dashboard/modules/FAQModule'
 import { KnowledgeBaseModule } from '@/components/dashboard/modules/KnowledgeBaseModule'
+import { HotelsModule } from '@/components/dashboard/modules/HotelsModule'
+import { MilesModule } from '@/components/dashboard/modules/MilesModule'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
 import { LogoCloud } from '@/components/landing/LogoCloud'
@@ -60,6 +62,8 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   settings: SettingsModule,
   faq: FAQModule,
   knowledge_base: KnowledgeBaseModule,
+  hotels: HotelsModule,
+  miles: MilesModule,
 }
 
 export default function Home() {

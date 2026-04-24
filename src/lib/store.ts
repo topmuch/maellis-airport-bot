@@ -23,6 +23,8 @@ export type ModuleKey =
   | 'settings'
   | 'faq'
   | 'knowledge_base'
+  | 'hotels'
+  | 'miles'
 
 interface NavigationStore {
   activeModule: ModuleKey

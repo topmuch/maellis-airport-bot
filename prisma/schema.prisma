@@ -30,6 +30,7 @@ model User {
   updatedAt     DateTime @updatedAt
 
   conversations Conversation[]
+  wallet        UserWallet?
 }
 
 // ─────────────────────────────────────────────
@@ -1224,4 +1225,282 @@ model DocumentChunk {
   metadata      String   @default("{}")
 
   @@index([kbId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SMARTLY V1.5 — 7 Advanced Modules
+// ═══════════════════════════════════════════════════════════════════════════
+
+// MODULE V1.5-1: MARKETPLACE HÔTELS "DAY-USE"
+// Hôtels proches aéroport pour escales de quelques heures
+model Hotel {
+  id            String   @id @default(cuid())
+  airportCode   String   @default("DSS")
+  name          String
+  description   String?
+  starRating    Int      @default(3)
+  address       String
+  distanceKm    Float    @default(0)       // Distance de l'aéroport
+  terminal      String   @default("")      // Terminal le plus proche
+  imageUrl      String?
+  contactPhone  String   @default("")
+  contactEmail  String   @default("")
+  isActive      Boolean  @default(true)
+  amenities     String   @default("[]")    // JSON: ["wifi","pool","spa","gym","restaurant","shuttle"]
+  checkInTime   String   @default("14:00")
+  checkOutTime  String   @default("12:00")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rooms         HotelRoom[]
+  dayUseBookings DayUseBooking[]
+
+  @@unique([airportCode, name])
+  @@index([airportCode, isActive])
+}
+
+model HotelRoom {
+  id            String   @id @default(cuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomType      String   // standard, deluxe, suite, family
+  name          String
+  description   String?
+  maxGuests     Int      @default(2)
+  basePrice     Float                      // Prix par nuit
+  hourPrice     Float    @default(0)       // Prix par heure (day-use)
+  minHours      Int      @default(3)       // Durée minimum day-use
+  maxHours      Int      @default(8)       // Durée maximum day-use
+  currency      String   @default("XOF")
+  totalRooms    Int      @default(10)
+  availableRooms Int     @default(10)
+  amenities     String   @default("[]")    // JSON: ["king_bed","city_view","ac"]
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([hotelId, isActive])
+}
+
+model DayUseBooking {
+  id            String   @id @default(cuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id])
+  roomId        String
+  roomType      String   @default("standard")
+  passengerName String
+  phone         String
+  email         String?
+  flightNumber  String?
+  bookingDate   String                       // YYYY-MM-DD
+  startTime     String                       // HH:mm
+  durationHours Int      @default(4)
+  guests        Int      @default(1)
+  unitPrice     Float
+  totalPrice    Float
+  currency      String   @default("XOF")
+  paymentMethod String?
+  paymentStatus String   @default("pending") // pending, paid, refunded
+  bookingRef    String   @unique
+  qrCheckin     String?                       // QR code URL
+  status        String   @default("confirmed") // confirmed, checked_in, completed, cancelled, no_show
+  cancellationReason String?
+  cancelledAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([hotelId, bookingDate])
+  @@index([phone])
+  @@index([status])
+}
+
+// MODULE V1.5-2: AGENT IA PROACTIF DE REBOOKING
+// Utilise FlightStatus existant + logs de rebooking
+model RebookingLog {
+  id               String   @id @default(cuid())
+  phone            String
+  passengerName    String?
+  originalFlight   String                       // Numéro vol annulé
+  originalAirline  String?
+  originalDepCode  String?
+  originalArrCode  String?
+  suggestedFlight  String?                      // Numéro vol suggéré
+  suggestedAirline String?
+  suggestedDepTime String?
+  suggestedPrice   Float?
+  currency         String   @default("XOF")
+  status           String   @default("sent")    // detected, sent, accepted, rejected, expired
+  response         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([phone, createdAt])
+  @@index([originalFlight])
+  @@index([status])
+}
+
+// MODULE V1.5-3: ASSISTANCE VISUELLE PMR (Audio-Description)
+// Utilise TTS pour générer des descriptions vocales
+model AudioGeneration {
+  id            String   @id @default(cuid())
+  phone         String?
+  userId        String?
+  type          String                       // navigation, announcement, gate_info, emergency, general
+  inputText     String                       // Texte source
+  audioUrl      String?                      // URL du fichier audio généré
+  language      String   @default("fr")
+  provider      String   @default("mock")    // mock, google, azure
+  durationSec   Int      @default(0)
+  status        String   @default("pending") // pending, generated, failed, expired
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phone, createdAt])
+  @@index([type])
+  @@index([status])
+}
+
+// MODULE V1.5-4: PHARMACIE & SANTÉ EXPRESS
+// Utilise Product existant (catégorie: health) + commandes spécifiques
+model PharmacyOrder {
+  id               String   @id @default(cuid())
+  airportCode      String   @default("DSS")
+  customerName     String
+  customerPhone    String
+  flightNumber     String?
+  gate             String?                     // Porte de livraison
+  urgency          String   @default("normal") // normal, urgent, critical
+  items            String                      // JSON: [{name, quantity, price, productId}]
+  subtotal         Float    @default(0)
+  deliveryFee      Float    @default(0)
+  total            Float    @default(0)
+  currency         String   @default("XOF")
+  paymentMethod    String?
+  paymentStatus    String   @default("pending")
+  paymentRef       String?
+  pharmacyId       String?                     // Pharmacie assignée
+  pharmacyName     String?
+  status           String   @default("pending") // pending, confirmed, preparing, delivering, completed, cancelled
+  deliveryNotes    String?
+  estimatedMinutes Int      @default(15)
+  orderRef         String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([customerPhone, status])
+  @@index([status])
+  @@index([airportCode])
+}
+
+// MODULE V1.5-5: WIFI AÉROPORT AUTOMATISÉ
+model WiFiVoucher {
+  id            String   @id @default(cuid())
+  airportCode   String   @default("DSS")
+  voucherCode   String   @unique              // Code d'accès unique
+  phone         String?                      // Téléphone de l'utilisateur
+  planType      String   @default("free")     // free, premium, premium_plus
+  durationMinutes Int     @default(60)         // Durée en minutes
+  bandwidthMbps Int      @default(10)         // Débit en Mbps
+  price         Float    @default(0)          // 0 = gratuit
+  currency      String   @default("XOF")
+  paymentStatus String   @default("none")     // none, pending, paid
+  portalUrl     String?                      // URL du Captive Portal
+  isActive      Boolean  @default(true)
+  activatedAt   DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([voucherCode])
+  @@index([phone])
+  @@index([airportCode, isActive])
+}
+
+// MODULE V1.5-6: BILLETTERIE & CHECK-IN ONE-CLICK
+// Utilise TicketScan existant + liens check-in
+model CheckInSession {
+  id               String   @id @default(cuid())
+  phone            String
+  passengerName    String?
+  flightNumber     String
+  airline          String?
+  pnr              String?
+  departureCode    String?
+  arrivalCode      String?
+  flightDate       String?
+  checkInUrl       String?                     // Deep link vers site compagnie
+  boardingPassUrl  String?                     // URL carte d'embarquement PDF
+  seat             String?
+  gate             String?
+  terminal         String?
+  status           String   @default("detected") // detected, link_sent, checked_in, failed, expired
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([phone, createdAt])
+  @@index([flightNumber])
+  @@index([pnr])
+  @@index([status])
+}
+
+// MODULE V1.5-7: GAMIFICATION "SMARTLY MILES"
+model UserWallet {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone           String   @unique
+  balance         Int      @default(0)         // Solde en points
+  tier            String   @default("bronze")   // bronze, silver, gold, platinum
+  totalEarned     Int      @default(0)
+  totalSpent      Int      @default(0)
+  streakDays      Int      @default(0)         // Jours consécutifs d'activité
+  lastActivityAt  DateTime?
+  tierUpdatedAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions    MilesTransaction[]
+  rewards         Reward[]
+
+  @@index([tier])
+  @@index([balance])
+}
+
+model MilesTransaction {
+  id              String   @id @default(cuid())
+  walletId        String
+  wallet          UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type            String                       // credit, debit
+  amount          Int                           // Nombre de points
+  reason          String                       // Ex: "flight_scan", "hotel_booking", "feedback_given"
+  description     String?
+  referenceType   String?                      // booking_id, order_id, etc.
+  referenceId     String?
+  createdAt       DateTime @default(now())
+
+  @@index([walletId, createdAt])
+  @@index([type, createdAt])
+}
+
+model Reward {
+  id              String   @id @default(cuid())
+  walletId        String
+  wallet          UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  costPoints      Int                           // Coût en points
+  type            String                       // lounge_access, wifi_premium, discount, merchandise
+  value           String?                      // JSON: { discount_percent: 10, lounge_hours: 3 }
+  status          String   @default("available") // available, redeemed, expired
+  redeemedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([walletId, status])
+  @@index([type])
+  @@index([expiresAt])
 }

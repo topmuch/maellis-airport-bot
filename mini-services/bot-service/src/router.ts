@@ -84,6 +84,20 @@ export async function generateResponse(
         text: buildEmergencyResponse(),
       };
 
+    // ─── Smartly V1.5 New Intents ──────────────────────────
+    case "hotel":
+      return buildHotelResponse();
+    case "wifi":
+      return buildWiFiResponse();
+    case "checkin":
+      return buildCheckInResponse();
+    case "pharmacy":
+      return buildPharmacyResponse();
+    case "miles":
+      return buildMilesResponse();
+    case "pmr":
+      return buildPMRResponse();
+
     default:
       return {
         type: "interactive",
@@ -438,8 +452,150 @@ function buildUnknownResponse(): string {
     "• 🧳 QR code bagage / Baggage QR\n" +
     "• 🛋️ Salon VIP / VIP Lounge\n" +
     "• 🚕 Transport / Transport\n" +
-    "• 💳 Paiement / Payment\n\n" +
+    "• 💳 Paiement / Payment\n" +
+    "• 🏨 Hôtel Day-Use / Hotel booking\n" +
+    "• 📶 WiFi / Internet access\n" +
+    "• 🎫 Check-in / Boarding pass\n" +
+    "• 💊 Pharmacie / Pharmacy\n" +
+    "• 🎮 Smartly Miles / Loyalty\n" +
+    "• 👁️ Mode Audio PMR / Audio guide\n\n" +
     "Tapez *aide* ou *help* pour plus d'options !"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Smartly V1.5 — New Response Builders
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildHotelResponse(): string {
+  return (
+    "🏨 *Hôtels Day-Use — Aéroport de Dakar*\n\n" +
+    "Besoin d'une chambre pour quelques heures d'escale ?\n\n" +
+    "🌟 *Nos Partenaires :*\n" +
+    "• 🏨 Hôtel Radisson Blu — À partir de 3 000 FCFA/h\n" +
+    "• 🏨 Hôtel Terrou-Bi — À partir de 2 500 FCFA/h\n" +
+    "• 🏨 Hôtel Djoloff — À partir de 4 000 FCFA/h\n\n" +
+    "📋 *Disponible :*\n" +
+    "• Durée : 3h à 8h\n" +
+    "• WiFi, Climatisation, Douche inclus\n" +
+    "• Navette aéroport gratuite\n\n" +
+    "🇫🇷 *Réservez en disant :*\n" +
+    "« Je veux une chambre 4h »\n" +
+    "« Hôtel pour escale de 3h »\n\n" +
+    "💳 Paiement : Orange Money, Wave, Carte bancaire"
+  );
+}
+
+function buildWiFiResponse(): string {
+  return (
+    "📶 *WiFi Aéroport — MAELLIS*\n\n" +
+    "Connectez-vous gratuitement en quelques secondes !\n\n" +
+    "🆓 *GRATUIT* — 1h, 10 Mbps\n" +
+    "Tapez *WiFi gratuit*\n\n" +
+    "⚡ *PREMIUM* — 4h, 50 Mbps — 1 500 FCFA\n" +
+    "Tapez *WiFi premium*\n\n" +
+    "🚀 *PREMIUM+* — 8h, 100 Mbps — 3 000 FCFA\n" +
+    "Tapez *WiFi rapide*\n\n" +
+    "📊 *Procédure :*\n" +
+    "1️⃣ Tapez *WiFi* dans le chat\n" +
+    "2️⃣ Recevez votre code d'accès\n" +
+    "3️⃣ Connectez-vous au réseau *MAELLIS-Free*\n" +
+    "4️⃣ Entrez le code sur le portail captif\n\n" +
+    "💳 Paiement via CinetPay (Premium)"
+  );
+}
+
+function buildCheckInResponse(): string {
+  return (
+    "🎫 *Check-in Express — MAELLIS*\n\n" +
+    "Enregistrez-vous rapidement pour votre vol !\n\n" +
+    "📋 *Comment faire :*\n" +
+    "1️⃣ Envoyez une photo de votre carte d'embarquement\n" +
+    "2️⃣ OU tapez votre numéro de réservation (PNR)\n" +
+    "3️⃣ Je génère votre lien check-in automatiquement\n\n" +
+    "🇫🇷 *Exemple :*\n" +
+    "« Check-in vol AF123 »\n" +
+    "« Mon PNR est ABC123 »\n\n" +
+    "✅ *Compagnies supportées :*\n" +
+    "• Air France / Air Sénégal\n" +
+    "• Ethiopian Airlines\n" +
+    "• ASKY Airlines\n" +
+    "• Et plus encore !\n\n" +
+    "💡 *Gagnez 30 points Smartly Miles* à chaque check-in !"
+  );
+}
+
+function buildPharmacyResponse(): string {
+  return (
+    "💊 *Pharmacie & Santé Express — MAELLIS*\n\n" +
+    "Besoin de médicaments ou produits de santé en urgence ?\n\n" +
+    "🚑 *Livraison à votre porte d'embarquement !*\n\n" +
+    "📋 *Produits disponibles :*\n" +
+    "• 💊 Doliprane, Ibuprofène, Paracétamol\n" +
+    "• 🩹 Pansements, Antiseptique, Bandages\n" +
+    "• 😷 Masques, Gel hydroalcoolique\n" +
+    "• 💊 Médicaments sur ordonnance\n" +
+    "• 👁️ Collyres, Écran solaire\n\n" +
+    "⏱️ *Livraison :*\n" +
+    "• Normal : ~15 minutes — Gratuit\n" +
+    "• Urgent : ~10 minutes — 500 FCFA\n" +
+    "• Critique : ~5 minutes — 1 000 FCFA\n\n" +
+    "🇫🇷 *Exemple :*\n" +
+    "« J'ai besoin de Doliprane »\n" +
+    "« Pharmacie urgente Gate B12 »\n\n" +
+    "📞 *Pharmacies de garde disponibles 24h/24*"
+  );
+}
+
+function buildMilesResponse(): string {
+  return (
+    "🎮 *Smartly Miles — Fidélité MAELLIS*\n\n" +
+    "Gagnez des points à chaque action et échangez-les contre des avantages !\n\n" +
+    "🏆 *Comment gagner des points :*\n" +
+    "✈️ Scan bagage : +50 pts\n" +
+    "🏨 Réservation hôtel : +100 pts\n" +
+    "⭐ Feedback donné : +25 pts\n" +
+    "🎫 Check-in vol : +30 pts\n" +
+    "📶 WiFi Premium : +10 pts\n" +
+    "📱 Connexion quotidienne : +5 pts\n" +
+    "🧳 Scan bagage : +40 pts\n\n" +
+    "🏅 *Paliers :*\n" +
+    "🥉 Bronze : 0 pts\n" +
+    "🥈 Silver : 500 pts\n" +
+    "🥇 Gold : 2 000 pts\n" +
+    "👑 Platinum : 5 000 pts\n\n" +
+    "🎁 *Récompenses :*\n" +
+    "• Accès Salon VIP\n" +
+    "• WiFi Premium gratuit\n" +
+    "• Réductions transport\n" +
+    "• Produits exclusifs\n\n" +
+    "🇫🇷 *Consultez votre solde :*\n" +
+    "« Mon solde Miles »\n" +
+    "« Mes points fidélité »"
+  );
+}
+
+function buildPMRResponse(): string {
+  return (
+    "👁️ *Mode Audio — Assistance PMR*\n\n" +
+    "Assistant vocal pour personnes malvoyantes ou à mobilité réduite.\n\n" +
+    "🔊 *Fonctionnalités :*\n" +
+    "• 📍 Navigation guidée dans l'aéroport\n" +
+    "• 🚪 Informations portes d'embarquement\n" +
+    "• 🚨 Messages d'urgence en audio\n" +
+    "• 📢 Annonces en temps réel\n\n" +
+    "📋 *Comment utiliser :*\n" +
+    "Tapez *Mode Audio* pour activer\n" +
+    "Ou dites *Navigation Gate B12* pour un guidage vocal\n\n" +
+    "♿ *Accessibilité :*\n" +
+    "• Chemins adaptés avec ascenseurs\n" +
+    "• Bandes podotactiles\n" +
+    "• Points d'assistance PMR signalés\n\n" +
+    "🇫🇷 *Exemples :*\n" +
+    "« Mode Audio »\n" +
+    "« Guide-moi vers Gate B12 »\n" +
+    "« Annonce Porte A3 »\n\n" +
+    "📞 *Assistance disponible 24h/24 au +221 33 XXX XXXX*"
   );
 }
 

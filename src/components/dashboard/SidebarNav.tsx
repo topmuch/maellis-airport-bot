@@ -23,6 +23,8 @@ import {
   Receipt,
   CircleHelp,
   Database,
+  Building2,
+  Trophy,
   type LucideIcon,
 } from 'lucide-react'
 import { useNavigationStore, type ModuleKey } from '@/lib/store'
@@ -101,6 +103,13 @@ const navSections: NavSection[] = [
       { label: 'ÉQUIPE', icon: Users, module: 'team' },
       { label: 'SCANS BILLETS', icon: ScanLine, module: 'ticket_scans' },
       { label: 'MODULES', icon: Puzzle, module: 'modules' },
+    ],
+  },
+  {
+    title: 'SMARTLY V1.5',
+    items: [
+      { label: 'HÔTELS DAY-USE', icon: Building2, module: 'hotels' },
+      { label: 'SMARTLY MILES', icon: Trophy, module: 'miles' },
     ],
   },
   {
