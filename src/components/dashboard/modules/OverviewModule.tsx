@@ -127,19 +127,66 @@ function getIntentLabel(intent: string): string {
   return map[intent] || intent
 }
 
+// ─── KPI Color Themes ────────────────────────────────────────────────────────
+
+const kpiThemes = {
+  orange: {
+    cardBg: 'bg-gradient-to-br from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700',
+    iconBg: 'bg-white/20',
+    iconColor: 'text-white',
+    valueColor: 'text-white',
+    titleColor: 'text-orange-100',
+    trendUpColor: 'text-green-300',
+    trendDownColor: 'text-red-200',
+    vsColor: 'text-orange-200',
+  },
+  blue: {
+    cardBg: 'bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700',
+    iconBg: 'bg-white/20',
+    iconColor: 'text-white',
+    valueColor: 'text-white',
+    titleColor: 'text-blue-100',
+    trendUpColor: 'text-green-300',
+    trendDownColor: 'text-red-200',
+    vsColor: 'text-blue-200',
+  },
+  green: {
+    cardBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-700',
+    iconBg: 'bg-white/20',
+    iconColor: 'text-white',
+    valueColor: 'text-white',
+    titleColor: 'text-emerald-100',
+    trendUpColor: 'text-green-300',
+    trendDownColor: 'text-red-200',
+    vsColor: 'text-emerald-200',
+  },
+  purple: {
+    cardBg: 'bg-gradient-to-br from-violet-500 to-violet-600 dark:from-violet-600 dark:to-violet-700',
+    iconBg: 'bg-white/20',
+    iconColor: 'text-white',
+    valueColor: 'text-white',
+    titleColor: 'text-violet-100',
+    trendUpColor: 'text-green-300',
+    trendDownColor: 'text-red-200',
+    vsColor: 'text-violet-200',
+  },
+} as const
+
 // ─── Skeleton Components ─────────────────────────────────────────────────────
 
 function KpiSkeleton() {
   return (
-    <Card className="gap-4 border-l-4 border-l-gray-300 overflow-hidden animate-pulse">
+    <Card className="bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-500 dark:to-gray-600 overflow-hidden animate-pulse">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardDescription className="text-sm font-medium bg-muted rounded h-4 w-24" />
-        <div className="rounded-xl p-2.5 bg-muted h-10 w-10" />
+        <CardDescription className="text-sm font-medium bg-white/20 rounded h-4 w-24 text-transparent">
+          Skeleton
+        </CardDescription>
+        <div className="rounded-xl p-2.5 bg-white/20 h-10 w-10" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold bg-muted rounded h-7 w-20 mb-2" />
+        <div className="text-2xl font-bold text-transparent bg-white/20 rounded h-7 w-20 mb-2" />
         <div className="flex items-center gap-1">
-          <div className="h-3 w-12 bg-muted rounded" />
+          <div className="h-3 w-12 bg-white/20 rounded" />
         </div>
       </CardContent>
     </Card>
@@ -217,48 +264,36 @@ export function OverviewModule() {
 
   const kpiCards = [
     {
-      title: 'Total Conversations',
+      title: 'TOTAL CONVERSATIONS',
       value: loadingKpi ? '...' : (kpi?.totalConversations ?? 0).toLocaleString('fr-FR'),
       change: '+12%',
       trend: 'up' as const,
       icon: MessageSquare,
-      iconBg: 'bg-orange-100 dark:bg-orange-900/30',
-      iconColor: 'text-orange-600 dark:text-orange-400',
-      borderClass: 'border-l-orange-500',
-      valueColor: 'text-orange-600 dark:text-orange-400',
+      theme: kpiThemes.orange,
     },
     {
-      title: "Recherche Vols Aujourd'hui",
+      title: 'RECHERCHE VOLS AUJOURD\'HUI',
       value: loadingKpi ? '...' : (kpi?.totalFlightSearches ?? 0).toLocaleString('fr-FR'),
       change: '+8%',
       trend: 'up' as const,
       icon: Plane,
-      iconBg: 'bg-sky-100 dark:bg-sky-900/30',
-      iconColor: 'text-sky-600 dark:text-sky-400',
-      borderClass: 'border-l-sky-500',
-      valueColor: 'text-sky-600 dark:text-sky-400',
+      theme: kpiThemes.blue,
     },
     {
-      title: 'Alertes Actives',
-      value: loadingKpi ? '...' : (kpi?.activeAlerts ?? 0).toString(),
-      change: '-25%',
-      trend: 'down' as const,
-      icon: ShieldAlert,
-      iconBg: 'bg-rose-100 dark:bg-rose-900/30',
-      iconColor: 'text-rose-600 dark:text-rose-400',
-      borderClass: 'border-l-rose-500',
-      valueColor: 'text-rose-600 dark:text-rose-400',
-    },
-    {
-      title: "Revenus Aujourd'hui",
+      title: 'REVENUS AUJOURD\'HUI',
       value: loadingKpi ? '...' : formatCurrency(kpi?.revenueToday ?? 0),
       change: '+15%',
       trend: 'up' as const,
       icon: DollarSign,
-      iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
-      borderClass: 'border-l-emerald-500',
-      valueColor: 'text-emerald-600 dark:text-emerald-400',
+      theme: kpiThemes.green,
+    },
+    {
+      title: 'ALERTES ACTIVES',
+      value: loadingKpi ? '...' : (kpi?.activeAlerts ?? 0).toString(),
+      change: '-25%',
+      trend: 'down' as const,
+      icon: ShieldAlert,
+      theme: kpiThemes.purple,
     },
   ]
 
@@ -268,10 +303,10 @@ export function OverviewModule() {
       <div className="flex items-center gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">Tableau de Bord</h1>
+            <h1 className="text-2xl font-bold tracking-tight">TABLEAU DE BORD</h1>
             {wsConnected && (
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700 text-xs">
-                ● Temps réel
+                ● TEMPS RÉEL
               </Badge>
             )}
           </div>
@@ -281,48 +316,43 @@ export function OverviewModule() {
         </div>
       </div>
 
-      {/* KPI Row */}
+      {/* KPI Row — Colored Background Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {loadingKpi
           ? Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
           : errorKpi
             ? <Card className="col-span-full"><CardContent className="py-8 text-center text-muted-foreground text-sm">Impossible de charger les KPIs — vérifiez la connexion au serveur</CardContent></Card>
-            : kpiCards.map((card) => (
-              <Card key={card.title} className={`gap-4 border-l-4 ${card.borderClass} overflow-hidden`}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardDescription className="text-sm font-medium">
-                    {card.title}
-                  </CardDescription>
-                  <div className={`rounded-xl p-2.5 ${card.iconBg}`}>
-                    <card.icon className={`size-5 ${card.iconColor}`} />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-2xl font-bold ${card.valueColor}`}>{card.value}</div>
-                  <div className="flex items-center gap-1 mt-1">
-                    {card.trend === 'up' ? (
-                      <TrendingUp className="size-3.5 text-emerald-500" />
-                    ) : (
-                      <TrendingDown className="size-3.5 text-rose-500" />
-                    )}
-                    <span
-                      className={`text-xs font-medium ${
-                        card.trend === 'up' && card.title === 'Alertes Actives'
-                          ? 'text-rose-500'
-                          : card.trend === 'up'
-                            ? 'text-emerald-500'
-                            : 'text-rose-500'
-                      }`}
-                    >
-                      {card.change}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-1">
-                      vs hier
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            : kpiCards.map((card) => {
+                const t = card.theme
+                return (
+                  <Card key={card.title} className={`${t.cardBg} overflow-hidden border-0 shadow-lg`}>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardDescription className={`text-xs font-bold tracking-wider ${t.titleColor} uppercase`}>
+                        {card.title}
+                      </CardDescription>
+                      <div className={`rounded-xl p-2.5 ${t.iconBg}`}>
+                        <card.icon className={`size-5 ${t.iconColor}`} />
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className={`text-2xl font-bold ${t.valueColor}`}>{card.value}</div>
+                      <div className="flex items-center gap-1 mt-1">
+                        {card.trend === 'up' ? (
+                          <TrendingUp className="size-3.5 text-white" />
+                        ) : (
+                          <TrendingDown className="size-3.5 text-white" />
+                        )}
+                        <span className="text-xs font-semibold text-white">
+                          {card.change}
+                        </span>
+                        <span className={`text-xs ${t.vsColor} ml-1`}>
+                          vs hier
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
       </div>
 
       {/* Charts Row */}
@@ -440,35 +470,35 @@ export function OverviewModule() {
         )}
       </div>
 
-      {/* Quick Stats Cards */}
+      {/* Quick Stats Cards — Colored Backgrounds */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Languages */}
+        {/* Languages — Violet */}
         {loadingCharts ? (
-          <Card className="animate-pulse"><CardContent className="py-8"><div className="h-3 bg-muted rounded-full w-full" /><div className="mt-4 grid grid-cols-2 gap-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 bg-muted rounded" />)}</div></CardContent></Card>
+          <Card className="animate-pulse bg-gradient-to-br from-violet-500 to-violet-600"><CardContent className="py-8"><div className="h-3 bg-white/20 rounded-full w-full" /><div className="mt-4 grid grid-cols-2 gap-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 bg-white/20 rounded" />)}</div></CardContent></Card>
         ) : languageData.length === 0 ? (
-          <Card className="border-l-4 border-l-violet-500 overflow-hidden">
+          <Card className="bg-gradient-to-br from-violet-500 to-violet-600 dark:from-violet-600 dark:to-violet-700 border-0 shadow-lg overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-                  <Globe className="size-4 text-violet-600 dark:text-violet-400" />
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-white/20">
+                  <Globe className="size-4 text-white" />
                 </div>
-                Langues Utilisées
+                <span className="uppercase text-xs font-bold tracking-wider">LANGUES UTILISÉES</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center justify-center py-8 text-muted-foreground text-sm">Aucune donnée</CardContent>
+            <CardContent className="flex items-center justify-center py-8 text-white/80 text-sm">Aucune donnée</CardContent>
           </Card>
         ) : (
-          <Card className="border-l-4 border-l-violet-500 overflow-hidden">
+          <Card className="bg-gradient-to-br from-violet-500 to-violet-600 dark:from-violet-600 dark:to-violet-700 border-0 shadow-lg overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-                  <Globe className="size-4 text-violet-600 dark:text-violet-400" />
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-white/20">
+                  <Globe className="size-4 text-white" />
                 </div>
-                Langues Utilisées
+                <span className="uppercase text-xs font-bold tracking-wider">LANGUES UTILISÉES</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex h-3 rounded-full overflow-hidden bg-muted">
+              <div className="flex h-3 rounded-full overflow-hidden bg-white/20">
                 {languageData.map((lang) => (
                   <div
                     key={lang.code}
@@ -482,10 +512,10 @@ export function OverviewModule() {
                 {languageData.map((lang) => (
                   <div key={lang.code} className="flex items-center gap-2 text-sm">
                     <div className={`size-2.5 rounded-full ${lang.color}`} />
-                    <span className="text-muted-foreground">
+                    <span className="text-white/80">
                       {lang.code}
                     </span>
-                    <span className="ml-auto font-medium">{lang.pct}%</span>
+                    <span className="ml-auto font-semibold text-white">{lang.pct}%</span>
                   </div>
                 ))}
               </div>
@@ -493,17 +523,17 @@ export function OverviewModule() {
           </Card>
         )}
 
-        {/* Resolution Rate */}
+        {/* Resolution Rate — Green */}
         {loadingPerf ? (
-          <Card className="animate-pulse border-l-4 border-l-emerald-500"><CardContent className="py-8 flex justify-center"><div className="size-28 rounded-full bg-muted" /></CardContent></Card>
+          <Card className="animate-pulse bg-gradient-to-br from-emerald-500 to-emerald-600"><CardContent className="py-8 flex justify-center"><div className="size-28 rounded-full bg-white/20" /></CardContent></Card>
         ) : (
-          <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
+          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-700 border-0 shadow-lg overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                  <Zap className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-white/20">
+                  <Zap className="size-4 text-white" />
                 </div>
-                Taux de Résolution
+                <span className="uppercase text-xs font-bold tracking-wider">TAUX DE RÉSOLUTION</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -517,14 +547,14 @@ export function OverviewModule() {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="8"
-                      className="text-muted/30"
+                      className="text-white/20"
                     />
                     <circle
                       cx="50"
                       cy="50"
                       r="40"
                       fill="none"
-                      stroke="#10b981"
+                      stroke="white"
                       strokeWidth="8"
                       strokeLinecap="round"
                       strokeDasharray={`${resolutionRate * 2.51} ${100 * 2.51}`}
@@ -532,12 +562,12 @@ export function OverviewModule() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-2xl font-bold text-white">
                       {Math.round(resolutionRate * 100)}%
                     </span>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-white/80">
                   {resolvedConversations} sur {totalConversations} résolues automatiquement
                 </p>
               </div>
@@ -545,26 +575,26 @@ export function OverviewModule() {
           </Card>
         )}
 
-        {/* Average Response Time */}
+        {/* Average Response Time — Blue */}
         {loadingPerf ? (
-          <Card className="animate-pulse border-l-4 border-l-cyan-500"><CardContent className="py-8 flex flex-col items-center gap-3"><div className="h-10 w-24 bg-muted rounded" /><div className="flex items-end gap-1 h-10 w-32">{Array.from({ length: 12 }).map((_, i) => <div key={i} className="w-1.5 bg-muted rounded-sm" />)}</div></CardContent></Card>
+          <Card className="animate-pulse bg-gradient-to-br from-blue-500 to-blue-600"><CardContent className="py-8 flex flex-col items-center gap-3"><div className="h-10 w-24 bg-white/20 rounded" /><div className="flex items-end gap-1 h-10 w-32">{Array.from({ length: 12 }).map((_, i) => <div key={i} className="w-1.5 bg-white/20 rounded-sm" />)}</div></CardContent></Card>
         ) : (
-          <Card className="border-l-4 border-l-cyan-500 overflow-hidden">
+          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 border-0 shadow-lg overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
-                  <Clock className="size-4 text-cyan-600 dark:text-cyan-400" />
+              <CardTitle className="text-base flex items-center gap-2 text-white">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-white/20">
+                  <Clock className="size-4 text-white" />
                 </div>
-                Temps de Réponse Moyen
+                <span className="uppercase text-xs font-bold tracking-wider">TEMPS DE RÉPONSE MOYEN</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col items-center justify-center gap-3 py-2">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold text-cyan-600 dark:text-cyan-400">
+                  <span className="text-4xl font-bold text-white">
                     {avgResponseTime.toFixed(1)}
                   </span>
-                  <span className="text-lg text-muted-foreground">sec</span>
+                  <span className="text-lg text-white/70">sec</span>
                 </div>
                 {/* Sparkline */}
                 {sparkline.length > 0 ? (
@@ -572,7 +602,7 @@ export function OverviewModule() {
                     {sparkline.map((height, i) => (
                       <div
                         key={i}
-                        className="w-1.5 rounded-sm bg-cyan-400/70"
+                        className="w-1.5 rounded-sm bg-white/50"
                         style={{ height: `${height}%` }}
                       />
                     ))}
@@ -583,14 +613,14 @@ export function OverviewModule() {
                       (height, i) => (
                         <div
                           key={i}
-                          className="w-1.5 rounded-sm bg-cyan-400/30"
+                          className="w-1.5 rounded-sm bg-white/25"
                           style={{ height: `${height}%` }}
                         />
                       ),
                     )}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-white/80">
                   {avgResponseTime <= targetTime
                     ? `En dessous de l'objectif de ${targetTime} sec`
                     : `Au-dessus de l'objectif de ${targetTime} sec`}
@@ -607,7 +637,7 @@ export function OverviewModule() {
       ) : recentConversations.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Activité Récente</CardTitle>
+            <CardTitle className="text-base uppercase tracking-wider font-bold">ACTIVITÉ RÉCENTE</CardTitle>
             <CardDescription>
               Les 5 dernières conversations
             </CardDescription>
@@ -621,7 +651,7 @@ export function OverviewModule() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Activité Récente</CardTitle>
+            <CardTitle className="text-base uppercase tracking-wider font-bold">ACTIVITÉ RÉCENTE</CardTitle>
             <CardDescription>
               Les 5 dernières conversations
             </CardDescription>
@@ -630,12 +660,12 @@ export function OverviewModule() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Téléphone</TableHead>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Intent</TableHead>
-                  <TableHead>Langue</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead className="text-right">Heure</TableHead>
+                  <TableHead className="uppercase text-xs font-bold tracking-wider">Téléphone</TableHead>
+                  <TableHead className="uppercase text-xs font-bold tracking-wider">Nom</TableHead>
+                  <TableHead className="uppercase text-xs font-bold tracking-wider">Intent</TableHead>
+                  <TableHead className="uppercase text-xs font-bold tracking-wider">Langue</TableHead>
+                  <TableHead className="uppercase text-xs font-bold tracking-wider">Statut</TableHead>
+                  <TableHead className="text-right uppercase text-xs font-bold tracking-wider">Heure</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

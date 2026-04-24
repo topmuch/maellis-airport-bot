@@ -80,12 +80,22 @@ export function verifyWebhook(
  * Parse an incoming Meta WhatsApp Cloud API webhook payload.
  * Extracts phone number, message text, and message type.
  */
-export function parseWebhookPayload(body: unknown): {
+export interface ParsedWebhook {
   phone: string | null;
   messageText: string;
   messageType: string;
   profileName?: string;
-} {
+  /** Image media ID (for OCR processing) */
+  imageId?: string;
+  /** Image caption (text sent alongside image) */
+  imageCaption?: string;
+  /** Document media ID */
+  documentId?: string;
+  /** Document filename */
+  documentFilename?: string;
+}
+
+export function parseWebhookPayload(body: unknown): ParsedWebhook {
   const payload = body as WhatsAppWebhookPayload;
   if (!payload?.entry?.length) {
     return { phone: null, messageText: "", messageType: "unknown" };
@@ -114,8 +124,30 @@ export function parseWebhookPayload(body: unknown): {
       } else if (msg.type === "location" && msg.location) {
         text = `Location: ${msg.location.latitude},${msg.location.longitude}`;
         if (msg.location.name) text += ` (${msg.location.name})`;
-      } else if (msg.type === "image" || msg.type === "document" || msg.type === "audio") {
-        text = `[${msg.type} message received]`;
+      } else if (msg.type === "image") {
+        text = msg.image?.caption || "[image]";
+        const result: ParsedWebhook = {
+          phone: msg.from,
+          messageText: text,
+          messageType: type,
+          profileName,
+          imageId: msg.image?.id,
+          imageCaption: msg.image?.caption,
+        };
+        return result;
+      } else if (msg.type === "document") {
+        text = msg.document?.caption || "[document]";
+        const result: ParsedWebhook = {
+          phone: msg.from,
+          messageText: text,
+          messageType: type,
+          profileName,
+          documentId: msg.document?.id,
+          documentFilename: msg.document?.filename,
+        };
+        return result;
+      } else if (msg.type === "audio") {
+        text = "[audio message]";
       }
 
       return {
@@ -128,6 +160,59 @@ export function parseWebhookPayload(body: unknown): {
   }
 
   return { phone: null, messageText: "", messageType: "unknown" };
+}
+
+/**
+ * Download a WhatsApp media file by its ID and return base64 data.
+ * Used for OCR processing of images sent by users.
+ */
+export async function downloadWhatsAppMedia(mediaId: string): Promise<string | null> {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+
+  if (!accessToken) {
+    console.log("⚠️  WHATSAPP_ACCESS_TOKEN not set — cannot download media");
+    return null;
+  }
+
+  try {
+    // Step 1: Get the media URL from WhatsApp API
+    const WHATSAPP_API_URL = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${mediaId}`;
+    const metaRes = await fetch(WHATSAPP_API_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!metaRes.ok) {
+      console.error(`Failed to get media URL for ${mediaId}: ${metaRes.status}`);
+      return null;
+    }
+
+    const metaData = await metaRes.json() as { url?: string; mime_type?: string };
+    if (!metaData.url) {
+      console.error(`No URL in media metadata for ${mediaId}`);
+      return null;
+    }
+
+    // Step 2: Download the actual media file
+    const mediaRes = await fetch(metaData.url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!mediaRes.ok) {
+      console.error(`Failed to download media ${mediaId}: ${mediaRes.status}`);
+      return null;
+    }
+
+    // Step 3: Convert to base64
+    const arrayBuffer = await mediaRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = metaData.mime_type || "image/jpeg";
+    const base64 = buffer.toString("base64");
+
+    return `data:${mimeType};base64,${base64}`;
+  } catch (err) {
+    console.error(`Error downloading WhatsApp media ${mediaId}:`, String(err));
+    return null;
+  }
 }
 
 /**

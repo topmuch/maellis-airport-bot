@@ -12,6 +12,7 @@ export type Intent =
   | "transport"
   | "payment"
   | "emergency"
+  | "ticket_scan"
   | "greeting"
   | "help"
   | "unknown";
@@ -66,6 +67,8 @@ export interface WhatsAppWebhookEntry {
         id: string;
         text?: { body: string };
         interactive?: { type: string; [key: string]: unknown };
+        image?: { id: string; caption?: string; mime_type?: string; sha256?: string };
+        document?: { id: string; caption?: string; filename?: string; mime_type?: string };
         location?: { latitude: number; longitude: number; name?: string };
         type: string;
         timestamp: string;
@@ -207,6 +210,42 @@ export interface PaymentStatus {
   currency: string;
   provider: PaymentProvider;
   timestamp: string;
+}
+
+// ---- OCR / Ticket Scan ----
+
+export interface OCRAnalyzeRequest {
+  imageData: string; // base64 or URL
+  phone: string;
+  source?: string;
+}
+
+export interface TicketExtraction {
+  pnr?: string | null;
+  flightNumber?: string | null;
+  airline?: string | null;
+  departureCode?: string | null;
+  arrivalCode?: string | null;
+  departureCity?: string | null;
+  arrivalCity?: string | null;
+  flightDate?: string | null;
+  seat?: string | null;
+  boardingTime?: string | null;
+  gate?: string | null;
+  terminal?: string | null;
+  passengerClass?: string | null;
+  passengerName?: string | null;
+  confidence: number;
+  rawText: string;
+  provider: string;
+}
+
+export interface OCRAnalyzeResult {
+  success: boolean;
+  data?: TicketExtraction;
+  rawText?: string;
+  message?: string;
+  scanId?: string;
 }
 
 // ---- Health Check ----

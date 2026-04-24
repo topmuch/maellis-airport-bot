@@ -3,6 +3,8 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── Theme Token Mapping ───────────────────────────────────────────────── */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -43,6 +45,8 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ─── Light Theme — Clean & Professional ───────────────────────────────── */
+
 :root {
   --radius: 0.625rem;
   --background: oklch(0.975 0.005 280);
@@ -51,66 +55,83 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.637 0.237 25.331);        /* orange-500 */
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --accent: oklch(0.97 0.005 280);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.705 0.213 47.604);
-  --chart-1: oklch(0.705 0.213 47.604);
-  --chart-2: oklch(0.372 0.154 262.881);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --ring: oklch(0.637 0.237 25.331);            /* orange-500 */
+  --chart-1: oklch(0.637 0.237 25.331);         /* orange */
+  --chart-2: oklch(0.372 0.154 262.881);         /* blue */
+  --chart-3: oklch(0.398 0.07 227.392);          /* sky */
+  --chart-4: oklch(0.828 0.189 84.429);          /* yellow */
+  --chart-5: oklch(0.769 0.188 70.08);           /* amber */
+
+  /* Sidebar — deep blue, corporate */
   --sidebar: oklch(0.372 0.154 262.881);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.705 0.213 47.604);
+  --sidebar-primary: oklch(0.637 0.237 25.331);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.425 0.154 262.881);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.312 0.154 262.881);
-  --sidebar-ring: oklch(0.705 0.213 47.604);
+  --sidebar-ring: oklch(0.637 0.237 25.331);
 }
 
+/* ─── Dark Theme — Luxury Premium ──────────────────────────────────────── */
+
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Fond principal : bleu-noir profond (#0B0F19) */
+  --background: oklch(0.13 0.015 265);
+  /* Surfaces légères : slate-900 */
+  --foreground: oklch(0.93 0.005 265);
+  --card: oklch(0.17 0.015 265);
+  --card-foreground: oklch(0.93 0.005 265);
+  --popover: oklch(0.17 0.015 265);
+  --popover-foreground: oklch(0.93 0.005 265);
+
+  /* Primary = orange MAELLIS lumineux en dark */
+  --primary: oklch(0.705 0.213 47.604);
+  --primary-foreground: oklch(0.13 0.015 265);
+
+  --secondary: oklch(0.22 0.015 265);
+  --secondary-foreground: oklch(0.88 0.005 265);
+  --muted: oklch(0.22 0.015 265);
+  --muted-foreground: oklch(0.65 0.01 265);
+  --accent: oklch(0.25 0.02 265);
+  --accent-foreground: oklch(0.93 0.005 265);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+
+  /* Borders subtils — visible mais élégants */
+  --border: oklch(0.28 0.015 265);
+  --input: oklch(0.25 0.015 265);
   --ring: oklch(0.705 0.213 47.604);
+
+  /* Charts — couleurs plus saturées en dark */
   --chart-1: oklch(0.705 0.213 47.604);
-  --chart-2: oklch(0.372 0.154 262.881);
+  --chart-2: oklch(0.546 0.2 262.881);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.28 0.12 262.881);
-  --sidebar-foreground: oklch(0.985 0 0);
+
+  /* Sidebar — bleu profond premium */
+  --sidebar: oklch(0.15 0.025 265);
+  --sidebar-foreground: oklch(0.93 0.005 265);
   --sidebar-primary: oklch(0.705 0.213 47.604);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.35 0.12 262.881);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.22 0.12 262.881);
+  --sidebar-accent: oklch(0.22 0.03 265);
+  --sidebar-accent-foreground: oklch(0.93 0.005 265);
+  --sidebar-border: oklch(0.25 0.02 265);
   --sidebar-ring: oklch(0.705 0.213 47.604);
 }
+
+/* ─── Base Layer ───────────────────────────────────────────────────────── */
 
 @layer base {
   * {
@@ -119,4 +140,100 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ─── Smooth Theme Transitions ─────────────────────────────────────────── */
+
+html,
+html *,
+html *::before,
+html *::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Disable transitions for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html,
+  html *,
+  html *::before,
+  html *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+/* ─── Custom Scrollbar — Dark Luxury ───────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.5 0 0 / 25%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.5 0 0 / 40%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(0.4 0 0 / 30%);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.5 0.01 265 / 50%);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.5 0 0 / 25%) transparent;
+}
+
+.dark * {
+  scrollbar-color: oklch(0.4 0 0 / 30%) transparent;
+}
+
+/* ─── Focus Ring — Accessible + Premium ────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid oklch(0.637 0.237 25.331);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.dark :focus-visible {
+  outline-color: oklch(0.705 0.213 47.604);
+}
+
+/* ─── Selection ────────────────────────────────────────────────────────── */
+
+::selection {
+  background: oklch(0.637 0.237 25.331 / 30%);
+  color: inherit;
+}
+
+.dark ::selection {
+  background: oklch(0.705 0.213 47.604 / 30%);
+  color: inherit;
+}
+
+/* ─── Hero Gradient Animation ──────────────────────────────────────────── */
+
+@keyframes hero-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-hero-gradient {
+  animation: hero-gradient 8s ease-in-out infinite;
 }

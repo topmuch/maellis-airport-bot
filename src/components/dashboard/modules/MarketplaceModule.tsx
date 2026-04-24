@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Store, Package, ShoppingCart, Star, Plus, Eye, Pencil, Trash2,
   CheckCircle, Clock, AlertCircle, Search, Shield, MessageSquare, X,
+  Wallet, ArrowUpRight, CheckCircle2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -59,6 +60,13 @@ interface Review {
   comment?: string; isVerified: boolean; response?: string; createdAt: string
 }
 
+interface Payout {
+  id: string; merchantId: string; merchantName?: string; merchantAirport?: string
+  orderId: string; orderTotal: number; commissionRate: number; commissionAmount: number
+  currency: string; status: string; paidAt?: string; reference?: string; notes?: string
+  createdAt: string
+}
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -93,6 +101,13 @@ const PAYMENT_STATUS: Record<string, { cls: string; label: string }> = {
   pending: { cls: 'bg-amber-100 text-amber-800 border-amber-200', label: 'En attente' },
   paid: { cls: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Paye' },
   refunded: { cls: 'bg-red-100 text-red-800 border-red-200', label: 'Rembourse' },
+}
+
+const PAYOUT_STATUS: Record<string, { cls: string; label: string }> = {
+  pending: { cls: 'bg-amber-100 text-amber-800 border-amber-200', label: 'En attente' },
+  processing: { cls: 'bg-sky-100 text-sky-800 border-sky-200', label: 'En cours' },
+  paid: { cls: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Paye' },
+  failed: { cls: 'bg-red-100 text-red-800 border-red-200', label: 'Echoue' },
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -145,6 +160,9 @@ export function MarketplaceModule() {
   const [loadingP, setLoadingP] = useState(true)
   const [loadingO, setLoadingO] = useState(true)
   const [loadingR, setLoadingR] = useState(false)
+  const [payouts, setPayouts] = useState<Payout[]>([])
+  const [loadingPayout, setLoadingPayout] = useState(false)
+  const [payoutStats, setPayoutStats] = useState({ totalPending: 0, totalPaid: 0, totalAmount: 0 })
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('merchants')
 
@@ -205,7 +223,15 @@ export function MarketplaceModule() {
     } catch { setReviews([]) } finally { setLoadingR(false) }
   }, [])
 
-  useEffect(() => { fetchMerchants(); fetchProducts(); fetchOrders() }, [fetchMerchants, fetchProducts, fetchOrders])
+  const fetchPayouts = useCallback(async () => {
+    setLoadingPayout(true)
+    try {
+      const res = await fetch('/api/payouts')
+      if (res.ok) { const j = await res.json(); setPayouts(j.success ? j.data : []); if (j.success && j.stats) setPayoutStats(j.stats) }
+    } catch { setPayouts([]) } finally { setLoadingPayout(false) }
+  }, [])
+
+  useEffect(() => { fetchMerchants(); fetchProducts(); fetchOrders(); fetchPayouts() }, [fetchMerchants, fetchProducts, fetchOrders, fetchPayouts])
 
   // ── Merchant CRUD ──────────────────────────────────────────────────────────
   const openCreateM = () => { setEditingM(null); setMForm({ name: '', airportCode: 'DSS', category: 'duty_free', terminal: '', gate: '', phone: '', email: '', description: '', commissionRate: 10, paymentSchedule: 'weekly' }); setMDialog(true) }
@@ -278,13 +304,22 @@ export function MarketplaceModule() {
     } catch { toast.error('Erreur') }
   }
 
+  // ── Payout Action ──────────────────────────────────────────────────────────
+  const processPayout = async (payoutId: string) => {
+    try {
+      const res = await fetch(`/api/payouts/${payoutId}/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId: 'system', reference: `PAY-${Date.now()}` }) })
+      if (res.ok) { toast.success('Commission marquee comme payee'); fetchPayouts() } else toast.error('Erreur')
+    } catch { toast.error('Erreur') }
+  }
+
   // ── Derived ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     if (activeTab === 'merchants') return merchants.filter((m) => { if (!search) return true; const q = search.toLowerCase(); return m.name.toLowerCase().includes(q) || m.category.toLowerCase().includes(q) })
     if (activeTab === 'products') return products.filter((p) => { if (!search) return true; const q = search.toLowerCase(); return p.name.toLowerCase().includes(q) || (p.merchantName || '').toLowerCase().includes(q) })
     if (activeTab === 'orders') return orders.filter((o) => { if (!search) return true; const q = search.toLowerCase(); return o.orderNumber.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q) || (o.merchantName || '').toLowerCase().includes(q) })
+    if (activeTab === 'payouts') return payouts
     return reviews
-  }, [activeTab, search, merchants, products, orders, reviews])
+  }, [activeTab, search, merchants, products, orders, reviews, payouts])
 
   const activeMerchants = merchants.filter((m) => m.isActive).length
   const verifiedMerchants = merchants.filter((m) => m.isVerified).length
@@ -307,6 +342,7 @@ export function MarketplaceModule() {
           <TabsTrigger value="products" className="gap-1.5"><Package className="h-4 w-4" /><span className="hidden sm:inline">Produits</span></TabsTrigger>
           <TabsTrigger value="orders" className="gap-1.5"><ShoppingCart className="h-4 w-4" /><span className="hidden sm:inline">Commandes</span></TabsTrigger>
           <TabsTrigger value="reviews" className="gap-1.5"><Star className="h-4 w-4" /><span className="hidden sm:inline">Avis</span></TabsTrigger>
+          <TabsTrigger value="payouts" className="gap-1.5"><Wallet className="h-4 w-4" /><span className="hidden sm:inline">Commissions</span></TabsTrigger>
         </TabsList>
 
         {/* ═══ TAB: Marchands ═══ */}
@@ -484,6 +520,55 @@ export function MarketplaceModule() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody></Table></div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══ TAB: Commissions ═══ */}
+        <TabsContent value="payouts" className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard title="Total Commissions" value={formatPrice(payoutStats.totalAmount)} icon={<Wallet className="size-6 text-orange-600 dark:text-orange-400" />} colorClass="text-orange-600 dark:text-orange-400" iconBgClass="bg-orange-100 dark:bg-orange-900/30" />
+            <StatCard title="En Attente" value={formatPrice(payoutStats.totalPending)} icon={<Clock className="size-6 text-amber-600 dark:text-amber-400" />} colorClass="text-amber-600 dark:text-amber-400" iconBgClass="bg-amber-100 dark:bg-amber-900/30" />
+            <StatCard title="Payees" value={formatPrice(payoutStats.totalPaid)} icon={<CheckCircle className="size-6 text-emerald-600 dark:text-emerald-400" />} colorClass="text-emerald-600 dark:text-emerald-400" iconBgClass="bg-emerald-100 dark:bg-emerald-900/30" />
+          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-base">Commissions ({payouts.length})</CardTitle>
+                <Button variant="outline" onClick={fetchPayouts}><CheckCircle2 className="size-4 mr-1" /> Rafraichir</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingPayout ? <Spinner /> : payouts.length === 0 ? <EmptyState message="Aucune commission trouvee" icon={Wallet} /> : (
+                <div className="max-h-[500px] overflow-y-auto"><Table><TableHeader><TableRow>
+                  <TableHead>Marchand</TableHead>
+                  <TableHead className="hidden md:table-cell">N° Commande</TableHead>
+                  <TableHead className="text-right">Montant</TableHead>
+                  <TableHead className="hidden sm:table-cell text-right">Commission</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="hidden md:table-cell">Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow></TableHeader><TableBody>
+                  {payouts.map((p) => {
+                    const ps = PAYOUT_STATUS[p.status] || { cls: '', label: p.status }
+                    return (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">{p.merchantName || p.merchantId}</TableCell>
+                        <TableCell className="hidden md:table-cell font-mono text-xs">{p.orderId.slice(0, 8)}...</TableCell>
+                        <TableCell className="text-right text-sm">{formatPrice(p.orderTotal)}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right font-medium text-orange-600">{formatPrice(p.commissionAmount)}</TableCell>
+                        <TableCell><Badge className={ps.cls}>{ps.label}</Badge></TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleDateString('fr-FR')}</TableCell>
+                        <TableCell className="text-right">
+                          {p.status === 'pending' && (
+                            <Button variant="outline" size="sm" className="h-7 text-xs text-emerald-500 border-emerald-200" onClick={() => processPayout(p.id)}><ArrowUpRight className="size-3 mr-1" />Payer</Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody></Table></div>
               )}
             </CardContent>

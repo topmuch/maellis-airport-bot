@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { RealTimeIndicator } from '@/components/dashboard/RealTimeIndicator'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -58,7 +59,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       onOpenChange={setSidebarOpen}
     >
       {/* Sidebar */}
-      <Sidebar collapsible="icon" variant="sidebar" className="border-r-[#1e3a8a]/30 bg-[#1e3a8a] dark:bg-[#0f1d45] dark:border-r-[#0f1d45]">
+      <Sidebar collapsible="icon" variant="sidebar">
         {/* Sidebar Header - Brand */}
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3 px-1">
@@ -141,6 +142,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex items-center gap-1 sm:gap-2">
             {/* Real-Time Indicator */}
             <RealTimeIndicator />
+            {/* Theme Toggle — Dark/Light/System */}
+            <ThemeToggle />
             {/* Language Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

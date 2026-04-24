@@ -22,6 +22,7 @@ model User {
   name          String?
   language      String   @default("fr")
   isActive      Boolean  @default(true)
+  preferences   String   @default("{}")
   lastSeen      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -201,6 +202,29 @@ model BaggageQR {
   expiresAt      DateTime
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Baggage Claims (lost/damaged/delayed baggage reports)
+// ─────────────────────────────────────────────
+model BaggageClaim {
+  id             String    @id @default(cuid())
+  baggageId      String?
+  phone          String
+  passengerName  String
+  description    String
+  flightNumber   String?
+  location       String?   // JSON: { terminal: "1", gate: "B12" }
+  status         String    @default("open") // open, investigating, resolved, compensated, rejected
+  resolution     String?
+  compensation   Float?    // FCFA compensation amount
+  resolvedAt     DateTime?
+  assignedTo     String?   // Agent/admin ID
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phone])
 }
 
 // ═══════════════════════════════════════════════
@@ -530,6 +554,7 @@ model Merchant {
   orders          Order[]
   reviews         Review[]
   advertisements  Advertisement[]
+  payouts         MerchantPayout[]
 
   @@unique([airportCode, name])
   @@index([airportCode, category, isActive])
@@ -638,6 +663,198 @@ model Wishlist {
   @@index([customerPhone])
 }
 
+// ─────────────────────────────────────────────
+// Cart (Panier) — One per customer phone
+// ─────────────────────────────────────────────
+model Cart {
+  id              String   @id @default(cuid())
+  customerPhone   String   @unique
+  items           CartItem[]
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+}
+
+model CartItem {
+  id              String   @id @default(cuid())
+  cartId          String
+  cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId       String
+  productName     String
+  productImage    String?
+  merchantId      String
+  merchantName    String
+  quantity        Int      @default(1)
+  unitPrice       Float
+  discountPercent Float    @default(0)
+  addedAt         DateTime @default(now())
+
+  @@index([cartId])
+  @@index([merchantId])
+}
+
+// ─────────────────────────────────────────────
+// Merchant Payouts (Commissions vers marchands)
+// ─────────────────────────────────────────────
+model MerchantPayout {
+  id              String   @id @default(cuid())
+  merchantId      String
+  merchant        Merchant @relation(fields: [merchantId], references: [id])
+  orderId         String
+  orderTotal      Float
+  commissionRate  Float
+  commissionAmount Float
+  currency        String   @default("XOF")
+  status          String   @default("pending") // pending, processing, paid, failed
+  paidAt          DateTime?
+  paidBy          String?  // Admin ID
+  reference       String?  // Reference paiement externe
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([merchantId, status])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 7: FEEDBACK & ANALYTICS — Passenger Satisfaction Tracking
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Feedback {
+  id           String   @id @default(cuid())
+  phone        String
+  userName     String?
+  flightNumber String?
+  airportCode  String   @default("DSS")
+  rating       Int      // NPS 1-5
+  category     String   @default("general") // overall, lounge, transport, restaurant, wifi, signage, security
+  comment      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([airportCode, createdAt])
+  @@index([rating])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODULE 4: CONCIERGERIE HYBRIDE (Live Chat + PMR)
+// ═══════════════════════════════════════════════════════════════
+
+model Ticket {
+  id              String    @id @default(cuid())
+  phone           String
+  passengerName   String
+  type            String    // general_assistance, pmr, wheelchair, infant, allergy, medical, lost_item, other
+  priority        String    @default("normal") // low, normal, high, urgent
+  status          String    @default("open") // open, assigned, in_progress, resolved, closed
+  description     String
+  flightNumber    String?
+  gate            String?
+  category        String?   // wheelchair, infant_seat, allergy_info, medical_equipment
+  resolution      String?
+  assignedTo      String?   // Agent name or ID
+  slaDeadline     DateTime? // SLA timer (e.g. 15min for urgent)
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, priority])
+  @@index([phone])
+  @@index([type])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 8: GESTION DE CRISE — Crisis Broadcast & Alerting
+// ═══════════════════════════════════════════════════════════════════════════
+
+model CrisisAlert {
+  id              String    @id @default(cuid())
+  airportCode     String    @default("DSS")
+  title           String
+  description     String
+  severity        String    @default("medium") // low, medium, high, critical
+  status          String    @default("draft")  // draft, active, paused, closed
+  targetType      String    @default("all")    // all, flight, terminal, zone
+  targetValue     String?   // e.g. flight number, terminal name
+  message         String    // WhatsApp broadcast message
+  sentCount       Int       @default(0)
+  deliveredCount  Int       @default(0)
+  failedCount     Int       @default(0)
+  optOutCount     Int       @default(0)
+  createdBy       String?   // Admin ID
+  activatedAt     DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([airportCode, status])
+  @@index([severity, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 12: OCR — Ticket Scan & Boarding Pass Recognition
+// ═══════════════════════════════════════════════════════════════════════════
+
+model TicketScan {
+  id              String    @id @default(cuid())
+  phone           String
+  passengerName   String?
+  // Extracted data from OCR
+  pnr             String?
+  flightNumber    String?
+  airline         String?
+  departureCode   String?
+  arrivalCode     String?
+  departureCity   String?
+  arrivalCity     String?
+  flightDate      String?
+  seat            String?
+  boardingTime    String?
+  gate            String?
+  terminal        String?
+  class           String?           // economy, business, first
+  // OCR metadata
+  rawText         String?           // Full raw text from OCR
+  confidence      Float    @default(0) // 0-100 extraction confidence
+  provider        String   @default("mock") // mock, tesseract, google
+  status          String   @default("pending") // pending, confirmed, rejected, expired
+  confirmedAt     DateTime?
+  rejectedAt      DateTime?
+  // Context
+  source          String   @default("whatsapp") // whatsapp, api, dashboard
+  imageUrl        String?           // URL of the uploaded image (if stored)
+  metadata        String   @default("{}") // JSON: additional extracted fields
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([phone, createdAt])
+  @@index([pnr])
+  @@index([flightNumber])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 11: ASSISTANT PROACTIF — Automated Flight Notifications
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ProactiveLog {
+  id              String    @id @default(cuid())
+  phone           String
+  flightNumber    String?
+  airportCode     String    @default("DSS")
+  messageType     String    // departure_reminder, delay_alert, gate_change, boarding_call, promotion
+  messageContent  String
+  triggeredBy     String    // rule description
+  status          String    @default("sent") // sent, delivered, failed, read, clicked
+  sentAt          DateTime  @default(now())
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([phone, sentAt])
+  @@index([airportCode, messageType])
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODULE 10: PUBLICITÉ & MONÉTISATION
 // ═══════════════════════════════════════════════════════════════════════════
@@ -721,4 +938,194 @@ model AdClick {
   timestamp       DateTime @default(now())
 
   @@index([impressionId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE 13: FACTURATION — Clients, Invoices, Payments, Reminders
+// Conformité OHADA/UEMOA — TVA configurable, NINEA/RCCM, devise XOF
+// ═══════════════════════════════════════════════════════════════════════════
+
+model BillingClient {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  phone         String
+  company       String?
+  taxId         String?              // NINEA / RCCM
+  address       String               // JSON: { street, city, country, postalCode }
+  currency      String   @default("XOF")
+  taxRate       Float    @default(0.18) // 18% TVA par défaut OHADA
+  isActive      Boolean  @default(true)
+  notes         String?
+  invoices      Invoice[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique         // FAC-YYYY-NNNN
+  clientId      String
+  client        BillingClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  type          String                    // subscription, commission, marketplace, custom
+  status        String   @default("draft") // draft, sent, partially_paid, paid, overdue, cancelled
+  issueDate     DateTime @default(now())
+  dueDate       DateTime
+  paidAt        DateTime?
+  currency      String   @default("XOF")
+  subtotal      Float                     // HT
+  taxRate       Float                     // 0.18 par défaut
+  taxAmount     Float                     // Montant TVA
+  total         Float                     // TTC
+  pdfUrl        String?
+  receiptUrl    String?
+  notes         String?
+  items         InvoiceItem[]
+  invoicePayments InvoicePayment[]
+  reminders     InvoiceReminder[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientId, status, issueDate])
+  @@index([dueDate, status])
+  @@index([status, type])
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float
+  total       Float
+
+  @@index([invoiceId])
+}
+
+model InvoicePayment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+  amount        Float
+  method        String                    // cinetpay, bank_transfer, cash
+  transactionId String?  @unique
+  status        String   @default("pending") // pending, completed, failed
+  paidAt        DateTime @default(now())
+  metadata      String   @default("{}")    // JSON: CinetPay response, etc.
+
+  @@index([invoiceId])
+  @@index([transactionId])
+}
+
+model InvoiceReminder {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  type        String                    // email, whatsapp
+  sentAt      DateTime @default(now())
+  daysOverdue Int
+  status      String   @default("sent") // sent, failed, opened
+  metadata    String   @default("{}")    // JSON: provider response, etc.
+
+  @@index([invoiceId, sentAt])
+  @@index([type, sentAt])
+}
+
+model BillingSettings {
+  id              String   @id @default("global")
+  nextInvoiceNum  Int      @default(1)
+  defaultTaxRate  Float    @default(0.18)
+  gracePeriodDays Int      @default(3)
+  reminderDays    String   @default("[3,7,15]") // JSON array stored as string (SQLite)
+  legalName       String   @default("MAELLIS Technologies")
+  legalAddress    String   @default("Dakar, Sénégal")
+  legalTaxId      String   @default("")        // NINEA de MAELLIS
+  legalRccm       String   @default("")        // RCCM de MAELLIS
+  bankName        String   @default("")
+  bankAccount     String   @default("")
+  paymentLink     String   @default("")        // Base URL for payment links
+  updatedAt       DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH — NextAuth v5 RBAC System
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum Role {
+  SUPERADMIN
+  AIRPORT_ADMIN
+  AGENT
+  VIEWER
+}
+
+model AuthUser {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(AGENT)
+  airportCode   String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  invitations_sent   Invitation[] @relation("InvitationSender")
+  invitation_used    Invitation?   @relation("InvitationUsed")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  token       String   @unique
+  role        Role     @default(AGENT)
+  airportCode String?
+  invitedBy   String?
+  usedBy      String?  @unique
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  inviter AuthUser?  @relation("InvitationSender", fields: [invitedBy], references: [id])
+  usedUser AuthUser?  @relation("InvitationUsed", fields: [usedBy], references: [id])
 }
