@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus,
   Search,
@@ -30,7 +30,6 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ModuleHeader } from '@/components/dashboard/ModuleHeader'
@@ -306,26 +305,32 @@ function FAQFormDialog({
   const [keywordInput, setKeywordInput] = useState('')
   const [keywords, setKeywords] = useState<string[]>([])
 
+  // Reset form when dialog opens with different FAQ or no FAQ
+  const prevFAQRef = useRef<string | null>(null)
   useEffect(() => {
-    if (faq) {
-      const q = parseJSON(faq.question)
-      const a = parseJSON(faq.answer)
-      const kw = parseJSON(faq.keywords, [])
-      setCategory(faq.category)
-      setPriority(faq.priority.toString())
-      setFrQ(q.fr || '')
-      setEnQ(q.en || '')
-      setWoQ(q.wo || '')
-      setFrA(a.fr || '')
-      setEnA(a.en || '')
-      setWoA(a.wo || '')
-      setKeywords(kw)
-    } else {
-      setCategory('other')
-      setPriority('0')
-      setFrQ(''); setEnQ(''); setWoQ('')
-      setFrA(''); setEnA(''); setWoA('')
-      setKeywords([])
+    const q = faq ? parseJSON(faq.question) : {} as Record<string, string>
+    const a = faq ? parseJSON(faq.answer) : {} as Record<string, string>
+    const kw = faq ? parseJSON(faq.keywords, []) as string[] : []
+    const newFAQ = faq?.id ?? 'new'
+    if (newFAQ !== prevFAQRef.current) {
+      prevFAQRef.current = newFAQ
+      if (faq) {
+        setCategory(faq.category)
+        setPriority(faq.priority.toString())
+        setFrQ(q.fr || '')
+        setEnQ(q.en || '')
+        setWoQ(q.wo || '')
+        setFrA(a.fr || '')
+        setEnA(a.en || '')
+        setWoA(a.wo || '')
+        setKeywords(kw)
+      } else {
+        setCategory('other')
+        setPriority('0')
+        setFrQ(''); setEnQ(''); setWoQ('')
+        setFrA(''); setEnA(''); setWoA('')
+        setKeywords([])
+      }
     }
   }, [faq, open])
 
@@ -470,6 +475,7 @@ function AnalyticsTab() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
 
   const handleSuggestion = async (id: string, action: 'approve' | 'reject') => {
     try {
