@@ -122,12 +122,12 @@ async function seedFAQs() {
 
   for (const item of FAQ_DATA) {
     try {
-      // Check if already exists
+      // Check if already exists (question is stored as JSON string, so use contains)
       const existing = await db.fAQ.findFirst({
         where: {
           airportCode: 'DSS',
           category: item.category,
-          question: item.question.fr,
+          question: { contains: item.question.fr },
         },
       })
 

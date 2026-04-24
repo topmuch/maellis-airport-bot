@@ -20,6 +20,12 @@ import {
   Globe,
   Tag,
   RefreshCw,
+  Zap,
+  Clock,
+  Languages,
+  Send,
+  Target,
+  AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -74,6 +80,36 @@ interface FAQSuggestion {
   createdAt: string
 }
 
+interface TestMatchResult {
+  matched: boolean
+  faq?: {
+    faq: {
+      id: string
+      question: Record<string, string>
+      answer: Record<string, string>
+      category: string
+    }
+    score: number
+    matchedAnswer: string
+  }
+  suggestions?: string[]
+  shouldFallback: boolean
+}
+
+const LANGUAGE_FLAGS: Record<string, string> = {
+  fr: '🇫🇷',
+  en: '🇬🇧',
+  wo: '🇸🇳',
+  ar: '🇸🇦',
+}
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  fr: 'Français',
+  en: 'English',
+  wo: 'Wolof',
+  ar: 'العربية',
+}
+
 const CATEGORIES = [
   { value: 'baggage', label: 'Bagages & Services', icon: '🧳', color: 'bg-amber-500/15 text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-800' },
   { value: 'money', label: 'Argent & Paiements', icon: '💰', color: 'bg-emerald-500/15 text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800' },
@@ -87,8 +123,8 @@ function getCategoryInfo(cat: string) {
   return CATEGORIES.find((c) => c.value === cat) || CATEGORIES[5]
 }
 
-function parseJSON(jsonStr: string, fallback: Record<string, string> = {}) {
-  try { return JSON.parse(jsonStr) } catch { return fallback }
+function parseJSON<T = unknown>(jsonStr: string, fallback: T = {} as T): T {
+  try { return JSON.parse(jsonStr) as T } catch { return fallback }
 }
 
 // ─── FAQ Module ───────────────────────────────────────────────────────
@@ -108,12 +144,14 @@ export function FAQModule() {
         }
       />
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:w-80">
+        <TabsList className="grid w-full grid-cols-3 sm:w-[28rem]">
           <TabsTrigger value="faqs"><CircleHelp className="mr-2 h-4 w-4" />FAQ</TabsTrigger>
           <TabsTrigger value="analytics"><BarChart3 className="mr-2 h-4 w-4" />Analytics</TabsTrigger>
+          <TabsTrigger value="testnlp"><Zap className="mr-2 h-4 w-4" />Test NLP</TabsTrigger>
         </TabsList>
         <TabsContent value="faqs"><FAQListTab /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+        <TabsContent value="testnlp"><TestMatchTab /></TabsContent>
       </Tabs>
     </div>
   )
@@ -215,9 +253,9 @@ function FAQListTab() {
           </Card>
         ) : (
           filteredFAQs.map((faq) => {
-            const questionObj = parseJSON(faq.question)
-            const answerObj = parseJSON(faq.answer)
-            const keywords: string[] = parseJSON(faq.keywords, [])
+            const questionObj = parseJSON<Record<string, string>>(faq.question, {})
+            const answerObj = parseJSON<Record<string, string>>(faq.answer, {})
+            const keywords: string[] = parseJSON<string[]>(faq.keywords, [])
             const catInfo = getCategoryInfo(faq.category)
 
             return (
@@ -313,9 +351,9 @@ function FAQFormDialog({
   const prevFAQRef = useRef<string | null>(null)
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const q = faq ? parseJSON(faq.question) : {} as Record<string, string>
-    const a = faq ? parseJSON(faq.answer) : {} as Record<string, string>
-    const kw = faq ? parseJSON(faq.keywords, []) as string[] : []
+    const q = faq ? parseJSON<Record<string, string>>(faq.question, {}) : {}
+    const a = faq ? parseJSON<Record<string, string>>(faq.answer, {}) : {}
+    const kw = faq ? parseJSON<string[]>(faq.keywords, []) : []
     const newFAQ = faq?.id ?? 'new'
     if (newFAQ !== prevFAQRef.current) {
       prevFAQRef.current = newFAQ
@@ -667,4 +705,329 @@ function AnalyticsTab() {
       </Card>
     </div>
   )
+}
+
+// ─── Test Match (Testeur NLP) Tab ───────────────────────────────────────
+
+function TestMatchTab() {
+  const [testQuestion, setTestQuestion] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<TestMatchResult | null>(null)
+  const [responseTime, setResponseTime] = useState<number | null>(null)
+  const [detectedLang, setDetectedLang] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleTest = async () => {
+    const q = testQuestion.trim()
+    if (!q) {
+      toast.error('Veuillez entrer une question')
+      inputRef.current?.focus()
+      return
+    }
+
+    setLoading(true)
+    setResult(null)
+    setResponseTime(null)
+    setDetectedLang(null)
+
+    try {
+      const startTime = performance.now()
+      const res = await fetch(`/api/faq/test-match?q=${encodeURIComponent(q)}`)
+      const endTime = performance.now()
+      const json = await res.json()
+
+      setResponseTime(Math.round(endTime - startTime))
+
+      if (json.success) {
+        setResult(json.data)
+        setDetectedLang(json.meta?.language || detectLanguage(q))
+      } else {
+        toast.error(json.error || 'Erreur lors du test')
+      }
+    } catch {
+      toast.error('Erreur de connexion au serveur NLP')
+    }
+    setLoading(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !loading) handleTest()
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return 'bg-emerald-500'
+    if (score >= 40) return 'bg-amber-500'
+    return 'bg-red-500'
+  }
+
+  const getScoreTextColor = (score: number) => {
+    if (score >= 70) return 'text-emerald-500'
+    if (score >= 40) return 'text-amber-500'
+    return 'text-red-500'
+  }
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 70) return 'Excellent'
+    if (score >= 40) return 'Moyen'
+    return 'Faible'
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Input Area */}
+      <Card className="bg-white/5 backdrop-blur-xl border-white/10">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Target className="h-4 w-4 text-orange-500" />
+            Testeur NLP — Simuler une question utilisateur
+          </CardTitle>
+          <CardDescription>
+            Entrez une question en français, anglais, wolof ou arabe pour tester le moteur de correspondance FAQ
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <MessageCircle className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={inputRef}
+                placeholder="Ex: Où sont les consignes à bagages ? / I lost my bag / Defar la colis bi..."
+                value={testQuestion}
+                onChange={(e) => setTestQuestion(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pl-9"
+                disabled={loading}
+              />
+            </div>
+            <Button
+              className="bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shrink-0"
+              onClick={handleTest}
+              disabled={loading || !testQuestion.trim()}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              <span className="ml-2 hidden sm:inline">Tester</span>
+            </Button>
+          </div>
+
+          {/* Quick test examples */}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <span className="text-[11px] text-muted-foreground leading-7">Exemples :</span>
+            {[
+              { label: '🇫🇷 Consignes bagages', q: 'Où sont les consignes à bagages ?' },
+              { label: '🇬🇧 Lost bag', q: 'I lost my bag' },
+              { label: '🇸🇳 Colis bi', q: 'Defar la colis bi' },
+              { label: '🇸🇦 WiFi', q: 'wifi bu gratis am na?' },
+            ].map((ex) => (
+              <button
+                key={ex.label}
+                type="button"
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                onClick={() => setTestQuestion(ex.q)}
+                disabled={loading}
+              >
+                {ex.label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Loading State */}
+      {loading && (
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10">
+          <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+            <p className="text-sm text-muted-foreground">Analyse en cours...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Results */}
+      {!loading && result && (
+        <div className="space-y-4">
+          {/* Meta Info Bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Detected Language */}
+            {detectedLang && (
+              <div className="inline-flex items-center gap-2 rounded-lg bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2">
+                <Languages className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Langue :</span>
+                <span className="text-sm font-medium">
+                  {LANGUAGE_FLAGS[detectedLang] || '🌐'} {LANGUAGE_LABELS[detectedLang] || detectedLang}
+                </span>
+              </div>
+            )}
+
+            {/* Response Time */}
+            {responseTime !== null && (
+              <div className="inline-flex items-center gap-2 rounded-lg bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Temps :</span>
+                <span className={`text-sm font-semibold ${responseTime < 200 ? 'text-emerald-500' : responseTime < 500 ? 'text-amber-500' : 'text-red-500'}`}>
+                  {responseTime}ms
+                </span>
+              </div>
+            )}
+
+            {/* Match Status */}
+            <div className="inline-flex items-center gap-2 rounded-lg bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2">
+              {result.matched ? (
+                <>
+                  <Check className="h-4 w-4 text-emerald-500" />
+                  <span className="text-sm font-medium text-emerald-500">FAQ trouvée</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                  <span className="text-sm font-medium text-red-500">Aucune correspondance</span>
+                </>
+              )}
+            </div>
+
+            {/* Fallback Status */}
+            {result.shouldFallback && (
+              <Badge variant="outline" className="border-amber-500/30 text-amber-500 text-xs">
+                <AlertTriangle className="mr-1 h-3 w-3" />
+                Fallback activé
+              </Badge>
+            )}
+          </div>
+
+          {/* Matched FAQ Result */}
+          {result.matched && result.faq && (
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 overflow-hidden">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-semibold">FAQ Correspondante</CardTitle>
+                    <Badge variant="outline" className={getCategoryInfo(result.faq.faq.category).color}>
+                      {getCategoryInfo(result.faq.faq.category).icon} {getCategoryInfo(result.faq.faq.category).label}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${getScoreTextColor(result.faq.score)}`}>
+                      {getScoreLabel(result.faq.score)}
+                    </span>
+                    <span className={`text-lg font-bold ${getScoreTextColor(result.faq.score)}`}>
+                      {Math.round(result.faq.score * 100)}%
+                    </span>
+                  </div>
+                </div>
+                {/* Score Bar */}
+                <div className="mt-2 h-3 w-full rounded-full bg-muted">
+                  <div
+                    className={`h-3 rounded-full transition-all duration-500 ${getScoreColor(result.faq.score)}`}
+                    style={{ width: `${Math.round(result.faq.score * 100)}%` }}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Question */}
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
+                    <MessageCircle className="h-3 w-3" /> Question (FR)
+                  </p>
+                  <p className="text-sm font-medium">
+                    {result.faq.faq.question.fr || Object.values(result.faq.faq.question)[0] || '—'}
+                  </p>
+                </div>
+
+                {/* All language questions */}
+                {Object.keys(result.faq.faq.question).length > 1 && (
+                  <div className="space-y-1">
+                    {Object.entries(result.faq.faq.question).filter(([lang]) => lang !== 'fr').map(([lang, question]) => (
+                      <p key={lang} className="text-xs text-muted-foreground">
+                        {LANGUAGE_FLAGS[lang] || '🌐'} {question}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <Separator />
+
+                {/* Matched Answer */}
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <Check className="h-3 w-3" /> Réponse retournée
+                  </p>
+                  <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3">
+                    <p className="text-sm leading-relaxed">{result.faq.matchedAnswer || '—'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No Match — Suggestions */}
+          {!result.matched && (
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                  Aucune FAQ correspondante trouvée
+                </CardTitle>
+                <CardDescription>
+                  {result.shouldFallback
+                    ? 'Le système basculera vers le message de fallback par défaut. Envisagez d\'ajouter une FAQ pour cette question.'
+                    : 'La question n\'a pu être associée à aucune FAQ existante.'}
+                </CardDescription>
+              </CardHeader>
+              {result.suggestions && result.suggestions.length > 0 && (
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                    <Lightbulb className="h-3 w-3 text-amber-500" /> FAQ suggérées (scores les plus proches)
+                  </p>
+                  <div className="space-y-2">
+                    {result.suggestions.map((sug, i) => (
+                      <div key={i} className="rounded-lg border border-white/10 bg-white/5 p-2.5 text-sm">
+                        {sug}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !result && (
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10">
+          <CardContent className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500/15">
+              <Zap className="h-8 w-8 text-orange-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Prêt à tester le moteur NLP</p>
+              <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                Entrez une question ci-dessus pour voir comment le système la traite.
+                Le moteur détecte automatiquement la langue et trouve la meilleure FAQ correspondante.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+// ─── Helper: Simple language detection for UI fallback ──────────────────
+
+function detectLanguage(text: string): string {
+  const t = text.toLowerCase().trim()
+  // Arabic detection
+  if (/[\u0600-\u06FF]/.test(t)) return 'ar'
+  // Wolof detection (common words)
+  const woWords = ['defar', 'nga', 'la', 'bu', 'am', 'na', 'dafa', 'sopp', 'ñu', 'de', 'bi', 'ci', 'li', 'yi', 'fo', 'nu', 'ba', 'da', 'wa']
+  if (woWords.some((w) => t.includes(w))) return 'wo'
+  // French detection (common words)
+  const frWords = ['où', 'est', 'les', 'une', 'des', 'pour', 'dans', 'comment', 'quel', 'quelle', 'sont', 'avez', 'puis', 'aéroport', 'bagages', 'consigne', 'prix', 'payer', 'retirer']
+  if (frWords.some((w) => t.includes(w))) return 'fr'
+  // Default to English
+  return 'en'
 }
