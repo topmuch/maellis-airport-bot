@@ -5,6 +5,10 @@ import {
   type RevenueReportData,
   type ActivityReportData,
 } from './templates'
+import {
+  InvoicePDF,
+  type InvoicePDFData,
+} from './invoice-template'
 
 /**
  * Generates a Revenue Report PDF buffer.
@@ -109,4 +113,93 @@ export function generateActivityCSV(data: ActivityReportData): string {
   ]
 
   return BOM + lines.join('\n')
+}
+
+// ─── Invoice PDF Generation ───────────────────────────────────────────────
+
+/**
+ * Generates an Invoice PDF buffer using the InvoicePDF template.
+ *
+ * @param data - Structured invoice data
+ * @returns PDF Buffer ready to send as HTTP response
+ * @throws Error if PDF generation fails
+ */
+export async function generateInvoicePDFBuffer(data: InvoicePDFData): Promise<Buffer> {
+  try {
+    const buffer = await renderToBuffer(<InvoicePDF data={data} />)
+    return Buffer.from(buffer)
+  } catch (error) {
+    console.error('Error generating invoice PDF:', error)
+    throw new Error(
+      `Échec de la génération du PDF de facture: ${error instanceof Error ? error.message : 'Erreur inconnue'}`
+    )
+  }
+}
+
+// ─── Invoice CSV Export ────────────────────────────────────────────────────
+
+/**
+ * Generates a CSV string from invoice data (Sage/QuickBooks compatible).
+ * Uses BOM for Excel UTF-8 compatibility.
+ *
+ * Headers: NumeroFacture,DateEmission,DateEcheance,Client,Type,Statut,HT,TVA,TTC,Devise
+ *
+ * @param invoices - Array of invoice objects
+ * @returns CSV string with BOM for Excel compatibility
+ */
+export function generateInvoiceCSV(
+  invoices: Array<{
+    invoiceNumber: string
+    issueDate: string
+    dueDate: string
+    clientName: string
+    type: string
+    status: string
+    subtotal: number
+    taxRate: number
+    taxAmount: number
+    total: number
+    currency: string
+  }>
+): string {
+  const BOM = '\uFEFF'
+  const headers = [
+    'NumeroFacture',
+    'DateEmission',
+    'DateEcheance',
+    'Client',
+    'Type',
+    'Statut',
+    'HT',
+    'TVA',
+    'TTC',
+    'Devise',
+  ]
+
+  const escapeCSV = (value: string): string => {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`
+    }
+    return value
+  }
+
+  const rows = invoices.map((inv) => [
+    escapeCSV(inv.invoiceNumber),
+    escapeCSV(inv.issueDate),
+    escapeCSV(inv.dueDate),
+    escapeCSV(inv.clientName),
+    escapeCSV(inv.type),
+    escapeCSV(inv.status),
+    inv.subtotal.toString(),
+    inv.taxAmount.toString(),
+    inv.total.toString(),
+    escapeCSV(inv.currency),
+  ])
+
+  const csvLines = [
+    headers.map(escapeCSV).join(','),
+    ...rows.map((row) => row.join(',')),
+  ]
+
+  return BOM + csvLines.join('\n')
 }

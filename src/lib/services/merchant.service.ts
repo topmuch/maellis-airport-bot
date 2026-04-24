@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { createPayoutForOrder } from './payout.service';
 
 // ---------------------------------------------------------------------------
 // TypeScript types
@@ -968,6 +969,13 @@ export async function updateOrderStatus(orderId: string, status: string) {
 
       return result;
     });
+
+    // Trigger payout creation after order is completed (fire-and-forget)
+    if (status === 'completed' && updatedOrder.paymentStatus === 'paid') {
+      createPayoutForOrder(updatedOrder.id).catch((payoutErr) => {
+        console.error('[merchant.service] Failed to create payout for completed order:', updatedOrder.id, payoutErr);
+      });
+    }
 
     return updatedOrder;
   } catch (error) {

@@ -5,7 +5,8 @@
 // Port: 3005
 // ============================================================================
 
-import { sendWhatsAppMessage, verifyWebhook, parseWebhookPayload, isWhatsAppConfigured } from "./src/services/whatsapp.service";
+import { sendWhatsAppMessage, verifyWebhook, parseWebhookPayload, isWhatsAppConfigured, downloadWhatsAppMedia } from "./src/services/whatsapp.service";
+import { analyzeImageWithOCR, formatOCRConfirmation, formatManualInputPrompt } from "./src/services/ocr.service";
 import { analyzeIntent, classifyByKeywords, isGroqConfigured } from "./src/services/ai.service";
 import { searchFlights, getFlightStatus, isAviationStackConfigured } from "./src/services/flight.service";
 import { generateBaggageQR, verifyBaggageToken, formatBaggageVerification } from "./src/services/baggage.service";
@@ -16,6 +17,7 @@ import { checkRateLimit, extractIdentifier, rateLimitHeaders } from "./src/middl
 import { logger } from "./src/middleware/logger";
 
 import type { ChatRequest, ChatResponse, HealthStatus, FlightSearchParams } from "./src/types";
+import type { BotResponse } from "./src/types";
 
 // ---- Constants ----
 
@@ -139,6 +141,90 @@ Bun.serve({
           `From: ${parsed.phone} | Type: ${parsed.messageType} | Text: ${parsed.messageText.slice(0, 80)}`,
         );
 
+        // ──────────────────────────────────────────────────────────
+        // IMAGE MESSAGE → OCR PIPELINE
+        // If user sends an image, run OCR to extract boarding pass data
+        // ──────────────────────────────────────────────────────────
+        if (parsed.messageType === "image" && parsed.imageId) {
+          logger.info(`📸 Image received from ${parsed.phone}, attempting OCR...`);
+
+          try {
+            // Download image from WhatsApp
+            const imageData = await downloadWhatsAppMedia(parsed.imageId);
+
+            if (imageData) {
+              // Run OCR analysis
+              const ocrResult = await analyzeImageWithOCR({
+                imageData,
+                phone: parsed.phone,
+                source: "whatsapp",
+              });
+
+              let ocrResponse: BotResponse;
+
+              if (ocrResult.success && ocrResult.data) {
+                // Successful extraction — send confirmation with Yes/No buttons
+                const confirmText = formatOCRConfirmation(ocrResult);
+                ocrResponse = {
+                  type: "interactive",
+                  interactive: {
+                    type: "button",
+                    body: { text: confirmText },
+                    action: {
+                      buttons: [
+                        { id: "ticket_confirm", title: "✅ Oui" },
+                        { id: "ticket_reject", title: "❌ Non" },
+                      ],
+                    },
+                  },
+                };
+              } else {
+                // OCR failed — suggest manual input
+                ocrResponse = {
+                  type: "text",
+                  text: ocrResult.message || formatManualInputPrompt(),
+                };
+              }
+
+              // Send response via WhatsApp
+              sendWhatsAppMessage(parsed.phone, ocrResponse).catch((err) => {
+                logger.error("WhatsApp send error (OCR response)", String(err));
+              });
+
+              const duration = Math.round(performance.now() - startTime);
+              logger.request("POST", path, 200, duration, identifier);
+
+              return jsonResponse(
+                {
+                  status: "processed",
+                  intent: "ticket_scan",
+                  confidence: 1,
+                  ocrSuccess: ocrResult.success,
+                  ocrData: ocrResult.data
+                    ? {
+                        pnr: ocrResult.data.pnr,
+                        flightNumber: ocrResult.data.flightNumber,
+                        airline: ocrResult.data.airline,
+                        confidence: ocrResult.data.confidence,
+                      }
+                    : null,
+                  scanId: ocrResult.scanId,
+                  messageType: parsed.messageType,
+                  profileName: parsed.profileName,
+                },
+                200,
+                rateLimitHeaders(rateLimitResult),
+              );
+            }
+          } catch (ocrError) {
+            logger.error("OCR pipeline error:", String(ocrError));
+            // Fall through to normal text processing
+          }
+        }
+
+        // ──────────────────────────────────────────────────────────
+        // NORMAL TEXT MESSAGE → AI PIPELINE
+        // ──────────────────────────────────────────────────────────
         // AI intent classification
         const aiResult = await analyzeIntent(parsed.messageText);
         logger.info(
@@ -465,6 +551,7 @@ Bun.serve({
           "GET  /flight/status/:id — Flight status",
           "POST /flight/search     — Search flights",
           "POST /baggage/generate  — Generate baggage QR",
+          "POST /ocr/analyze       — OCR image analysis",
         ],
       },
       404,
@@ -483,6 +570,7 @@ logger.info("   GET  /track/:token      — Verify baggage QR");
 logger.info("   GET  /flight/status/:id — Flight status");
 logger.info("   POST /flight/search     — Search flights");
 logger.info("   POST /baggage/generate  — Generate baggage QR");
+logger.info("   POST /ocr/analyze       — OCR image analysis");
 
 // Service configuration status
 logger.info("Service Configuration:");
