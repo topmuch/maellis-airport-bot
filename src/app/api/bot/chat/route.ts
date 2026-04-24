@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { matchFAQ } from '@/lib/services/faq.service';
 
 const BOT_SERVICE_URL = 'http://localhost:3005';
 
@@ -60,8 +61,8 @@ export async function POST(request: NextRequest) {
         console.error(`Bot service error: ${response.status} — ${errorText}`);
         serviceAvailable = false;
 
-        // Return fallback response when bot service is unreachable
-        data = getFallbackResponse(message);
+        // Return intelligent FAQ fallback response when bot service is unreachable
+        data = await getFAQFallbackResponse(message);
       } else {
         data = (await response.json()) as Record<string, unknown>;
       }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
         serviceAvailable = false;
       }
 
-      data = getFallbackResponse(message);
+      data = await getFAQFallbackResponse(message);
     }
 
     // Store in database (non-blocking, don't await)
@@ -99,57 +100,55 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Fallback response when the bot service is unreachable.
- * Provides a generic helpful response so the user isn't left hanging.
+ * Intelligent FAQ-based fallback when the bot service is unreachable.
+ * Uses the FAQ matching system to provide relevant answers or suggestions.
  */
-function getFallbackResponse(message: string): Record<string, unknown> {
-  const lowerMessage = message.toLowerCase();
+async function getFAQFallbackResponse(message: string): Promise<Record<string, unknown>> {
+  try {
+    const result = await matchFAQ(message, 'DSS');
 
-  // Simple keyword-based fallback responses
-  if (lowerMessage.includes('vol') || lowerMessage.includes('flight') || lowerMessage.includes('vols')) {
-    return {
-      response:
-        '🛫 *Recherche de vols*\n\nJe recherche les meilleurs vols pour vous. ' +
-        'Veuillez préciser votre aéroport de départ, de destination et la date de voyage.\n\n' +
-        '📋 Exemple: "Je veux un vol de Abidjan à Paris le 15 mars"',
-      intent: 'flight_search',
-      fallback: true,
-    };
+    // Case 1: FAQ matched — return the matched answer
+    if (result.matched && result.faq) {
+      return {
+        response: `💡 *Réponse trouvée*\n\n${result.faq.matchedAnswer}`,
+        intent: 'faq_matched',
+        fallback: true,
+        _faqMatched: true,
+        _faqScore: result.faq.score,
+        _faqCategory: result.faq.faq.category,
+      };
+    }
+
+    // Case 2: No exact match but suggestions available
+    if (result.suggestions && result.suggestions.length > 0) {
+      const numberedSuggestions = result.suggestions
+        .map((s, i) => `${i + 1}. ${s}`)
+        .join('\n');
+
+      return {
+        response:
+          `🔍 *Recherche...*\n\n` +
+          `Je n'ai pas trouvé de réponse exacte, mais voici quelques questions qui pourraient vous aider :\n\n` +
+          `${numberedSuggestions}\n\n` +
+          `N'hésitez pas à reformuler votre question ou à taper un de ces sujets. ✨`,
+        intent: 'faq_suggestions',
+        fallback: true,
+        _faqMatched: false,
+        _faqSuggestions: result.suggestions,
+      };
+    }
+  } catch (faqError) {
+    console.error('FAQ matching failed, using default fallback:', faqError);
   }
 
-  if (lowerMessage.includes('bagage') || lowerMessage.includes('baggage') || lowerMessage.includes('colis')) {
-    return {
-      response:
-        '🧳 *Suivi de bagages*\n\nPour suivre vos bagages, veuillez fournir votre numéro de billet (PNR) ' +
-        'ou le numéro de votre carte d\'embarquement.\n\n' +
-        '📋 Exemple: "Suivre mon bagage PNR ABC123"',
-      intent: 'baggage_tracking',
-      fallback: true,
-    };
-  }
+  // Case 3: No FAQ match or error — return default welcome message
+  return getDefaultFallbackResponse();
+}
 
-  if (lowerMessage.includes('paiement') || lowerMessage.includes('payment') || lowerMessage.includes('payer')) {
-    return {
-      response:
-        '💳 *Paiement*\n\nPour effectuer un paiement, veuillez indiquer le montant et la méthode de paiement souhaitée.\n\n' +
-        '📱 Paiement mobile: MTN Mobile Money, Orange Money, Moov Money',
-      intent: 'payment',
-      fallback: true,
-    };
-  }
-
-  if (lowerMessage.includes('urgence') || lowerMessage.includes('emergency') || lowerMessage.includes('aide') || lowerMessage.includes('sos')) {
-    return {
-      response:
-        '🚨 *Centre d\'assistance*\n\nEn cas d\'urgence à l\'aéroport, contactez:\n\n' +
-        '📞 +225 00 00 00 00\n' +
-        '📞 +225 00 00 00 01\n\n' +
-        'Notre équipe est disponible 24h/24 et 7j/7.',
-      intent: 'emergency',
-      fallback: true,
-    };
-  }
-
+/**
+ * Default fallback response when FAQ matching also fails.
+ */
+function getDefaultFallbackResponse(): Record<string, unknown> {
   return {
     response:
       '✈️ *Bienvenue à MAELLIS Airport Bot*\n\n' +

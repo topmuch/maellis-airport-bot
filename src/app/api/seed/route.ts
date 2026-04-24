@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
+import { createFAQ } from '@/lib/services/faq.service'
 
 // POST /api/seed - Seed database with realistic African airport data
 export async function POST() {
@@ -402,6 +403,271 @@ export async function POST() {
       partners: await db.partner.count(),
       activityLogs: await db.activityLog.count(),
       settings: await db.setting.count(),
+    }
+
+    // ========================
+    // 15. FAQ (Multilingual: FR, EN, WO, AR)
+    // ========================
+    const faqSeedData = [
+      {
+        category: 'baggage',
+        question: {
+          fr: 'Comment suivre mon bagage ?',
+          en: 'How can I track my baggage?',
+          wo: 'Naka la may yomb ma ?',
+          ar: 'كيف يمكنني تتبع أمتعتي؟',
+        },
+        answer: {
+          fr: 'Scannez le code QR sur votre tag de bagage ou entrez votre numéro PNR via WhatsApp. Vous recevrez des mises à jour en temps réel sur l\'emplacement de votre bagage.',
+          en: 'Scan the QR code on your baggage tag or enter your PNR number via WhatsApp. You\'ll receive real-time updates on your baggage location.',
+          wo: 'Scanneel kode QR bu tag bi, walla sukubal numaroo PNR bi WhatsApp. Dingay yombëlël sa bagaas bi.',
+          ar: 'قم بمسح رمز QR الموجود على بطاقة أمتعتك أو أدخل رقم حجزك عبر واتساب. ستتلقى تحديثات فورية حول موقع أمتعتك.',
+        },
+        keywords: ['bagage', 'baggage', 'suivre', 'track', 'pnr', 'tag', 'malette', 'damay', 'yomb', 'أمتعة', 'تتبع'],
+        priority: 8,
+      },
+      {
+        category: 'baggage',
+        question: {
+          fr: 'Quelle est la franchise bagages autorisée ?',
+          en: 'What is the baggage allowance?',
+          wo: 'Limiy bu bagaas bi moo ëpp ?',
+          ar: 'ما هو الوزن المسموح به للأمتعة؟',
+        },
+        answer: {
+          fr: 'La franchise standard est de 23 kg en soute et 7 kg en cabine pour les vols économiques. En classe affaires, c\'est 32 kg en soute et 12 kg en cabine.',
+          en: 'The standard allowance is 23 kg in hold and 7 kg in cabin for economy flights. In business class, it\'s 32 kg in hold and 12 kg in cabin.',
+          wo: 'Limiy bi mooy 23 kg ci soute ak 7 kg ci cabine liir. Business class, 32 kg soute ak 12 kg cabine.',
+          ar: 'الحد المعيادي هو 23 كجم في الشحن و7 كجم في المقصورة للرحلات الاقتصادية. في درجة رجال الأعمال، 32 كجم شحن و12 كجم مقصورة.',
+        },
+        keywords: ['franchise', 'allowance', 'poids', 'weight', 'soute', 'cabine', 'kg', 'limiy', 'أمتعة', 'وزن'],
+        priority: 6,
+      },
+      {
+        category: 'baggage',
+        question: {
+          fr: 'Mon bagage est perdu, que faire ?',
+          en: 'My baggage is lost, what should I do?',
+          wo: 'Sa bagaas bi joob na, lu may def ?',
+          ar: 'أمتعتي ضائعة، ماذا أفعل؟',
+        },
+        answer: {
+          fr: 'Rendez-vous au comptoir "Bagages Retrouvés" dans la zone de récupération avec votre carte d\'embarquement et votre tag. Vous pouvez aussi signaler via notre bot WhatsApp.',
+          en: 'Go to the "Lost & Found" counter in the baggage claim area with your boarding pass and tag. You can also report lost baggage via our WhatsApp bot.',
+          wo: 'Demal ci comptoir "Bagages Retrouvés" zone récupération bi ak kaart boarding ak sa tag. Man na ita waxtal bot WhatsApp bi.',
+          ar: 'اذهب إلى مكتب "المفقودات" في منطقة استلام الأمتعة مع بطاقة الصعود والبطاقة. يمكنك أيضاً الإبلاغ عبر بوت واتساب.',
+        },
+        keywords: ['perdu', 'lost', 'retrouvé', 'joob', 'bagages', 'أمتعة', 'ضائع', 'مفقود'],
+        priority: 7,
+      },
+      {
+        category: 'money',
+        question: {
+          fr: 'Y a-t-il un distributeur de billets à l\'aéroport ?',
+          en: 'Is there an ATM at the airport?',
+          wo: 'Am na distributeur ci aéroport bi ?',
+          ar: 'هل يوجد صراف آلي في المطار؟',
+        },
+        answer: {
+          fr: 'Oui, plusieurs distributeurs automatiques sont disponibles dans tous les terminaux : Terminal A (hall départ), Terminal B (zone arrivals) et Terminal International.',
+          en: 'Yes, several ATMs are available in all terminals: Terminal A (departure hall), Terminal B (arrivals area) and International Terminal.',
+          wo: 'Waaw, distributeur yu bari na ci termanaal yépp. Terminal A, B ak International.',
+          ar: 'نعم، تتوفر عدة صرافات آلية في جميع المحطات: المحطة أ (صالة المغادرة)، المحطة ب (منطقة الوصول) والمحطة الدولية.',
+        },
+        keywords: ['distributeur', 'atm', 'dab', 'argent', 'cash', 'retrait', 'باتيك', 'صراف آلي', 'نقدي'],
+        priority: 5,
+      },
+      {
+        category: 'money',
+        question: {
+          fr: 'Comment payer avec Wave ou Orange Money ?',
+          en: 'How do I pay with Wave or Orange Money?',
+          wo: 'Naka pay Wave walla Orange Money ?',
+          ar: 'كيف أدفع بويف أو أورانج موني؟',
+        },
+        answer: {
+          fr: 'Vous pouvez payer directement via WhatsApp ! Envoyez "payer" suivi du montant et du service souhaité. Vous recevrez un lien de paiement sécurisé.',
+          en: 'You can pay directly via WhatsApp! Send "pay" followed by the amount and desired service. You\'ll receive a secure payment link.',
+          wo: 'Man na pay diret WhatsApp! Yebal "pay" ak mbiir ak saaru bëgg. Dingay jot link pay.',
+          ar: 'يمكنك الدفع مباشرة عبر واتساب! أرسل "ادفع" متبوعاً بالمبلغ والخدمة المطلوبة. ستتلقى رابط دفع آمن.',
+        },
+        keywords: ['wave', 'orange money', 'paiement', 'payment', 'mobile money', 'payer', 'دفع', 'محفظة', 'تحويل'],
+        priority: 9,
+      },
+      {
+        category: 'transport',
+        question: {
+          fr: 'Comment réserver un taxi depuis l\'aéroport ?',
+          en: 'How do I book a taxi from the airport?',
+          wo: 'Naka wàcce taksil aéroport bi ?',
+          ar: 'كيف أحجز سيارة أجرة من المطار؟',
+        },
+        answer: {
+          fr: 'Réservez via notre bot WhatsApp : envoyez "taxi" et indiquez votre destination. Nous vous proposerons des options avec prix fixe. Paiement mobile money accepté.',
+          en: 'Book via our WhatsApp bot: send "taxi" and indicate your destination. We\'ll offer options with fixed pricing. Mobile money payment accepted.',
+          wo: 'Wàcce ci bot WhatsApp bi: yebal "taxi" ak sa moom. Dingay sol yépp ak prijs sëtt. Pay mobile money dëpp.',
+          ar: 'احجز عبر بوت واتساب: أرسل "تاكسي" وحدد وجهتك. سنعرض خيارات بأسعار ثابتة.',
+        },
+        keywords: ['taxi', 'voiture', 'car', 'transport', 'navette', 'wàcce', 'reserver', 'book', 'تاكسي', 'سيارة', 'حجز'],
+        priority: 8,
+      },
+      {
+        category: 'transport',
+        question: {
+          fr: 'Où se garer à l\'aéroport ?',
+          en: 'Where can I park at the airport?',
+          wo: 'Fii la may tafile aéroport bi ?',
+          ar: 'أين يمكنني ركن السيارة في المطار؟',
+        },
+        answer: {
+          fr: 'L\'AIBD dispose de 3 parkings : P1 (court séjour, 500 FCFA/h), P2 (moyen séjour, 300 FCFA/h), P3 (long séjour, 200 FCFA/h). Réservation possible via le bot.',
+          en: 'The airport has 3 parking areas: P1 (short stay, 500 FCFA/h), P2 (medium stay, 300 FCFA/h), P3 (long stay, 200 FCFA/h). Booking available via bot.',
+          wo: 'AIBD am na 3 parking: P1 (guddi guddi, 500 FCFA/h), P2 (guddi diggu, 300 FCFA/h), P3 (guddi guddu, 200 FCFA/h). Reserv possible bot bi.',
+          ar: 'يحتوي المطار على 3 مواقف: م1 (قصير المدى، 500 فرنك/ساعة)، م2 (متوسط المدى، 300 فرنك/ساعة)، م3 (طويل المدى، 200 فرنك/ساعة).',
+        },
+        keywords: ['parking', 'stationnement', 'garer', 'tafile', 'p1', 'p2', 'موقف', 'ركن', 'سيارة'],
+        priority: 4,
+      },
+      {
+        category: 'food',
+        question: {
+          fr: 'Quels restaurants sont disponibles à l\'aéroport ?',
+          en: 'What restaurants are available at the airport?',
+          wo: 'Benn restaurant bu nekk aéroport bi ?',
+          ar: 'ما المطاعم المتوفرة في المطار؟',
+        },
+        answer: {
+          fr: 'Plusieurs options : Restaurant Teranga (cuisine sénégalaise, Terminal A), Café Parisien (Terminal B), Duty Free Food Court (Terminal International). Ouvert de 5h à 23h.',
+          en: 'Several options: Restaurant Teranga (Senegalese cuisine, Terminal A), Café Parisien (Terminal B), Duty Free Food Court (International Terminal). Open 5 AM to 11 PM.',
+          wo: 'Restaurant Teranga (cuisine sénégalaise, Terminal A), Café Parisien (Terminal B), Duty Free Food Court (Terminal International). Ubbe ci 5h ba 23h.',
+          ar: 'عدة خيارات: مطعم تيرانغا (مطبخ سنغالي، المحطة أ)، مقهى باريسي (المحطة ب)، منفذ السفر (المحطة الدولية). مفتوح من 5 صباحاً حتى 11 مساءً.',
+        },
+        keywords: ['restaurant', 'manger', 'eat', 'food', 'café', 'boutique', 'duty free', 'shopping', 'lekk', 'مطعم', 'أكل'],
+        priority: 5,
+      },
+      {
+        category: 'food',
+        question: {
+          fr: 'Y a-t-il un WiFi gratuit à l\'aéroport ?',
+          en: 'Is there free WiFi at the airport?',
+          wo: 'Am na WiFi bu tax aéroport bi ?',
+          ar: 'هل يوجد واي فاي مجاني في المطار؟',
+        },
+        answer: {
+          fr: 'Oui, le WiFi gratuit "AIBD-Free" est disponible dans tous les terminaux. Connectez-vous, entrez votre numéro de téléphone pour recevoir le code d\'accès.',
+          en: 'Yes, free WiFi "AIBD-Free" is available in all terminals. Connect, enter your phone number to receive the access code.',
+          wo: 'Waaw, WiFi "AIBD-Free" nekk na ci termanaal yépp. Sambandaluk, sàkkal numaroo telephone bëgg jot kood bi.',
+          ar: 'نعم، واي فاي مجاني "AIBD-Free" متوفر في جميع المحطات. اتصل وأدخل رقم هاتفك لاستلام رمز الدخول.',
+        },
+        keywords: ['wifi', 'internet', 'gratuit', 'free', 'connexion', 'samband', 'واي فاي', 'إنترنت', 'مجاني'],
+        priority: 7,
+      },
+      {
+        category: 'emergency',
+        question: {
+          fr: 'Où sont les toilettes et sanitaires ?',
+          en: 'Where are the restrooms and toilets?',
+          wo: 'Fii lañu am WC bi ?',
+          ar: 'أين تقع دورات المياه والمرافق الصحية؟',
+        },
+        answer: {
+          fr: 'Des toilettes sont disponibles dans chaque terminal : Hall départ (niveau 1), Zone embarquement (niveau 2), Zone arrivées (niveau 0). Toilettes accessibles PMR dans tous les terminaux.',
+          en: 'Restrooms are available in each terminal: Departure hall (level 1), Boarding area (level 2), Arrivals area (level 0). Accessible restrooms in all terminals.',
+          wo: 'WC nekk na ci termanaal yépp: Hall départ (niveau 1), Zone embarquement (niveau 2), Zone arrivées (niveau 0). PMR am na.',
+          ar: 'تتوفر دورات مياه في كل محطة: صالة المغادرة (الطابق 1)، منطقة الصعود (الطابق 2)، منططقة الوصول (الطابق 0).',
+        },
+        keywords: ['toilette', 'wc', 'sanitaire', 'restroom', 'toilet', 'salle de bain', 'دورات مياه', 'حمام'],
+        priority: 6,
+      },
+      {
+        category: 'emergency',
+        question: {
+          fr: 'Que faire en cas d\'urgence médicale ?',
+          en: 'What to do in a medical emergency?',
+          wo: 'Lu may def bu gën a bon ni matlo la ?',
+          ar: 'ماذا أفعل في حالة طوارئ طبية؟',
+        },
+        answer: {
+          fr: 'Appelez le 15 ou contactez-nous via WhatsApp en envoyant "urgence". L\'infirmerie est située au Terminal A, niveau 1 (ouvert 24h/24). Une équipe médicale est disponible en permanence.',
+          en: 'Call 15 or contact us via WhatsApp by sending "emergency". The infirmary is located at Terminal A, level 1 (open 24/7). A medical team is always on standby.',
+          wo: 'Woowel 15 walla nu notal WhatsApp yebal "urgence". Infirmerie bi nekk Terminal A, niveau 1 (24h/24). Equipe medicale am na.',
+          ar: 'اتصل بالرقم 15 أو تواصل معنا عبر واتساب بإرسال "طوارئ". يقع العيادة في المحطة أ، الطابق 1 (مفتوح على مدار الساعة).',
+        },
+        keywords: ['urgence', 'emergency', 'medical', 'pompier', 'docteur', 'medecin', 'infirmerie', 'ambulance', 'matlo', 'طوارئ', 'طبي', 'إسعاف'],
+        priority: 10,
+      },
+      {
+        category: 'emergency',
+        question: {
+          fr: 'J\'ai perdu mon passeport à l\'aéroport',
+          en: 'I lost my passport at the airport',
+          wo: 'Sa passeport bi ma ko jaax aéroport bi',
+          ar: 'لقد فقدت جواز سفري في المطار',
+        },
+        answer: {
+          fr: 'Signalez-le immédiatement au point d\'information le plus proche ou via notre bot WhatsApp. Le bureau des objets trouvés se trouve au Terminal B, niveau 0.',
+          en: 'Report it immediately at the nearest information desk or via our WhatsApp bot. The lost & found office is at Terminal B, level 0.',
+          wo: 'Waxtal liggéey information bi walla bot WhatsApp bi. Objets trouvés Terminal B, niveau 0.',
+          ar: 'أبلغ فوراً عند أقرب مكتب معلومات أو عبر بوت واتساب. مكتب المفقودات في المحطة ب، الطابق 0.',
+        },
+        keywords: ['passeport', 'passport', 'perdu', 'lost', 'identité', 'ambassade', 'jaax', 'جواز سفر', 'فقدت', 'سفارة'],
+        priority: 8,
+      },
+      {
+        category: 'other',
+        question: {
+          fr: 'Quelles sont les heures d\'ouverture de l\'aéroport ?',
+          en: 'What are the airport opening hours?',
+          wo: 'Jam bi la aéroport bi ubbe ?',
+          ar: 'ما هي ساعات عمل المطار؟',
+        },
+        answer: {
+          fr: 'L\'AIBD est ouvert 24h/24, 7j/7. L\'enregistrement ouvre 3 heures avant le départ. Les boutiques duty free ferment à 22h.',
+          en: 'The airport is open 24/7. Check-in opens 3 hours before departure. Duty free shops close at 10 PM.',
+          wo: 'AIBD ubbe 24h/24, 7j/7. Enregistrement ubbe 3 waxt kër departure. Boutique duty free tëdd 22h.',
+          ar: 'المطار مفتوح على مدار الساعة. يبدأ تسجيل الوصول قبل 3 ساعات من المغادرة. متاجر السفر تغلق الساعة 10 مساءً.',
+        },
+        keywords: ['horaires', 'hours', 'ouverture', 'open', 'fermeture', 'close', '24h', 'ubbe', 'ساعات', 'عمل', 'مفتوح'],
+        priority: 5,
+      },
+      {
+        category: 'other',
+        question: {
+          fr: 'Comment fonctionne le salon VIP ?',
+          en: 'How does the VIP lounge work?',
+          wo: 'Salon VIP bi moo nekk ?',
+          ar: 'كيف يعمل صالة كبار الشخصيات؟',
+        },
+        answer: {
+          fr: 'Nous proposons 3 salons : Teranga (25 000 FCFA), Sahel (35 000 FCFA) et Premium International (50 000 FCFA). Réservez via WhatsApp. Accès buffet, WiFi, douche inclus.',
+          en: 'We offer 3 lounges: Teranga (25,000 FCFA), Sahel (35,000 FCFA) and Premium International (50,000 FCFA). Book via WhatsApp. Includes buffet, WiFi, shower.',
+          wo: 'Am na 3 salon: Teranga (25 000 FCFA), Sahel (35 000 FCFA) ak Premium International (50 000 FCFA). Wàcce WhatsApp. Buffet, WiFi, douche.',
+          ar: 'نوفر 3 صالات: تيرانغا (25,000 فرنك)، صحاري (35,000 فرنك) وبريميوم الدولية (50,000 فرنك). احجز عبر واتساب. يشمل بوفيه وواي فاي ودش.',
+        },
+        keywords: ['salon', 'lounge', 'vip', 'teranga', 'sahel', 'reservation', 'buffet', 'wàcce', 'صالة', 'VIP', 'حجز'],
+        priority: 6,
+      },
+      {
+        category: 'other',
+        question: {
+          fr: 'Quels terminaux sont utilisés pour les vols internationaux ?',
+          en: 'Which terminals are used for international flights?',
+          wo: 'Terminal yi lañu jàppe yeneen pays ?',
+          ar: 'ما المحطات المستخدمة للرحلات الدولية؟',
+        },
+        answer: {
+          fr: 'Les vols internationaux utilisent le Terminal International (Terminaux C et D). Les vols régionaux partent du Terminal A ou B. Vérifiez votre carte d\'embarquement.',
+          en: 'International flights use the International Terminal (Terminals C and D). Regional flights depart from Terminal A or B. Check your boarding pass.',
+          wo: 'Vol international Terminal International (C ak D). Vol régional Terminal A walla B. Xoolal kaart boarding bi.',
+          ar: 'تستخدم الرحلات الدولية المحطة الدولية (المحطات ج و د). الرحلات الإقليمية تنطلق من المحطة أ أو ب. تحقق من بطاقة الصعود.',
+        },
+        keywords: ['terminal', 'international', 'régional', 'embarquement', 'gate', 'depart', 'vol', 'المحطة', 'دولي', 'صعود'],
+        priority: 4,
+      },
+    ]
+
+    for (const faq of faqSeedData) {
+      await createFAQ(faq)
     }
 
     return NextResponse.json({

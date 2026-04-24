@@ -143,7 +143,9 @@ function FAQListTab() {
     setLoading(false)
   }, [search, categoryFilter])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchFAQs() }, [fetchFAQs])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDelete = async (id: string) => {
     if (!confirm('Supprimer cette FAQ ?')) return
@@ -299,14 +301,17 @@ function FAQFormDialog({
   const [frQ, setFrQ] = useState('')
   const [enQ, setEnQ] = useState('')
   const [woQ, setWoQ] = useState('')
+  const [arQ, setArQ] = useState('')
   const [frA, setFrA] = useState('')
   const [enA, setEnA] = useState('')
   const [woA, setWoA] = useState('')
+  const [arA, setArA] = useState('')
   const [keywordInput, setKeywordInput] = useState('')
   const [keywords, setKeywords] = useState<string[]>([])
 
   // Reset form when dialog opens with different FAQ or no FAQ
   const prevFAQRef = useRef<string | null>(null)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const q = faq ? parseJSON(faq.question) : {} as Record<string, string>
     const a = faq ? parseJSON(faq.answer) : {} as Record<string, string>
@@ -320,19 +325,22 @@ function FAQFormDialog({
         setFrQ(q.fr || '')
         setEnQ(q.en || '')
         setWoQ(q.wo || '')
+        setArQ(q.ar || '')
         setFrA(a.fr || '')
         setEnA(a.en || '')
         setWoA(a.wo || '')
+        setArA(a.ar || '')
         setKeywords(kw)
       } else {
         setCategory('other')
         setPriority('0')
-        setFrQ(''); setEnQ(''); setWoQ('')
-        setFrA(''); setEnA(''); setWoA('')
+        setFrQ(''); setEnQ(''); setWoQ(''); setArQ('')
+        setFrA(''); setEnA(''); setWoA(''); setArA('')
         setKeywords([])
       }
     }
   }, [faq, open])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const addKeyword = () => {
     const kw = keywordInput.trim().toLowerCase()
@@ -353,8 +361,10 @@ function FAQFormDialog({
       const answer: Record<string, string> = { fr: frA.trim() }
       if (enQ.trim()) question.en = enQ.trim()
       if (woQ.trim()) question.wo = woQ.trim()
+      if (arQ.trim()) question.ar = arQ.trim()
       if (enA.trim()) answer.en = enA.trim()
       if (woA.trim()) answer.wo = woA.trim()
+      if (arA.trim()) answer.ar = arA.trim()
 
       const body = { category, question, answer, keywords, priority: parseInt(priority) || 0 }
 
@@ -420,6 +430,13 @@ function FAQFormDialog({
             <textarea placeholder="Réponse en wolof..." value={woA} onChange={(e) => setWoA(e.target.value)} rows={3} className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
           </div>
 
+          {/* Arabic Question/Answer */}
+          <div className="space-y-2">
+            <Label>🇸🇦 العربية</Label>
+            <Input placeholder="سؤال بالعربية..." value={arQ} onChange={(e) => setArQ(e.target.value)} dir="rtl" className="text-right" />
+            <textarea placeholder="إجابة بالعربية..." value={arA} onChange={(e) => setArA(e.target.value)} rows={3} dir="rtl" className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-right" />
+          </div>
+
           <Separator />
 
           {/* Keywords */}
@@ -474,8 +491,9 @@ function AnalyticsTab() {
     setLoading(false)
   }, [])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchData() }, [fetchData])
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSuggestion = async (id: string, action: 'approve' | 'reject') => {
     try {
