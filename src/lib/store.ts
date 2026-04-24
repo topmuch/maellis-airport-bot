@@ -25,6 +25,11 @@ export type ModuleKey =
   | 'knowledge_base'
   | 'hotels'
   | 'miles'
+  | 'rebooking'
+  | 'pmr_audio'
+  | 'health_pharmacy'
+  | 'wifi'
+  | 'checkin'
 
 interface NavigationStore {
   activeModule: ModuleKey

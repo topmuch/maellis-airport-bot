@@ -25,6 +25,11 @@ import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
 import { FAQModule } from '@/components/dashboard/modules/FAQModule'
 import { KnowledgeBaseModule } from '@/components/dashboard/modules/KnowledgeBaseModule'
 import { HotelsModule } from '@/components/dashboard/modules/HotelsModule'
+import { RebookingModule } from '@/components/dashboard/modules/RebookingModule'
+import { PmrAudioModule } from '@/components/dashboard/modules/PmrAudioModule'
+import { HealthPharmacyModule } from '@/components/dashboard/modules/HealthPharmacyModule'
+import { WifiModule } from '@/components/dashboard/modules/WifiModule'
+import { CheckinModule } from '@/components/dashboard/modules/CheckinModule'
 import { MilesModule } from '@/components/dashboard/modules/MilesModule'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
@@ -63,6 +68,11 @@ const modules: Record<ModuleKey, React.ComponentType> = {
   faq: FAQModule,
   knowledge_base: KnowledgeBaseModule,
   hotels: HotelsModule,
+  rebooking: RebookingModule,
+  pmr_audio: PmrAudioModule,
+  health_pharmacy: HealthPharmacyModule,
+  wifi: WifiModule,
+  checkin: CheckinModule,
   miles: MilesModule,
 }
 

@@ -25,6 +25,11 @@ import {
   Database,
   Building2,
   Trophy,
+  Bot,
+  Eye,
+  Pill,
+  Wifi,
+  TicketCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { useNavigationStore, type ModuleKey } from '@/lib/store'
@@ -109,6 +114,11 @@ const navSections: NavSection[] = [
     title: 'SMARTLY V1.5',
     items: [
       { label: 'HÔTELS DAY-USE', icon: Building2, module: 'hotels' },
+      { label: 'REBOOKING IA', icon: Bot, module: 'rebooking' },
+      { label: 'ASSISTANCE PMR', icon: Eye, module: 'pmr_audio' },
+      { label: 'PHARMACIE EXPRESS', icon: Pill, module: 'health_pharmacy' },
+      { label: 'WiFi AÉROPORT', icon: Wifi, module: 'wifi' },
+      { label: 'CHECK-IN', icon: TicketCheck, module: 'checkin' },
       { label: 'SMARTLY MILES', icon: Trophy, module: 'miles' },
     ],
   },
