@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import pdfParse from 'pdf-parse'
+import { PDFParse as pdfParse } from 'pdf-parse'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RAG Service — Retrieval-Augmented Generation for Knowledge Base

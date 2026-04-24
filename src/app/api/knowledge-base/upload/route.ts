@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import pdfParse from 'pdf-parse'
+import { PDFParse as pdfParse } from 'pdf-parse'
 
 // ─────────────────────────────────────────────
 // Text chunking utility
