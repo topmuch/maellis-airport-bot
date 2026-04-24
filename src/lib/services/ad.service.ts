@@ -1,5 +1,63 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { z } from 'zod';
+
+// ---------------------------------------------------------------------------
+// Validation Helpers
+// ---------------------------------------------------------------------------
+
+/** Validate a non-negative finite number (must be >= 0) */
+function validateNonNegative(value: unknown, fieldName: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return n;
+}
+
+/** Wrap error to prevent internal details from leaking */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[ad.service] ${context}:`, message);
+  if (error instanceof Error) {
+    return new Error(error.message.includes('Prisma') ? 'Database error' : error.message);
+  }
+  return new Error('An unexpected error occurred');
+}
+
+/** Validate a date string produces a valid Date */
+function validateDate(value: unknown, fieldName: string): Date {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${fieldName} is required`);
+  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) {
+    throw new Error(`Invalid ${fieldName}: not a valid date`);
+  }
+  return d;
+}
+
+/** Validate that a value is in an allowed set */
+function validateEnum<T extends string>(value: unknown, fieldName: string, allowed: T[]): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) {
+    throw new Error(`Invalid ${fieldName}. Must be one of: ${allowed.join(', ')}`);
+  }
+  return value as T;
+}
+
+/** Validate that a URL does not start with javascript: */
+function validateSafeUrl(url: unknown, fieldName: string): string | null {
+  if (url === undefined || url === null) return null;
+  if (typeof url !== 'string') {
+    throw new Error(`${fieldName} must be a string or null`);
+  }
+  const trimmed = url.trim();
+  if (trimmed.length === 0) return null;
+  if (/^\s*javascript:/i.test(trimmed)) {
+    throw new Error(`${fieldName} must not start with javascript:`);
+  }
+  return trimmed;
+}
 
 // ---------------------------------------------------------------------------
 // TypeScript types
@@ -73,7 +131,6 @@ export interface TrackImpressionInput {
 }
 
 export interface TrackClickInput {
-  impressionId: string;
   conversionValue?: number;
 }
 
@@ -99,19 +156,67 @@ const VALID_AD_STATUSES = ['draft', 'pending', 'active', 'paused', 'completed', 
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'completed'];
 const VALID_BUDGET_TYPES = ['total', 'daily', 'cpm', 'cpc'];
 
+// ─── Zod Validation Schemas ──────────────────────────────────────────────
+
+const campaignStatusZodEnum = z.enum(VALID_CAMPAIGN_STATUSES);
+const adTypeZodEnum = z.enum(VALID_AD_TYPES);
+const placementZodEnum = z.enum(VALID_PLACEMENTS);
+const adStatusZodEnum = z.enum(VALID_AD_STATUSES);
+const budgetTypeZodEnum = z.enum(VALID_BUDGET_TYPES);
+const yyyyMmddRegex = /^\d{4}-\d{2}-\d{2}$/;
+const dateSchema = z.string().regex(yyyyMmddRegex, 'Must be a valid date in YYYY-MM-DD format');
+
+const getCampaignsSchema = z.object({
+  airportCode: z.string().optional(),
+  status: campaignStatusZodEnum.optional(),
+});
+
+const getAdsSchema = z.object({
+  airportCode: z.string().optional(),
+  placement: placementZodEnum.optional(),
+  type: adTypeZodEnum.optional(),
+  status: adStatusZodEnum.optional(),
+  merchantId: z.string().optional(),
+});
+
+const getAdRevenueSchema = z.object({
+  airportCode: z.string().optional(),
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
+});
+
+const trackImpressionSchema = z.object({
+  advertisementId: z.string().min(1, 'advertisementId is required'),
+  sessionId: z.string().max(100).optional(),
+  placement: placementZodEnum,
+  deviceInfo: z.string().max(200).optional(),
+  location: z.string().max(200).optional(),
+});
+
+const rejectAdSchema = z.object({
+  reason: z.string().max(500, 'Rejection reason must be at most 500 characters'),
+});
+
 // ---------------------------------------------------------------------------
 // 1. getCampaigns — List campaigns with filters, include ad count
 // ---------------------------------------------------------------------------
 export async function getCampaigns(airportCode?: string, status?: string) {
   try {
+    // Zod validation
+    const parsed = getCampaignsSchema.safeParse({ airportCode, status });
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const { airportCode: validatedAirportCode, status: validatedStatus } = parsed.data;
+
     const where: Prisma.AdCampaignWhereInput = {};
 
-    if (airportCode) {
-      where.airportCode = airportCode.toUpperCase();
+    if (validatedAirportCode) {
+      where.airportCode = validatedAirportCode.toUpperCase();
     }
 
-    if (status) {
-      where.status = status;
+    if (validatedStatus) {
+      where.status = validatedStatus;
     }
 
     const campaigns = await db.adCampaign.findMany({
@@ -126,8 +231,10 @@ export async function getCampaigns(airportCode?: string, status?: string) {
 
     return campaigns;
   } catch (error) {
-    console.error('[ad.service] getCampaigns error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'getCampaigns');
   }
 }
 
@@ -152,8 +259,7 @@ export async function getCampaignById(id: string) {
 
     return campaign;
   } catch (error) {
-    console.error('[ad.service] getCampaignById error:', error);
-    throw error;
+    throw safeError(error, 'getCampaignById');
   }
 }
 
@@ -162,22 +268,33 @@ export async function getCampaignById(id: string) {
 // ---------------------------------------------------------------------------
 export async function createCampaign(data: CreateCampaignInput) {
   try {
+    // Validate inputs
+    const safeBudget = validateNonNegative(data.totalBudget, 'totalBudget');
+    const startDate = validateDate(data.startDate, 'startDate');
+    const endDate = validateDate(data.endDate, 'endDate');
+
+    if (endDate <= startDate) {
+      throw new Error('endDate must be after startDate');
+    }
+
     const campaign = await db.adCampaign.create({
       data: {
         airportCode: data.airportCode.toUpperCase(),
         name: data.name,
         description: data.description ?? null,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        totalBudget: data.totalBudget,
+        startDate,
+        endDate,
+        totalBudget: safeBudget,
         status: 'draft',
       },
     });
 
     return campaign;
   } catch (error) {
-    console.error('[ad.service] createCampaign error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('endDate') || error.message.includes('must be'))) {
+      throw error;
+    }
+    throw safeError(error, 'createCampaign');
   }
 }
 
@@ -196,10 +313,10 @@ export async function updateCampaign(id: string, data: UpdateCampaignInput) {
 
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.startDate !== undefined) updateData.startDate = new Date(data.startDate);
-    if (data.endDate !== undefined) updateData.endDate = new Date(data.endDate);
-    if (data.totalBudget !== undefined) updateData.totalBudget = data.totalBudget;
-    if (data.status !== undefined) updateData.status = data.status;
+    if (data.startDate !== undefined) updateData.startDate = validateDate(data.startDate, 'startDate');
+    if (data.endDate !== undefined) updateData.endDate = validateDate(data.endDate, 'endDate');
+    if (data.totalBudget !== undefined) updateData.totalBudget = validateNonNegative(data.totalBudget, 'totalBudget');
+    if (data.status !== undefined) updateData.status = validateEnum(data.status, 'campaign status', VALID_CAMPAIGN_STATUSES);
 
     const campaign = await db.adCampaign.update({
       where: { id },
@@ -208,8 +325,10 @@ export async function updateCampaign(id: string, data: UpdateCampaignInput) {
 
     return campaign;
   } catch (error) {
-    console.error('[ad.service] updateCampaign error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error;
+    }
+    throw safeError(error, 'updateCampaign');
   }
 }
 
@@ -230,8 +349,7 @@ export async function deleteCampaign(id: string) {
 
     return { success: true, deletedId: id };
   } catch (error) {
-    console.error('[ad.service] deleteCampaign error:', error);
-    throw error;
+    throw safeError(error, 'deleteCampaign');
   }
 }
 
@@ -286,8 +404,7 @@ export async function getCampaignStats(id: string) {
       conversionRate: Math.round(conversionRate * 100) / 100,
     };
   } catch (error) {
-    console.error('[ad.service] getCampaignStats error:', error);
-    throw error;
+    throw safeError(error, 'getCampaignStats');
   }
 }
 
@@ -326,8 +443,10 @@ export async function activateCampaign(id: string) {
 
     return campaign;
   } catch (error) {
-    console.error('[ad.service] activateCampaign error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Cannot') || error.message.startsWith('Campaign'))) {
+      throw error;
+    }
+    throw safeError(error, 'activateCampaign');
   }
 }
 
@@ -342,22 +461,35 @@ export async function getAds(
   merchantId?: string,
 ) {
   try {
+    // Zod validation
+    const parsed = getAdsSchema.safeParse({ airportCode, placement, type, status, merchantId });
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const {
+      airportCode: ac,
+      placement: pl,
+      type: tp,
+      status: st,
+      merchantId: mi,
+    } = parsed.data;
+
     const where: Prisma.AdvertisementWhereInput = {};
 
-    if (airportCode) {
-      where.airportCode = airportCode.toUpperCase();
+    if (ac) {
+      where.airportCode = ac.toUpperCase();
     }
-    if (placement) {
-      where.placement = placement;
+    if (pl) {
+      where.placement = pl;
     }
-    if (type) {
-      where.type = type;
+    if (tp) {
+      where.type = tp;
     }
-    if (status) {
-      where.status = status;
+    if (st) {
+      where.status = st;
     }
-    if (merchantId) {
-      where.merchantId = merchantId;
+    if (mi) {
+      where.merchantId = mi;
     }
 
     const ads = await db.advertisement.findMany({
@@ -384,8 +516,10 @@ export async function getAds(
 
     return ads;
   } catch (error) {
-    console.error('[ad.service] getAds error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'getAds');
   }
 }
 
@@ -425,8 +559,7 @@ export async function getAdById(id: string) {
 
     return ad;
   } catch (error) {
-    console.error('[ad.service] getAdById error:', error);
-    throw error;
+    throw safeError(error, 'getAdById');
   }
 }
 
@@ -435,6 +568,21 @@ export async function getAdById(id: string) {
 // ---------------------------------------------------------------------------
 export async function createAd(data: CreateAdInput) {
   try {
+    // Validate inputs
+    const safeBudget = validateNonNegative(data.budget, 'budget');
+    const safeCpmRate = data.cpmRate !== undefined && data.cpmRate !== null
+      ? validateNonNegative(data.cpmRate, 'cpmRate') : null;
+    const safeCpcRate = data.cpcRate !== undefined && data.cpcRate !== null
+      ? validateNonNegative(data.cpcRate, 'cpcRate') : null;
+    const safeType = validateEnum(data.type, 'ad type', VALID_AD_TYPES);
+    const safePlacement = validateEnum(data.placement, 'placement', VALID_PLACEMENTS);
+    const safeTargetUrl = validateSafeUrl(data.targetUrl, 'targetUrl');
+    const safeVideoUrl = validateSafeUrl(data.videoUrl, 'videoUrl');
+    const safeStartDate = validateDate(data.startDate, 'startDate');
+    const safeEndDate = validateDate(data.endDate, 'endDate');
+    const safeBudgetType = data.budgetType
+      ? validateEnum(data.budgetType, 'budgetType', VALID_BUDGET_TYPES) : 'total';
+
     const ad = await db.advertisement.create({
       data: {
         airportCode: data.airportCode.toUpperCase(),
@@ -442,27 +590,29 @@ export async function createAd(data: CreateAdInput) {
         merchantId: data.merchantId ?? null,
         title: data.title,
         description: data.description ?? null,
-        type: data.type,
-        placement: data.placement,
+        type: safeType,
+        placement: safePlacement,
         imageUrl: data.imageUrl,
-        videoUrl: data.videoUrl ?? null,
-        targetUrl: data.targetUrl ?? null,
+        videoUrl: safeVideoUrl,
+        targetUrl: safeTargetUrl,
         ctaText: data.ctaText ?? 'En savoir plus',
         targetAudience: data.targetAudience ?? null,
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        budget: data.budget,
-        budgetType: data.budgetType ?? 'total',
-        cpmRate: data.cpmRate ?? null,
-        cpcRate: data.cpcRate ?? null,
+        startDate: safeStartDate,
+        endDate: safeEndDate,
+        budget: safeBudget,
+        budgetType: safeBudgetType,
+        cpmRate: safeCpmRate,
+        cpcRate: safeCpcRate,
         status: 'draft',
       },
     });
 
     return ad;
   } catch (error) {
-    console.error('[ad.service] createAd error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('must not') || error.message.includes('must be'))) {
+      throw error;
+    }
+    throw safeError(error, 'createAd');
   }
 }
 
@@ -481,19 +631,19 @@ export async function updateAd(id: string, data: UpdateAdInput) {
 
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.type !== undefined) updateData.type = data.type;
-    if (data.placement !== undefined) updateData.placement = data.placement;
+    if (data.type !== undefined) updateData.type = validateEnum(data.type, 'ad type', VALID_AD_TYPES);
+    if (data.placement !== undefined) updateData.placement = validateEnum(data.placement, 'placement', VALID_PLACEMENTS);
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
-    if (data.videoUrl !== undefined) updateData.videoUrl = data.videoUrl;
-    if (data.targetUrl !== undefined) updateData.targetUrl = data.targetUrl;
+    if (data.videoUrl !== undefined) updateData.videoUrl = validateSafeUrl(data.videoUrl, 'videoUrl');
+    if (data.targetUrl !== undefined) updateData.targetUrl = validateSafeUrl(data.targetUrl, 'targetUrl');
     if (data.ctaText !== undefined) updateData.ctaText = data.ctaText;
     if (data.targetAudience !== undefined) updateData.targetAudience = data.targetAudience;
-    if (data.startDate !== undefined) updateData.startDate = new Date(data.startDate);
-    if (data.endDate !== undefined) updateData.endDate = new Date(data.endDate);
-    if (data.budget !== undefined) updateData.budget = data.budget;
-    if (data.budgetType !== undefined) updateData.budgetType = data.budgetType;
-    if (data.cpmRate !== undefined) updateData.cpmRate = data.cpmRate;
-    if (data.cpcRate !== undefined) updateData.cpcRate = data.cpcRate;
+    if (data.startDate !== undefined) updateData.startDate = validateDate(data.startDate, 'startDate');
+    if (data.endDate !== undefined) updateData.endDate = validateDate(data.endDate, 'endDate');
+    if (data.budget !== undefined) updateData.budget = validateNonNegative(data.budget, 'budget');
+    if (data.budgetType !== undefined) updateData.budgetType = validateEnum(data.budgetType, 'budgetType', VALID_BUDGET_TYPES);
+    if (data.cpmRate !== undefined) updateData.cpmRate = data.cpmRate !== null ? validateNonNegative(data.cpmRate, 'cpmRate') : null;
+    if (data.cpcRate !== undefined) updateData.cpcRate = data.cpcRate !== null ? validateNonNegative(data.cpcRate, 'cpcRate') : null;
     if (data.merchantId !== undefined) updateData.merchant = data.merchantId ? { connect: { id: data.merchantId } } : { disconnect: true };
     if (data.campaignId !== undefined) updateData.campaign = data.campaignId ? { connect: { id: data.campaignId } } : { disconnect: true };
 
@@ -504,8 +654,10 @@ export async function updateAd(id: string, data: UpdateAdInput) {
 
     return ad;
   } catch (error) {
-    console.error('[ad.service] updateAd error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('must not') || error.message.includes('must be'))) {
+      throw error;
+    }
+    throw safeError(error, 'updateAd');
   }
 }
 
@@ -526,8 +678,7 @@ export async function deleteAd(id: string) {
 
     return { success: true, deletedId: id };
   } catch (error) {
-    console.error('[ad.service] deleteAd error:', error);
-    throw error;
+    throw safeError(error, 'deleteAd');
   }
 }
 
@@ -553,8 +704,10 @@ export async function submitForReview(id: string) {
 
     return updated;
   } catch (error) {
-    console.error('[ad.service] submitForReview error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Cannot')) {
+      throw error;
+    }
+    throw safeError(error, 'submitForReview');
   }
 }
 
@@ -580,8 +733,10 @@ export async function pauseAd(id: string) {
 
     return updated;
   } catch (error) {
-    console.error('[ad.service] pauseAd error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Cannot')) {
+      throw error;
+    }
+    throw safeError(error, 'pauseAd');
   }
 }
 
@@ -607,8 +762,10 @@ export async function resumeAd(id: string) {
 
     return updated;
   } catch (error) {
-    console.error('[ad.service] resumeAd error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Cannot')) {
+      throw error;
+    }
+    throw safeError(error, 'resumeAd');
   }
 }
 
@@ -651,8 +808,10 @@ export async function approveAd(id: string) {
 
     return updated;
   } catch (error) {
-    console.error('[ad.service] approveAd error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Cannot')) {
+      throw error;
+    }
+    throw safeError(error, 'approveAd');
   }
 }
 
@@ -661,6 +820,12 @@ export async function approveAd(id: string) {
 // ---------------------------------------------------------------------------
 export async function rejectAd(id: string, reason: string) {
   try {
+    // Zod validation
+    const parsed = rejectAdSchema.safeParse({ reason });
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+
     const ad = await db.advertisement.findUnique({ where: { id } });
     if (!ad) {
       console.error(`[ad.service] rejectAd: ad not found: ${id}`);
@@ -681,8 +846,10 @@ export async function rejectAd(id: string, reason: string) {
 
     return updated;
   } catch (error) {
-    console.error('[ad.service] rejectAd error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.startsWith('Cannot'))) {
+      throw error;
+    }
+    throw safeError(error, 'rejectAd');
   }
 }
 
@@ -691,10 +858,17 @@ export async function rejectAd(id: string, reason: string) {
 // ---------------------------------------------------------------------------
 export async function trackImpression(data: TrackImpressionInput) {
   try {
+    // Zod validation
+    const parsed = trackImpressionSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const validatedData = parsed.data;
+
     const result = await db.$transaction(async (tx) => {
       // Verify ad exists and is active
       const ad = await tx.advertisement.findUnique({
-        where: { id: data.advertisementId },
+        where: { id: validatedData.advertisementId },
       });
 
       if (!ad) {
@@ -704,17 +878,17 @@ export async function trackImpression(data: TrackImpressionInput) {
       // Create impression record
       const impression = await tx.adImpression.create({
         data: {
-          advertisementId: data.advertisementId,
-          sessionId: data.sessionId ?? null,
-          placement: data.placement,
-          deviceInfo: data.deviceInfo ?? null,
-          location: data.location ?? null,
+          advertisementId: validatedData.advertisementId,
+          sessionId: validatedData.sessionId ?? null,
+          placement: validatedData.placement,
+          deviceInfo: validatedData.deviceInfo ?? null,
+          location: validatedData.location ?? null,
         },
       });
 
       // Increment ad impressions counter
       await tx.advertisement.update({
-        where: { id: data.advertisementId },
+        where: { id: validatedData.advertisementId },
         data: {
           impressions: { increment: 1 },
         },
@@ -728,7 +902,7 @@ export async function trackImpression(data: TrackImpressionInput) {
 
       if (revenueIncrement > 0) {
         await tx.advertisement.update({
-          where: { id: data.advertisementId },
+          where: { id: validatedData.advertisementId },
           data: {
             revenue: { increment: revenueIncrement },
           },
@@ -750,8 +924,10 @@ export async function trackImpression(data: TrackImpressionInput) {
 
     return result;
   } catch (error) {
-    console.error('[ad.service] trackImpression error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.startsWith('Advertisement'))) {
+      throw error;
+    }
+    throw safeError(error, 'trackImpression');
   }
 }
 
@@ -818,8 +994,7 @@ export async function trackClick(impressionId: string, data?: TrackClickInput) {
 
     return result;
   } catch (error) {
-    console.error('[ad.service] trackClick error:', error);
-    throw error;
+    throw safeError(error, 'trackClick');
   }
 }
 
@@ -828,6 +1003,9 @@ export async function trackClick(impressionId: string, data?: TrackClickInput) {
 // ---------------------------------------------------------------------------
 export async function trackConversion(impressionId: string, conversionValue: number) {
   try {
+    // Validate conversion value
+    const safeConversionValue = validateNonNegative(conversionValue, 'conversionValue');
+
     const result = await db.$transaction(async (tx) => {
       // Verify impression exists
       const impression = await tx.adImpression.findUnique({
@@ -857,7 +1035,7 @@ export async function trackConversion(impressionId: string, conversionValue: num
         where: { id: click.id },
         data: {
           converted: true,
-          conversionValue,
+          conversionValue: safeConversionValue,
         },
       });
 
@@ -866,7 +1044,7 @@ export async function trackConversion(impressionId: string, conversionValue: num
         where: { id: impression.advertisementId },
         data: {
           conversions: { increment: 1 },
-          revenue: { increment: conversionValue },
+          revenue: { increment: safeConversionValue },
         },
       });
 
@@ -876,18 +1054,20 @@ export async function trackConversion(impressionId: string, conversionValue: num
         await tx.adCampaign.update({
           where: { id: ad.campaignId },
           data: {
-            spentBudget: { increment: conversionValue },
+            spentBudget: { increment: safeConversionValue },
           },
         });
       }
 
-      return { clickId: click.id, conversionValue };
+      return { clickId: click.id, conversionValue: safeConversionValue };
     });
 
     return result;
   } catch (error) {
-    console.error('[ad.service] trackConversion error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Impression') || error.message.startsWith('No unconverted'))) {
+      throw error;
+    }
+    throw safeError(error, 'trackConversion');
   }
 }
 
@@ -963,8 +1143,7 @@ export async function getActiveAds(
 
     return ads;
   } catch (error) {
-    console.error('[ad.service] getActiveAds error:', error);
-    throw error;
+    throw safeError(error, 'getActiveAds');
   }
 }
 
@@ -977,19 +1156,26 @@ export async function getAdRevenue(
   endDate?: string,
 ) {
   try {
+    // Zod validation
+    const parsed = getAdRevenueSchema.safeParse({ airportCode, startDate, endDate });
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const { airportCode: ac, startDate: sd, endDate: ed } = parsed.data;
+
     const where: Prisma.AdvertisementWhereInput = {};
 
-    if (airportCode) {
-      where.airportCode = airportCode.toUpperCase();
+    if (ac) {
+      where.airportCode = ac.toUpperCase();
     }
 
-    if (startDate || endDate) {
+    if (sd || ed) {
       where.createdAt = {};
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+      if (sd) {
+        where.createdAt.gte = new Date(sd);
       }
-      if (endDate) {
-        const end = new Date(endDate);
+      if (ed) {
+        const end = new Date(ed);
         end.setHours(23, 59, 59, 999);
         where.createdAt.lte = end;
       }
@@ -1034,8 +1220,10 @@ export async function getAdRevenue(
       byPlacement,
     };
   } catch (error) {
-    console.error('[ad.service] getAdRevenue error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'getAdRevenue');
   }
 }
 
@@ -1107,8 +1295,7 @@ export async function getAdInventory(airportCode?: string) {
       })),
     };
   } catch (error) {
-    console.error('[ad.service] getAdInventory error:', error);
-    throw error;
+    throw safeError(error, 'getAdInventory');
   }
 }
 
@@ -1214,8 +1401,7 @@ export async function getAdDashboardStats(airportCode?: string) {
       topAdvertisers: enrichedAdvertisers.filter(Boolean),
     };
   } catch (error) {
-    console.error('[ad.service] getAdDashboardStats error:', error);
-    throw error;
+    throw safeError(error, 'getAdDashboardStats');
   }
 }
 

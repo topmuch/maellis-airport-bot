@@ -1,7 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+  }
   try {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)

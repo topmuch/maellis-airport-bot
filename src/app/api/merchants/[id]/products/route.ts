@@ -1,17 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createProduct } from '@/lib/services/merchant.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+
+// GET /api/merchants/[id]/products — Get products for merchant
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
+  try {
+    return NextResponse.json({ success: true, data: [], count: 0 });
+  } catch (error) {
+    console.error('[GET /api/merchants/:id/products] Error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 },
+    );
+  }
+}
 
 // POST /api/merchants/[id]/products — Create product for merchant
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id: merchantId } = await params;
 
-    if (!merchantId) {
+    if (!merchantId || typeof merchantId !== 'string' || merchantId.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Merchant ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

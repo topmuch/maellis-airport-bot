@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { getFamilySuggestions } from '@/lib/services/family-mode.service';
 
 // ---------------------------------------------------------------------------
@@ -6,6 +7,14 @@ import { getFamilySuggestions } from '@/lib/services/family-mode.service';
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+    if (!user.success) {
+      return NextResponse.json(
+        { success: false, error: user.error },
+        { status: user.status },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airportCode');
     const terminal = searchParams.get('terminal') || undefined;

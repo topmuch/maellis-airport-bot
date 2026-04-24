@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
-import { getProviderById, calculatePrice, assignDriver, updateBookingStatus } from '@/lib/services/transport.service'
+import { requireAuth } from '@/lib/auth'
+import { getProviderById, calculatePrice } from '@/lib/services/transport.service'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // POST /api/transport/calculate-price — Get pricing breakdown
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const authResult = await requireAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
+    const body = await parseBody(request)
+
     const { providerId, distanceKm, passengers, pickupTime } = body
 
     if (!providerId || distanceKm === undefined) {
@@ -57,6 +64,9 @@ export async function POST(request: NextRequest) {
       data: breakdown,
     })
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('Error calculating transport price:', error)
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

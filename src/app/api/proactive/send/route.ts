@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendProactiveMessage } from '@/lib/services/proactive.service';
+import { requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ---------------------------------------------------------------------------
 // POST /api/proactive/send
@@ -7,8 +9,13 @@ import { sendProactiveMessage } from '@/lib/services/proactive.service';
 // Create a ProactiveLog entry
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await parseBody(request);
     const { phone, flightNumber, messageType, messageContent, triggeredBy } =
       body;
 
@@ -53,6 +60,13 @@ export async function POST(request: NextRequest) {
       data: log,
     });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     const message =
       error instanceof Error ? error.message : 'Internal server error';
 

@@ -351,13 +351,13 @@ export function ConversationsModule() {
           if (json.data && json.data.length > 0) {
             setConversations(json.data)
           } else {
-            setConversations(MOCK_CONVERSATIONS)
+            setConversations([])
           }
         } else {
-          setConversations(MOCK_CONVERSATIONS)
+          setConversations([])
         }
       } catch {
-        setConversations(MOCK_CONVERSATIONS)
+        setConversations([])
       } finally {
         setLoading(false)
       }

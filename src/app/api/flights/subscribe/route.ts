@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 // POST /api/flights/subscribe - Subscribe to flight notifications
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const body = await request.json()
     const { flightNumber, phone, events } = body
@@ -67,6 +73,11 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/flights/subscribe - Unsubscribe from flight notifications
 export async function DELETE(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const body = await request.json()
     const { flightNumber, phone } = body

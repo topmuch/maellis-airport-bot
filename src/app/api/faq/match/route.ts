@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 import { matchFAQ } from '@/lib/services/faq.service'
 
 // POST /api/faq/match — Match a user question against FAQs
 export async function POST(req: NextRequest) {
   try {
+    const user = await requireAuth(req)
+    if (!user.success) {
+      return NextResponse.json({ success: false, error: user.error }, { status: user.status })
+    }
+
     const body = await req.json()
     const { question, airportCode } = body
 

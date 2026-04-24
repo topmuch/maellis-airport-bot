@@ -2,6 +2,37 @@ import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap a raw internal error into a safe, user-facing message.
+ * Logs the original error but never leaks internals (DB details, stack traces, etc.).
+ */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[payout.service] ${context}:`, message);
+  }
+  return new Error(`An error occurred while ${context}. Please try again later.`);
+}
+
+/**
+ * Validate that a date string is a valid ISO date.
+ */
+function isValidDateString(value: string): boolean {
+  const date = new Date(value);
+  return !isNaN(date.getTime());
+}
+
+/**
+ * Validate that a UUID-like identifier is a non-empty string.
+ */
+function isValidId(id: unknown): id is string {
+  return typeof id === 'string' && id.trim().length > 0 && id.trim().length <= 200;
+}
+
+// ---------------------------------------------------------------------------
 // TypeScript types
 // ---------------------------------------------------------------------------
 
@@ -84,6 +115,10 @@ export interface AirportPayoutDashboard {
 
 export async function createPayoutForOrder(orderId: string) {
   try {
+    if (!isValidId(orderId)) {
+      throw new Error('Order ID is required');
+    }
+
     // Find the order with its merchant (need commissionRate)
     const order = await db.order.findUnique({
       where: { id: orderId },
@@ -100,19 +135,23 @@ export async function createPayoutForOrder(orderId: string) {
     });
 
     if (!order) {
-      throw new Error(`Order not found: ${orderId}`);
+      throw new Error('Order not found');
+    }
+
+    if (!order.merchant) {
+      throw new Error('Order has no associated merchant');
     }
 
     // Validate order status is completed and payment is paid
     if (order.status !== 'completed') {
       throw new Error(
-        `Cannot create payout for order ${order.orderNumber}: order status is "${order.status}", expected "completed"`,
+        `Cannot create payout: order status is "${order.status}", expected "completed"`,
       );
     }
 
     if (order.paymentStatus !== 'paid') {
       throw new Error(
-        `Cannot create payout for order ${order.orderNumber}: payment status is "${order.paymentStatus}", expected "paid"`,
+        `Cannot create payout: payment status is "${order.paymentStatus}", expected "paid"`,
       );
     }
 
@@ -125,9 +164,13 @@ export async function createPayoutForOrder(orderId: string) {
       return existingPayout;
     }
 
-    // Calculate commission amount
+    // Calculate commission amount (validate inputs to prevent NaN/negative)
+    const orderTotal = typeof order.total === 'number' && Number.isFinite(order.total) ? order.total : 0;
+    const rate = typeof order.merchant.commissionRate === 'number' && Number.isFinite(order.merchant.commissionRate)
+      ? order.merchant.commissionRate
+      : 0;
     const commissionAmount =
-      Math.round(order.total * order.merchant.commissionRate * 100) / 100;
+      Math.round(orderTotal * Math.min(1, Math.max(0, rate)) * 100) / 100;
 
     // Create the payout record
     const payout = await db.merchantPayout.create({
@@ -149,8 +192,10 @@ export async function createPayoutForOrder(orderId: string) {
 
     return payout;
   } catch (error) {
-    console.error('[payout.service] createPayoutForOrder error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Order') || error.message.startsWith('Cannot'))) {
+      throw error;
+    }
+    throw safeError(error, 'creating payout for order');
   }
 }
 
@@ -165,10 +210,24 @@ export async function getPayouts(
   endDate?: string,
 ): Promise<PayoutListResult> {
   try {
+    // Validate date strings
+    if (startDate && !isValidDateString(startDate)) {
+      throw new Error('Invalid startDate format');
+    }
+    if (endDate && !isValidDateString(endDate)) {
+      throw new Error('Invalid endDate format');
+    }
+
+    // Validate status enum
+    const VALID_PAYOUT_STATUSES = ['pending', 'paid', 'cancelled'];
+    if (status && !VALID_PAYOUT_STATUSES.includes(status)) {
+      throw new Error(`Invalid status filter. Must be one of: ${VALID_PAYOUT_STATUSES.join(', ')}`);
+    }
+
     // Build where clause
     const where: Prisma.MerchantPayoutWhereInput = {};
 
-    if (merchantId) {
+    if (merchantId && isValidId(merchantId)) {
       where.merchantId = merchantId;
     }
     if (status) {
@@ -232,8 +291,10 @@ export async function getPayouts(
       },
     };
   } catch (error) {
-    console.error('[payout.service] getPayouts error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Invalid')) {
+      throw error;
+    }
+    throw safeError(error, 'retrieving payouts');
   }
 }
 
@@ -245,6 +306,10 @@ export async function getMerchantPayoutSummary(
   merchantId: string,
 ): Promise<MerchantPayoutSummary | null> {
   try {
+    if (!isValidId(merchantId)) {
+      throw new Error('Merchant ID is required');
+    }
+
     // Validate merchant exists
     const merchant = await db.merchant.findUnique({
       where: { id: merchantId },
@@ -258,9 +323,11 @@ export async function getMerchantPayoutSummary(
     });
 
     if (!merchant) {
-      console.error(
-        `[payout.service] getMerchantPayoutSummary: merchant not found: ${merchantId}`,
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `[payout.service] getMerchantPayoutSummary: merchant not found`,
+        );
+      }
       return null;
     }
 
@@ -314,8 +381,10 @@ export async function getMerchantPayoutSummary(
       paymentSchedule: merchant.paymentSchedule,
     };
   } catch (error) {
-    console.error('[payout.service] getMerchantPayoutSummary error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Merchant')) {
+      throw error;
+    }
+    throw safeError(error, 'retrieving merchant payout summary');
   }
 }
 
@@ -330,18 +399,28 @@ export async function processPayout(
   notes?: string,
 ) {
   try {
+    if (!isValidId(payoutId)) {
+      throw new Error('Payout ID is required');
+    }
+    if (!isValidId(adminId)) {
+      throw new Error('Admin ID is required');
+    }
+    // Sanitize optional fields
+    const safeReference = reference ? reference.trim().slice(0, 200) : undefined;
+    const safeNotes = notes ? notes.trim().slice(0, 1000) : undefined;
+
     // Validate payout exists
     const payout = await db.merchantPayout.findUnique({
       where: { id: payoutId },
     });
 
     if (!payout) {
-      throw new Error(`Payout not found: ${payoutId}`);
+      throw new Error('Payout not found');
     }
 
     if (payout.status !== 'pending') {
       throw new Error(
-        `Cannot process payout ${payoutId}: status is "${payout.status}", expected "pending"`,
+        `Cannot process payout: status is "${payout.status}", expected "pending"`,
       );
     }
 
@@ -352,8 +431,8 @@ export async function processPayout(
         status: 'paid',
         paidAt: new Date(),
         paidBy: adminId,
-        reference: reference ?? null,
-        notes: notes ?? null,
+        reference: safeReference ?? null,
+        notes: safeNotes ?? null,
       },
       include: {
         merchant: {
@@ -364,8 +443,10 @@ export async function processPayout(
 
     return updatedPayout;
   } catch (error) {
-    console.error('[payout.service] processPayout error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Payout') || error.message.startsWith('Cannot') || error.message.startsWith('Admin'))) {
+      throw error;
+    }
+    throw safeError(error, 'processing payout');
   }
 }
 
@@ -380,9 +461,20 @@ export async function batchProcessPayouts(
   reference?: string,
 ): Promise<BatchProcessResult> {
   try {
-    if (!payoutIds || payoutIds.length === 0) {
+    if (!isValidId(merchantId)) {
+      throw new Error('Merchant ID is required');
+    }
+    if (!isValidId(adminId)) {
+      throw new Error('Admin ID is required');
+    }
+    if (!Array.isArray(payoutIds) || payoutIds.length === 0) {
       throw new Error('No payout IDs provided for batch processing');
     }
+    if (payoutIds.length > 200) {
+      throw new Error('Cannot batch process more than 200 payouts at once');
+    }
+    // Sanitize reference
+    const safeReference = reference ? reference.trim().slice(0, 200) : undefined;
 
     // Pre-validate: fetch all payouts and check they exist and belong to this merchant
     const payouts = await db.merchantPayout.findMany({
@@ -458,15 +550,17 @@ export async function batchProcessPayouts(
           status: 'paid',
           paidAt: new Date(),
           paidBy: adminId,
-          reference: reference ?? null,
+          reference: safeReference ?? null,
         },
       });
     });
 
     return { successCount, failedCount, results };
   } catch (error) {
-    console.error('[payout.service] batchProcessPayouts error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Merchant') || error.message.startsWith('Admin') || error.message.startsWith('No ') || error.message.startsWith('Cannot'))) {
+      throw error;
+    }
+    throw safeError(error, 'batch processing payouts');
   }
 }
 
@@ -478,9 +572,16 @@ export async function getAirportPayoutDashboard(
   airportCode: string,
 ): Promise<AirportPayoutDashboard | null> {
   try {
+    // Validate airport code format (IATA: 3 uppercase letters)
+    if (!airportCode || !/^[A-Za-z]{3}$/.test(airportCode.trim())) {
+      throw new Error('Airport code must be a 3-letter IATA code');
+    }
+
+    const normalizedCode = airportCode.trim().toUpperCase();
+
     // Get all merchant IDs at this airport
     const merchants = await db.merchant.findMany({
-      where: { airportCode: airportCode.toUpperCase() },
+      where: { airportCode: normalizedCode },
       select: {
         id: true,
         name: true,
@@ -490,11 +591,13 @@ export async function getAirportPayoutDashboard(
     });
 
     if (merchants.length === 0) {
-      console.error(
-        `[payout.service] getAirportPayoutDashboard: no merchants found at airport ${airportCode}`,
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `[payout.service] getAirportPayoutDashboard: no merchants found at airport ${normalizedCode}`,
+        );
+      }
       return {
-        airportCode: airportCode.toUpperCase(),
+        airportCode: normalizedCode,
         totalCommissions: 0,
         pendingAmount: 0,
         paidAmount: 0,
@@ -645,7 +748,7 @@ export async function getAirportPayoutDashboard(
     );
 
     return {
-      airportCode: airportCode.toUpperCase(),
+      airportCode: normalizedCode,
       totalCommissions: Math.round((overallAgg._sum.commissionAmount ?? 0) * 100) / 100,
       pendingAmount: Math.round((pendingAgg._sum.commissionAmount ?? 0) * 100) / 100,
       paidAmount: Math.round((paidAgg._sum.commissionAmount ?? 0) * 100) / 100,
@@ -668,7 +771,9 @@ export async function getAirportPayoutDashboard(
       topMerchants,
     };
   } catch (error) {
-    console.error('[payout.service] getAirportPayoutDashboard error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Airport')) {
+      throw error;
+    }
+    throw safeError(error, 'retrieving airport payout dashboard');
   }
 }

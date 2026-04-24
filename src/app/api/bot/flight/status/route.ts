@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
 const BOT_SERVICE_URL = 'http://localhost:3005';
 
@@ -11,6 +12,11 @@ const BOT_SERVICE_URL = 'http://localhost:3005';
  */
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const flightNumber = searchParams.get('number');
 

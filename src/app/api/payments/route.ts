@@ -1,14 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
+import { requireRole } from '@/lib/auth'
+
+// ─────────────────────────────────────────────
+// Input validation schemas
+// ─────────────────────────────────────────────
+
+const PAYMENT_STATUSES = [
+  'pending',
+  'paid',
+  'failed',
+  'refunded',
+  'cancelled',
+] as const
+
+const PAYMENT_PROVIDERS = [
+  'cinetpay',
+  'orange_money',
+  'wave',
+  'bank_transfer',
+  'cash',
+] as const
+
+const paymentsQuerySchema = z.object({
+  status: z.enum(PAYMENT_STATUSES).optional(),
+  provider: z.enum(PAYMENT_PROVIDERS).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
 
 // GET /api/payments - List payments with optional filtering
 export async function GET(request: NextRequest) {
+  const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT')
+  const authResult = await checkRole(request)
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+  }
+
   try {
-    const searchParams = request.nextUrl.searchParams
-    const status = searchParams.get('status')
-    const provider = searchParams.get('provider')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    // Parse and validate all query parameters
+    const rawParams: Record<string, string> = {}
+    request.nextUrl.searchParams.forEach((value, key) => {
+      rawParams[key] = value
+    })
+
+    const parsed = paymentsQuerySchema.safeParse(rawParams)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters', details: parsed.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const { status, provider, page, limit } = parsed.data
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}

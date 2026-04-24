@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth, requireRole } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/emergency - List emergency alerts
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+
     const alerts = await db.emergencyAlert.findMany({
       orderBy: { createdAt: 'desc' },
     })
 
     return NextResponse.json({ data: alerts })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error fetching emergency alerts:', error)
     return NextResponse.json(
       { error: 'Failed to fetch emergency alerts' },
@@ -21,7 +35,11 @@ export async function GET() {
 // POST /api/emergency - Create new emergency alert
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const authResult = await requireAuth(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+    const body = await parseBody(request)
     const {
       userPhone,
       userName,
@@ -51,6 +69,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(alert, { status: 201 })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error creating emergency alert:', error)
     return NextResponse.json(
       { error: 'Failed to create emergency alert' },
@@ -62,7 +87,12 @@ export async function POST(request: NextRequest) {
 // PATCH /api/emergency - Update emergency alert status
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json()
+    const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT')
+    const authResult = await checkRole(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+    const body = await parseBody(request)
     const { id, status, assignedTo, resolution } = body
 
     if (!id) {
@@ -84,6 +114,13 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json(alert)
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error updating emergency alert:', error)
     return NextResponse.json(
       { error: 'Failed to update emergency alert' },

@@ -4,9 +4,16 @@ import {
   createCheckInSession,
   getCheckInStats,
 } from '@/lib/services/checkin.service'
+import { requireAuth } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/checkin - List check-in sessions and stats
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const phone = searchParams.get('phone')
@@ -30,6 +37,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: sessions })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error fetching check-in data:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch check-in data' },
@@ -40,8 +54,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/checkin - Create a check-in session
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
-    const body = await request.json()
+    const body = await parseBody(request)
     const { phone, flightNumber } = body
 
     if (!phone || !flightNumber) {
@@ -68,6 +87,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: session }, { status: 201 })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error creating check-in session:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create check-in session' },

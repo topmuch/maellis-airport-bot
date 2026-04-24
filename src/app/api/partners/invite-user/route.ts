@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { invitePartnerUser } from '@/lib/services/partner.service'
 import { sendPartnerInvitation } from '@/lib/email'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // POST /api/partners/invite-user — Invite user to partner (admin only)
 export async function POST(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    const body = await parseBody(request)
     const { partnerId, email, name, role } = body
 
     if (!partnerId || !email || !name) {

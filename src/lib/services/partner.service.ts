@@ -7,7 +7,10 @@ import crypto from 'crypto'
 // Constants
 // ─────────────────────────────────────────────
 
-const JWT_SECRET = process.env.JWT_SECRET || 'maellis-dev-secret'
+const JWT_SECRET: string = process.env.JWT_SECRET!
+if (!process.env.JWT_SECRET) {
+  throw new Error('[SECURITY] JWT_SECRET is required for partner service. Set it in .env')
+}
 const INVITE_TOKEN_EXPIRES_IN = '7d'
 
 // ─────────────────────────────────────────────
@@ -155,7 +158,9 @@ export async function getPartners(
       usersCount: partner._count.users,
     }))
   } catch (error) {
-    console.error('[partner.service] Error in getPartners:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in getPartners:', error)
+    }
     throw error
   }
 }
@@ -197,7 +202,9 @@ export async function getPartnerById(id: string) {
       usersCount: partner._count.users,
     }
   } catch (error) {
-    console.error('[partner.service] Error in getPartnerById:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in getPartnerById:', error)
+    }
     throw error
   }
 }
@@ -260,7 +267,9 @@ export async function createPartner(data: CreatePartnerInput) {
       },
     })
   } catch (error) {
-    console.error('[partner.service] Error in createPartner:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in createPartner:', error)
+    }
     throw error
   }
 }
@@ -311,7 +320,9 @@ export async function updatePartner(id: string, data: UpdatePartnerInput) {
       data: updateData,
     })
   } catch (error) {
-    console.error('[partner.service] Error in updatePartner:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in updatePartner:', error)
+    }
     throw error
   }
 }
@@ -342,7 +353,9 @@ export async function deactivatePartner(id: string) {
       },
     })
   } catch (error) {
-    console.error('[partner.service] Error in deactivatePartner:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in deactivatePartner:', error)
+    }
     throw error
   }
 }
@@ -434,7 +447,9 @@ export async function invitePartner(partnerData: InvitePartnerInput) {
       inviteToken,
     }
   } catch (error) {
-    console.error('[partner.service] Error in invitePartner:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in invitePartner:', error)
+    }
     throw error
   }
 }
@@ -547,7 +562,9 @@ export async function activatePartner(token: string, formData: ActivatePartnerFo
       user: userWithoutPassword,
     }
   } catch (error) {
-    console.error('[partner.service] Error in activatePartner:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in activatePartner:', error)
+    }
     throw error
   }
 }
@@ -586,7 +603,9 @@ export async function getPartnerUsers(partnerId: string) {
       orderBy: { createdAt: 'desc' },
     })
   } catch (error) {
-    console.error('[partner.service] Error in getPartnerUsers:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in getPartnerUsers:', error)
+    }
     throw error
   }
 }
@@ -660,7 +679,9 @@ export async function invitePartnerUser(
       plainPassword,
     }
   } catch (error) {
-    console.error('[partner.service] Error in invitePartnerUser:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in invitePartnerUser:', error)
+    }
     throw error
   }
 }
@@ -780,7 +801,9 @@ export async function getPartnerCommissions(
 
     return result
   } catch (error) {
-    console.error('[partner.service] Error in getPartnerCommissions:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in getPartnerCommissions:', error)
+    }
     throw error
   }
 }
@@ -865,7 +888,9 @@ export async function verifyInviteToken(token: string): Promise<VerifyTokenResul
       },
     }
   } catch (error) {
-    console.error('[partner.service] Error in verifyInviteToken:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[partner.service] Error in verifyInviteToken:', error)
+    }
     return {
       valid: false,
       error: 'An unexpected error occurred while verifying the token.',

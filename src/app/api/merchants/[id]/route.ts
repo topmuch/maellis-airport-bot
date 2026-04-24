@@ -4,6 +4,8 @@ import {
   updateMerchant,
   deleteMerchant,
 } from '@/lib/services/merchant.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { validateId, ValidationError, parseBody } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // GET /api/merchants/[id] — Get merchant by ID
@@ -12,14 +14,21 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Merchant ID is required' },
-        { status: 400 },
-      );
+    try {
+      validateId(id);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode });
+      }
+      throw err;
     }
 
     const merchant = await getMerchantById(id);
@@ -33,6 +42,13 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: merchant });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error(`[GET /api/merchants/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -48,17 +64,24 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Merchant ID is required' },
-        { status: 400 },
-      );
+    try {
+      validateId(id);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode });
+      }
+      throw err;
     }
 
-    const body = await request.json();
+    const body = await parseBody(request);
 
     // Validate commission rate if provided
     if (body.commissionRate !== undefined && (typeof body.commissionRate !== 'number' || body.commissionRate < 0 || body.commissionRate > 1)) {
@@ -130,14 +153,21 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Merchant ID is required' },
-        { status: 400 },
-      );
+    try {
+      validateId(id);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode });
+      }
+      throw err;
     }
 
     const result = await deleteMerchant(id);
@@ -155,6 +185,13 @@ export async function DELETE(
       message: 'Merchant deactivated successfully',
     });
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error(`[DELETE /api/merchants/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

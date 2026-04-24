@@ -18,6 +18,8 @@ export interface AirportSocketCallbacks {
 export interface UseAirportSocketReturn {
   /** Indique si la connexion Socket.io est active */
   isConnected: boolean
+  /** Last connection error, if any */
+  lastError: Error | null
   /** Rejoindre une salle admin spécifique */
   joinAdmin: (userId: string, role?: string) => void
   /** Quitter une salle admin */
@@ -37,6 +39,7 @@ export function useAirportSocket(
   callbacks: AirportSocketCallbacks = {}
 ): UseAirportSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
+  const [lastError, setLastError] = useState<Error | null>(null)
   const socketRef = useRef<Socket | null>(null)
   const callbacksRef = useRef(callbacks)
 
@@ -53,7 +56,7 @@ export function useAirportSocket(
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
@@ -63,20 +66,41 @@ export function useAirportSocket(
 
     socketInstance.on('connect', () => {
       setIsConnected(true)
+      setLastError(null)
       socketInstance.emit('join:airport', { airportCode })
     })
 
     socketInstance.on('disconnect', (reason) => {
       setIsConnected(false)
-      console.warn(`[WS] Déconnecté — aéroport: ${airportCode} — raison: ${reason}`)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[WS] Déconnecté — aéroport: ${airportCode} — raison: ${reason}`)
+      }
+    })
+
+    socketInstance.on('connect_error', (err) => {
+      setLastError(err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[WS] Connection error — aéroport: ${airportCode}:`, err.message)
+      }
+    })
+
+    socketInstance.on('error', (err) => {
+      setLastError(err instanceof Error ? err : new Error(String(err)))
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[WS] Socket error — aéroport: ${airportCode}:`, err)
+      }
     })
 
     socketInstance.io.on('reconnect_attempt', (attempt) => {
-      console.log(`[WS] Tentative de reconnexion #${attempt}…`)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[WS] Tentative de reconnexion #${attempt}…`)
+      }
     })
 
     socketInstance.io.on('reconnect', () => {
-      console.log(`[WS] Reconnecté — aéroport: ${airportCode}`)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[WS] Reconnecté — aéroport: ${airportCode}`)
+      }
       socketInstance.emit('join:airport', { airportCode })
     })
 
@@ -120,7 +144,7 @@ export function useAirportSocket(
     socketRef.current?.disconnect()
   }, [])
 
-  return { isConnected, joinAdmin, leaveAdmin, emitToAirport, disconnect }
+  return { isConnected, lastError, joinAdmin, leaveAdmin, emitToAirport, disconnect }
 }
 
 export default useAirportSocket

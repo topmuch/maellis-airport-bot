@@ -391,7 +391,7 @@ export async function checkoutCart(customerPhone: string, data: CheckoutInput) {
     }
 
     // --- Create one order per merchant ---
-    const orders = [];
+    const orders: Awaited<ReturnType<typeof createOrder>>[] = [];
 
     for (const [merchantId, merchantItems] of itemsByMerchant) {
       const merchantTotals = computeCartTotals(merchantItems, data.type);

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, requireRole } from '@/lib/auth'
 import { getProviders, createProvider } from '@/lib/services/transport.service'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/transport/providers?airport=DSS&type=taxi&active=true
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const airportCode = searchParams.get('airport')
     const type = searchParams.get('type') ?? undefined
@@ -35,16 +41,17 @@ export async function GET(request: NextRequest) {
 // POST /api/transport/providers — Create provider (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin')(request)
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
 
     if (!authResult.success) {
       return NextResponse.json(
         { success: false, error: authResult.error },
-        { status: authResult.status }
+        { status: authResult.status || 401 }
       )
     }
 
-    const body = await request.json()
+    const body = await parseBody(request)
+
     const {
       airportCode,
       name,
@@ -123,6 +130,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: provider }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('Error creating transport provider:', error)
 
     if (

@@ -318,10 +318,10 @@ export function MusicModule() {
     if (!trackForm.categoryId || !trackForm.youtubeUrl.trim()) return
     setSavingTrack(true)
     try {
-      const payload = { ...trackForm }
-      if (!payload.title.trim()) delete payload.title
-      if (!payload.artist.trim()) delete payload.artist
-      if (!payload.duration.trim()) delete payload.duration
+      const payload = { ...trackForm } as Record<string, string | number>
+      if (!(payload.title as string)?.trim()) delete payload.title
+      if (!(payload.artist as string)?.trim()) delete payload.artist
+      if (!(payload.duration as string)?.trim()) delete payload.duration
 
       if (editingTrackId) {
         await fetch(`/api/music/tracks/${editingTrackId}`, {

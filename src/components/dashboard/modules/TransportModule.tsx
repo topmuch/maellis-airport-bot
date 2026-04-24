@@ -370,7 +370,7 @@ export function TransportModule() {
       baseFare: provider.baseFare,
       perKmRate: provider.perKmRate,
       minFare: provider.minFare,
-      nightSurcharge: (provider as Record<string, unknown>).nightSurcharge as number ?? 0,
+      nightSurcharge: (provider as unknown as Record<string, unknown>).nightSurcharge as number ?? 0,
       contactPhone: '',
       contactEmail: '',
       whatsappNumber: '',
@@ -558,7 +558,7 @@ export function TransportModule() {
                           <TableCell className="text-right text-sm">{formatPrice(prov.baseFare)}</TableCell>
                           <TableCell className="text-right text-sm hidden sm:table-cell">{formatPrice(prov.perKmRate)}</TableCell>
                           <TableCell className="text-right text-sm hidden md:table-cell">{formatPrice(prov.minFare)}</TableCell>
-                          <TableCell className="hidden lg:table-cell text-sm">{(prov as Record<string, unknown>).nightSurcharge ? `${(prov as Record<string, unknown>).nightSurcharge}%` : '—'}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-sm">{(prov as unknown as Record<string, unknown>).nightSurcharge ? `${(prov as unknown as Record<string, unknown>).nightSurcharge}%` : '—'}</TableCell>
                           <TableCell><ActiveBadge isActive={prov.isActive !== false} /></TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">

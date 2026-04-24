@@ -243,13 +243,13 @@ export function RebookingModule() {
         if (data.data) {
           setStats(data.data)
         } else {
-          setStats(mockStats)
+          setStats(null)
         }
       } else {
-        setStats(mockStats)
+        setStats(null)
       }
     } catch {
-      setStats(mockStats)
+      setStats(null)
     } finally {
       setLoadingStats(false)
     }
@@ -275,13 +275,13 @@ export function RebookingModule() {
             }))
           )
         } else {
-          setLogs(mockLogs)
+          setLogs([])
         }
       } else {
-        setLogs(mockLogs)
+        setLogs([])
       }
     } catch {
-      setLogs(mockLogs)
+      setLogs([])
     } finally {
       setLoadingLogs(false)
     }
@@ -299,8 +299,17 @@ export function RebookingModule() {
   }
 
   // Derived values
-  const effectiveStats = stats ?? mockStats
-  const effectiveLogs = logs.length > 0 ? logs : mockLogs
+  const effectiveStats = stats ?? {
+    totalAlerts: 0,
+    todayAlerts: 0,
+    recentAlerts: 0,
+    acceptanceRate: 0,
+    statusBreakdown: [],
+    affectedFlights: [],
+    affectedAirlines: [],
+    uniquePassengers: 0,
+  } as RebookingStats
+  const effectiveLogs = logs
 
   return (
     <div className="flex flex-col gap-6">

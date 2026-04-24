@@ -4,9 +4,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 import { analyzeImage } from '@/lib/services/ocr.service'
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const body = await request.json()
     const { imageData, phone, source } = body

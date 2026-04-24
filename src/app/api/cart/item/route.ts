@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateCartItem, removeFromCart } from '@/lib/services/cart.service';
+import { requireAuth } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // PUT /api/cart/item — Update cart item quantity
@@ -7,7 +9,12 @@ import { updateCartItem, removeFromCart } from '@/lib/services/cart.service';
 // ---------------------------------------------------------------------------
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = ['phone', 'cartItemId', 'quantity'];
@@ -54,6 +61,9 @@ export async function PUT(request: NextRequest) {
         : 'Cart item updated',
     });
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       const message = error.message;
 
@@ -89,7 +99,12 @@ export async function PUT(request: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function DELETE(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = ['phone', 'cartItemId'];
@@ -126,6 +141,9 @@ export async function DELETE(request: NextRequest) {
       message: 'Item removed from cart',
     });
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       const message = error.message;
 

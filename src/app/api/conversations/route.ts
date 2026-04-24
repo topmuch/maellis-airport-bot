@@ -1,11 +1,23 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getPagination } from '@/lib/validate'
 
 // GET /api/conversations - List conversations with user info
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const { page, limit, skip } = getPagination(searchParams)
+
     const conversations = await db.conversation.findMany({
       orderBy: { lastMessage: 'desc' },
+      skip,
+      take: limit,
       include: {
         user: true,
         _count: {
@@ -30,7 +42,7 @@ export async function GET() {
       updatedAt: conv.updatedAt,
     }))
 
-    return NextResponse.json({ data: formatted })
+    return NextResponse.json({ data: formatted, page, limit })
   } catch (error) {
     console.error('Error fetching conversations:', error)
     return NextResponse.json(

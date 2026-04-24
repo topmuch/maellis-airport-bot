@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createReview, getReviews } from '@/lib/services/merchant.service';
+import { requireAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // GET /api/merchants/[id]/reviews?rating=5
@@ -8,12 +9,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id: merchantId } = await params;
 
-    if (!merchantId) {
+    if (!merchantId || typeof merchantId !== 'string' || merchantId.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Merchant ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
@@ -56,9 +62,9 @@ export async function POST(
   try {
     const { id: merchantId } = await params;
 
-    if (!merchantId) {
+    if (!merchantId || typeof merchantId !== 'string' || merchantId.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Merchant ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

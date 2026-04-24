@@ -12,6 +12,8 @@ export interface UseSocketConnectionReturn {
   connect: () => void
   /** Déconnexion manuelle */
   disconnect: () => void
+  /** Last connection error, if any */
+  lastError: Error | null
 }
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
@@ -24,6 +26,7 @@ const WS_URL = '/?XTransformPort=3008'
  */
 export function useSocketConnection(autoConnect = false): UseSocketConnectionReturn {
   const [isConnected, setIsConnected] = useState(false)
+  const [lastError, setLastError] = useState<Error | null>(null)
   const socketRef = useRef<Socket | null>(null)
 
   const connect = useCallback(() => {
@@ -33,7 +36,7 @@ export function useSocketConnection(autoConnect = false): UseSocketConnectionRet
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
@@ -43,10 +46,22 @@ export function useSocketConnection(autoConnect = false): UseSocketConnectionRet
 
     socketInstance.on('connect', () => {
       setIsConnected(true)
+      setLastError(null)
     })
 
     socketInstance.on('disconnect', () => {
       setIsConnected(false)
+    })
+
+    socketInstance.on('connect_error', (err) => {
+      setLastError(err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[WS] Connection error:', err.message)
+      }
+    })
+
+    socketInstance.on('error', (err) => {
+      setLastError(err instanceof Error ? err : new Error(String(err)))
     })
   }, [])
 
@@ -54,6 +69,7 @@ export function useSocketConnection(autoConnect = false): UseSocketConnectionRet
     socketRef.current?.disconnect()
     socketRef.current = null
     setIsConnected(false)
+    setLastError(null)
   }, [])
 
   // Connexion automatique si demandée
@@ -67,7 +83,7 @@ export function useSocketConnection(autoConnect = false): UseSocketConnectionRet
     }
   }, [autoConnect, connect])
 
-  return { isConnected, connect, disconnect }
+  return { isConnected, connect, disconnect, lastError }
 }
 
 export default useSocketConnection

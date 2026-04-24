@@ -380,16 +380,16 @@ export function LoungeModule() {
     setLoungeForm({
       name: lounge.name,
       airportCode: lounge.airportCode,
-      terminal: (lounge as Record<string, unknown>).terminal as string ?? '',
-      gateLocation: (lounge as Record<string, unknown>).gateLocation as string ?? '',
+      terminal: (lounge as unknown as Record<string, unknown>).terminal as string ?? '',
+      gateLocation: (lounge as unknown as Record<string, unknown>).gateLocation as string ?? '',
       description: lounge.description ?? '',
       priceStandard: lounge.priceStandard,
       priceBusiness: lounge.priceBusiness ?? 0,
-      priceFirstClass: (lounge as Record<string, unknown>).priceFirstClass as number ?? 0,
-      priceChild: (lounge as Record<string, unknown>).priceChild as number ?? 0,
+      priceFirstClass: (lounge as unknown as Record<string, unknown>).priceFirstClass as number ?? 0,
+      priceChild: (lounge as unknown as Record<string, unknown>).priceChild as number ?? 0,
       maxCapacity: lounge.maxCapacity,
-      openingTime: (lounge as Record<string, unknown>).openingTime as string ?? '',
-      closingTime: (lounge as Record<string, unknown>).closingTime as string ?? '',
+      openingTime: (lounge as unknown as Record<string, unknown>).openingTime as string ?? '',
+      closingTime: (lounge as unknown as Record<string, unknown>).closingTime as string ?? '',
       amenities: lounge.amenities ?? [],
     })
     setLoungeDialogOpen(true)
@@ -609,7 +609,7 @@ export function LoungeModule() {
                       {filteredLounges.map((lounge) => (
                         <TableRow key={lounge.id}>
                           <TableCell className="font-medium">{lounge.name}</TableCell>
-                          <TableCell className="hidden md:table-cell text-sm">{(lounge as Record<string, unknown>).terminal as string ?? '—'}</TableCell>
+                          <TableCell className="hidden md:table-cell text-sm">{(lounge as unknown as Record<string, unknown>).terminal as string ?? '—'}</TableCell>
                           <TableCell className="text-right text-sm">{formatPrice(lounge.priceStandard)}</TableCell>
                           <TableCell className="text-right text-sm hidden sm:table-cell">{lounge.priceBusiness ? formatPrice(lounge.priceBusiness) : '—'}</TableCell>
                           <TableCell className="hidden lg:table-cell">

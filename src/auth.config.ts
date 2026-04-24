@@ -79,31 +79,41 @@ export const authConfig = {
 
       return true
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: any; user: any }) {
       if (user) {
-        token.role = (user as any).role
-        token.airportCode = (user as any).airportCode
-        token.isActive = (user as any).isActive
+        token.role = user.role
+        token.airportCode = user.airportCode
+        token.isActive = user.isActive
         token.userId = user.id
       }
       return token
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: any }) {
       if (session.user) {
-        (session.user as any).role = token.role
-        (session.user as any).airportCode = token.airportCode
-        (session.user as any).isActive = token.isActive
-        (session.user as any).userId = token.userId
+        session.user.role = token.role
+        session.user.airportCode = token.airportCode
+        session.user.isActive = token.isActive
+        session.user.userId = token.userId
       }
       return session
     },
     async signIn({ user, account }) {
-      // Only apply isActive check for credentials provider
-      if (account?.provider === 'credentials' && user) {
-        // isActive is already checked in the authorize function
+      // Only allow credentials provider
+      if (account?.provider !== 'credentials') {
+        return false
       }
+      // isActive is already checked in the authorize function
       return true
     },
   },
-  secret: process.env.AUTH_SECRET || 'smartly-auth-secret-change-in-production-v1',
+  secret: (() => {
+    const s = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
+    if (!s && process.env.NODE_ENV === 'production') {
+      throw new Error('[AUTH] NEXTAUTH_SECRET (or AUTH_SECRET) is required in production. Generate one with: openssl rand -base64 32')
+    }
+    if (!s) {
+      console.warn('[AUTH] NEXTAUTH_SECRET is not set. Sessions will be unstable. Set it in .env')
+    }
+    return s
+  })(),
 } satisfies NextAuthConfig

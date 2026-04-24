@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
-import { assignDriver, updateBookingStatus } from '@/lib/services/transport.service'
+import { requireAuth } from '@/lib/auth'
+import { updateBookingStatus, assignDriver } from '@/lib/services/transport.service'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -12,17 +13,18 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin', 'agent')(request)
-
+    const authResult = await requireAuth(request)
     if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      )
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
     }
 
     const { id } = await params
-    const body = await request.json()
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
+
+    const body = await parseBody(request)
 
     // Branch 1: Assign driver — requires driverName, driverPhone, vehiclePlate
     if (body.driverName || body.driverPhone || body.vehiclePlate) {
@@ -63,17 +65,20 @@ export async function PUT(
       { status: 400 }
     )
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('Error updating transport booking:', error)
 
-    const message =
-      error instanceof Error ? error.message : 'Failed to update transport booking'
+    const internalMessage =
+      error instanceof Error ? error.message : ''
 
     // Known business errors
-    if (message === 'Transport booking not found') {
-      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    if (internalMessage === 'Transport booking not found') {
+      return NextResponse.json({ success: false, error: 'Transport booking not found' }, { status: 404 })
     }
-    if (message.includes('Cannot assign driver') || message.startsWith('Invalid status transition') || message.startsWith('Invalid status')) {
-      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    if (internalMessage.includes('Cannot assign driver') || internalMessage.startsWith('Invalid status transition') || internalMessage.startsWith('Invalid status')) {
+      return NextResponse.json({ success: false, error: 'Failed to update transport booking' }, { status: 400 })
     }
 
     return NextResponse.json(

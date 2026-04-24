@@ -1,9 +1,61 @@
 import { db } from '@/lib/db'
+import { z } from 'zod'
 
 // ═══════════════════════════════════════════════════════════════
 // MAELLIS Airport Bot — Transport Service
 // Full business logic for transport providers & bookings
 // ═══════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────
+// Validation Helpers
+// ─────────────────────────────────────────────
+
+/** Validate a non-negative finite number (must be >= 0) */
+function validateNonNegative(value: unknown, fieldName: string): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`)
+  }
+  return n
+}
+
+/** Validate a positive finite number (must be > 0) */
+function validatePositive(value: unknown, fieldName: string): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`${fieldName} must be a positive number`)
+  }
+  return n
+}
+
+/** Validate a positive finite integer */
+function validatePositiveInteger(value: unknown, fieldName: string, min = 1): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < min || Math.floor(n) !== n) {
+    throw new Error(`${fieldName} must be an integer >= ${min}`)
+  }
+  return n
+}
+
+/** Wrap error to prevent internal details from leaking */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[transport.service] ${context}:`, message)
+  }
+  if (error instanceof Error) {
+    return new Error(error.message.includes('Prisma') ? 'Database error' : error.message)
+  }
+  return new Error('An unexpected error occurred')
+}
+
+/** Validate phone format */
+function validatePhone(phone: unknown, fieldName = 'phone'): string {
+  if (typeof phone !== 'string' || !/^[+\d\s\-()]{6,20}$/.test(phone.trim())) {
+    throw new Error(`Invalid ${fieldName}: must be 6-20 characters and contain only digits, spaces, +, -, ()`)
+  }
+  return phone.trim()
+}
 
 // ─────────────────────────────────────────────
 // TypeScript Interfaces
@@ -95,6 +147,43 @@ export const BOOKING_STATUSES = [
 ] as const
 export type BookingStatus = (typeof BOOKING_STATUSES)[number]
 
+// ─── Zod Validation Schemas ──────────────────────────────────────────────
+
+const transportTypeZodEnum = z.enum(TRANSPORT_TYPES)
+const bookingStatusZodEnum = z.enum(BOOKING_STATUSES)
+const yyyyMmddRegex = /^\d{4}-\d{2}-\d{2}$/
+const dateSchema = z.string().regex(yyyyMmddRegex, 'Must be a valid date in YYYY-MM-DD format')
+const hhMmRegex = /^\d{2}:\d{2}$/
+const timeSchema = z.string().regex(hhMmRegex, 'Must be a valid time in HH:MM format')
+
+const getProvidersSchema = z.object({
+  airportCode: z.string().min(1, 'airportCode is required'),
+  type: transportTypeZodEnum.optional(),
+  activeOnly: z.boolean().default(true),
+})
+
+const getBookingsSchema = z.object({
+  providerId: z.string().optional(),
+  status: bookingStatusZodEnum.optional(),
+})
+
+const vehicleTypeEnum = z.enum(['taxi', 'vtc', 'shuttle', 'private', 'sedan', 'suv', 'van', 'bus'])
+
+const createBookingSchema = z.object({
+  providerId: z.string().min(1, 'providerId is required'),
+  passengerName: z.string().min(1, 'passengerName is required').max(200, 'passengerName must be at most 200 characters'),
+  phone: z.string().min(6, 'phone is required'),
+  email: z.string().email('Invalid email format').optional(),
+  pickupLocation: z.string().min(1, 'pickupLocation is required').max(200),
+  dropoffLocation: z.string().min(1, 'dropoffLocation is required').max(200),
+  pickupDate: dateSchema,
+  pickupTime: timeSchema,
+  passengers: z.coerce.number().int().min(1).default(1),
+  distanceKm: z.number().min(0).optional(),
+  vehicleType: vehicleTypeEnum.optional(),
+  paymentMethod: z.string().max(50).optional(),
+})
+
 /** Allowed status transitions */
 const STATUS_TRANSITIONS: Record<string, BookingStatus[]> = {
   pending: ['assigned', 'cancelled'],
@@ -177,14 +266,21 @@ export async function getProviders(
   activeOnly: boolean = true
 ) {
   try {
-    const where: Record<string, unknown> = { airportCode }
+    // Zod validation
+    const parsed = getProvidersSchema.safeParse({ airportCode, type, activeOnly })
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
+    }
+    const { airportCode: ac, type: tp, activeOnly: ao } = parsed.data
 
-    if (activeOnly) {
+    const where: Record<string, unknown> = { airportCode: ac }
+
+    if (ao) {
       where.isActive = true
     }
 
-    if (type) {
-      where.type = type
+    if (tp) {
+      where.type = tp
     }
 
     return db.transportProvider.findMany({
@@ -192,8 +288,10 @@ export async function getProviders(
       orderBy: { name: 'asc' },
     })
   } catch (error) {
-    console.error('[transport.service] getProviders error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'getProviders')
   }
 }
 
@@ -207,8 +305,7 @@ export async function getProviderById(id: string) {
       where: { id },
     })
   } catch (error) {
-    console.error('[transport.service] getProviderById error:', error)
-    throw error
+    throw safeError(error, 'getProviderById')
   }
 }
 
@@ -219,16 +316,22 @@ export async function getProviderById(id: string) {
  */
 export async function createProvider(data: CreateProviderData) {
   try {
+    // Validate pricing fields
+    const safeBaseFare = validateNonNegative(data.baseFare, 'baseFare')
+    const safePerKmRate = validateNonNegative(data.perKmRate, 'perKmRate')
+    const safeMinFare = validateNonNegative(data.minFare, 'minFare')
+    const safeNightSurcharge = validateNonNegative(data.nightSurcharge ?? 0, 'nightSurcharge')
+
     return db.transportProvider.create({
       data: {
         airportCode: data.airportCode,
         name: data.name,
         type: data.type,
         logoUrl: data.logoUrl ?? null,
-        baseFare: data.baseFare,
-        perKmRate: data.perKmRate,
-        minFare: data.minFare,
-        nightSurcharge: data.nightSurcharge ?? 0,
+        baseFare: safeBaseFare,
+        perKmRate: safePerKmRate,
+        minFare: safeMinFare,
+        nightSurcharge: safeNightSurcharge,
         contactPhone: data.contactPhone ?? '',
         contactEmail: data.contactEmail ?? '',
         whatsappNumber: data.whatsappNumber ?? '',
@@ -237,8 +340,10 @@ export async function createProvider(data: CreateProviderData) {
       },
     })
   } catch (error) {
-    console.error('[transport.service] createProvider error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'createProvider')
   }
 }
 
@@ -256,10 +361,10 @@ export async function updateProvider(id: string, data: UpdateProviderData) {
     if (data.type !== undefined) updateData.type = data.type
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl
     if (data.isActive !== undefined) updateData.isActive = data.isActive
-    if (data.baseFare !== undefined) updateData.baseFare = data.baseFare
-    if (data.perKmRate !== undefined) updateData.perKmRate = data.perKmRate
-    if (data.minFare !== undefined) updateData.minFare = data.minFare
-    if (data.nightSurcharge !== undefined) updateData.nightSurcharge = data.nightSurcharge
+    if (data.baseFare !== undefined) updateData.baseFare = validateNonNegative(data.baseFare, 'baseFare')
+    if (data.perKmRate !== undefined) updateData.perKmRate = validateNonNegative(data.perKmRate, 'perKmRate')
+    if (data.minFare !== undefined) updateData.minFare = validateNonNegative(data.minFare, 'minFare')
+    if (data.nightSurcharge !== undefined) updateData.nightSurcharge = validateNonNegative(data.nightSurcharge, 'nightSurcharge')
     if (data.contactPhone !== undefined) updateData.contactPhone = data.contactPhone
     if (data.contactEmail !== undefined) updateData.contactEmail = data.contactEmail
     if (data.whatsappNumber !== undefined) updateData.whatsappNumber = data.whatsappNumber
@@ -273,8 +378,10 @@ export async function updateProvider(id: string, data: UpdateProviderData) {
       data: updateData,
     })
   } catch (error) {
-    console.error('[transport.service] updateProvider error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'updateProvider')
   }
 }
 
@@ -300,8 +407,10 @@ export async function deleteProvider(id: string) {
       data: { isActive: false },
     })
   } catch (error) {
-    console.error('[transport.service] deleteProvider error:', error)
-    throw error
+    if (error instanceof Error && error.message.startsWith('Transport')) {
+      throw error
+    }
+    throw safeError(error, 'deleteProvider')
   }
 }
 
@@ -338,14 +447,22 @@ export function calculatePrice(
   pickupTime?: string
 ): PriceBreakdown {
   try {
+    // Validate inputs
+    const safeDistanceKm = validateNonNegative(distanceKm, 'distanceKm')
+    const safePassengers = validatePositiveInteger(passengers, 'passengers')
+    const safeBaseFare = validateNonNegative(provider.baseFare, 'baseFare')
+    const safePerKmRate = validateNonNegative(provider.perKmRate, 'perKmRate')
+    const safeMinFare = validateNonNegative(provider.minFare, 'minFare')
+    const safeNightSurcharge = validateNonNegative(provider.nightSurcharge, 'nightSurcharge')
+
     // Step 1–3: Base + distance
-    const basePrice = provider.baseFare
-    const distancePrice = distanceKm * provider.perKmRate
+    const basePrice = safeBaseFare
+    const distancePrice = safeDistanceKm * safePerKmRate
     let price = basePrice + distancePrice
 
     // Step 4: Apply minimum fare floor
-    if (price < provider.minFare) {
-      price = provider.minFare
+    if (price < safeMinFare) {
+      price = safeMinFare
     }
 
     // Step 5: Night surcharge (22h–5h59)
@@ -353,19 +470,19 @@ export function calculatePrice(
     let nightSurchargeAmount = 0
 
     if (hour >= 22 || hour < 6) {
-      nightSurchargeAmount = Math.round(price * provider.nightSurcharge)
+      nightSurchargeAmount = Math.round(price * safeNightSurcharge)
       price += nightSurchargeAmount
     }
 
     // Step 6: Extra passenger surcharge (>4 passengers)
     let extraPassengerAmount = 0
-    if (passengers > 4) {
-      extraPassengerAmount = (passengers - 4) * 1000
+    if (safePassengers > 4) {
+      extraPassengerAmount = (safePassengers - 4) * 1000
       price += extraPassengerAmount
     }
 
     return {
-      distanceKm,
+      distanceKm: safeDistanceKm,
       basePrice: Math.round(basePrice),
       distancePrice: Math.round(distancePrice),
       nightSurchargeAmount,
@@ -374,8 +491,10 @@ export function calculatePrice(
       currency: 'XOF',
     }
   } catch (error) {
-    console.error('[transport.service] calculatePrice error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'calculatePrice')
   }
 }
 
@@ -397,9 +516,22 @@ export function calculatePrice(
  */
 export async function createBooking(data: CreateBookingData) {
   try {
+    // Zod validation
+    const parsed = createBookingSchema.safeParse(data)
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
+    }
+    const validatedData = parsed.data
+
+    // Validate inputs
+    const safePassengerName = validatedData.passengerName.trim().slice(0, 200)
+    const safePickupLocation = validatedData.pickupLocation.trim().slice(0, 200)
+    const safeDropoffLocation = validatedData.dropoffLocation.trim().slice(0, 200)
+    const safePhone = validatePhone(validatedData.phone, 'phone')
+
     // 1. Fetch provider
     const provider = await db.transportProvider.findUnique({
-      where: { id: data.providerId },
+      where: { id: validatedData.providerId },
     })
 
     if (!provider) {
@@ -411,13 +543,13 @@ export async function createBooking(data: CreateBookingData) {
     }
 
     // 2. Calculate price
-    const distanceKm = data.distanceKm ?? 10
-    const passengers = data.passengers ?? 1
+    const distanceKm = validateNonNegative(validatedData.distanceKm ?? 10, 'distanceKm')
+    const passengers = validatePositiveInteger(validatedData.passengers ?? 1, 'passengers')
     const priceBreakdown = calculatePrice(
       provider,
       distanceKm,
       passengers,
-      data.pickupTime
+      validatedData.pickupTime
     )
 
     // 3. Generate unique booking reference
@@ -427,17 +559,17 @@ export async function createBooking(data: CreateBookingData) {
     const booking = await db.transportBooking.create({
       data: {
         providerId: provider.id,
-        passengerName: data.passengerName,
-        phone: data.phone,
-        email: data.email ?? null,
-        vehicleType: data.vehicleType || provider.type,
-        pickupLocation: data.pickupLocation,
-        dropoffLocation: data.dropoffLocation,
-        pickupDate: data.pickupDate,
-        pickupTime: data.pickupTime,
+        passengerName: safePassengerName,
+        phone: safePhone,
+        email: validatedData.email ?? null,
+        vehicleType: validatedData.vehicleType || provider.type,
+        pickupLocation: safePickupLocation,
+        dropoffLocation: safeDropoffLocation,
+        pickupDate: validatedData.pickupDate,
+        pickupTime: validatedData.pickupTime,
         passengers,
         totalPrice: priceBreakdown.totalPrice,
-        paymentMethod: data.paymentMethod ?? null,
+        paymentMethod: validatedData.paymentMethod ?? null,
         paymentStatus: 'pending',
         bookingRef,
         distanceKm,
@@ -452,8 +584,10 @@ export async function createBooking(data: CreateBookingData) {
     // 5. Return booking with provider
     return booking
   } catch (error) {
-    console.error('[transport.service] createBooking error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.startsWith('Transport') || error.message.includes('must be') || error.message.includes('is required'))) {
+      throw error
+    }
+    throw safeError(error, 'createBooking')
   }
 }
 
@@ -489,7 +623,7 @@ export async function assignDriver(bookingId: string, driver: AssignDriverData) 
       where: { id: bookingId },
       data: {
         driverName: driver.name,
-        driverPhone: driver.phone,
+        driverPhone: validatePhone(driver.phone, 'driver phone'),
         vehiclePlate: driver.plate,
         status: 'assigned',
       },
@@ -498,8 +632,10 @@ export async function assignDriver(bookingId: string, driver: AssignDriverData) 
       },
     })
   } catch (error) {
-    console.error('[transport.service] assignDriver error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Transport') || error.message.startsWith('Cannot'))) {
+      throw error
+    }
+    throw safeError(error, 'assignDriver')
   }
 }
 
@@ -560,8 +696,10 @@ export async function updateBookingStatus(bookingId: string, status: string) {
       },
     })
   } catch (error) {
-    console.error('[transport.service] updateBookingStatus error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Transport'))) {
+      throw error
+    }
+    throw safeError(error, 'updateBookingStatus')
   }
 }
 
@@ -578,14 +716,20 @@ export async function updateBookingStatus(bookingId: string, status: string) {
  */
 export async function getBookings(providerId?: string, status?: string) {
   try {
-    const where: Record<string, unknown> = {}
-
-    if (providerId) {
-      where.providerId = providerId
+    // Zod validation
+    const parsed = getBookingsSchema.safeParse({ providerId, status })
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
     }
 
-    if (status) {
-      where.status = status
+    const where: Record<string, unknown> = {}
+
+    if (parsed.data.providerId) {
+      where.providerId = parsed.data.providerId
+    }
+
+    if (parsed.data.status) {
+      where.status = parsed.data.status
     }
 
     return db.transportBooking.findMany({
@@ -596,7 +740,9 @@ export async function getBookings(providerId?: string, status?: string) {
       },
     })
   } catch (error) {
-    console.error('[transport.service] getBookings error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'getBookings')
   }
 }

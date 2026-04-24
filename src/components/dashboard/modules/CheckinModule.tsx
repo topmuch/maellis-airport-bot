@@ -421,7 +421,12 @@ function StatCard({ title, value, icon, colorClass, iconBgClass, subtitle }: Sta
 
 export function CheckinModule() {
   const [sessions, setSessions] = useState<CheckInSession[]>([])
-  const [stats, setStats] = useState<CheckInStats>(MOCK_STATS)
+  const [stats, setStats] = useState<CheckInStats>({
+    totalSessions: 0,
+    sessionsLast7Days: 0,
+    statusBreakdown: [],
+    airlineBreakdown: [],
+  })
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -468,10 +473,15 @@ export function CheckinModule() {
         }
       }
     } catch {
-      // Fallback to mock data
+      // API error — leave lists empty
     }
-    setSessions(MOCK_SESSIONS)
-    setStats(MOCK_STATS)
+    setSessions([])
+    setStats({
+      totalSessions: 0,
+      sessionsLast7Days: 0,
+      statusBreakdown: [],
+      airlineBreakdown: [],
+    })
     setIsRefreshing(false)
     if (showLoading) setLoading(false)
   }, [])

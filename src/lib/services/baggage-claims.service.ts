@@ -56,7 +56,9 @@ export async function fileClaim(data: {
         where: { id: baggageId },
       })
       if (!baggage) {
-        console.warn(`[baggage-claims.service] fileClaim: baggage "${baggageId}" not found, proceeding without link`)
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`[baggage-claims.service] fileClaim: baggage "${baggageId}" not found, proceeding without link`)
+        }
       }
     }
 
@@ -72,7 +74,9 @@ export async function fileClaim(data: {
       },
     })
   } catch (error) {
-    console.error('[baggage-claims.service] fileClaim failed:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[baggage-claims.service] fileClaim failed:', error)
+    }
     throw error
   }
 }
@@ -96,7 +100,9 @@ export async function getClaims(params?: {
 
     // Validate status filter
     if (status && !isValidStatus(status)) {
-      console.warn(`[baggage-claims.service] getClaims: invalid status "${status}"`)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[baggage-claims.service] getClaims: invalid status "${status}"`)
+      }
       return { claims: [], total: 0, page, limit }
     }
 
@@ -122,7 +128,9 @@ export async function getClaims(params?: {
       totalPages: Math.ceil(total / limit),
     }
   } catch (error) {
-    console.error('[baggage-claims.service] getClaims failed:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[baggage-claims.service] getClaims failed:', error)
+    }
     throw error
   }
 }
@@ -187,7 +195,9 @@ export async function updateClaimStatus(
       data: updateData,
     })
   } catch (error) {
-    console.error('[baggage-claims.service] updateClaimStatus failed:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[baggage-claims.service] updateClaimStatus failed:', error)
+    }
     throw error
   }
 }
@@ -268,7 +278,9 @@ export async function getBaggageStats(airportCode?: string) {
       totalCompensation,
     }
   } catch (error) {
-    console.error('[baggage-claims.service] getBaggageStats failed:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[baggage-claims.service] getBaggageStats failed:', error)
+    }
     throw error
   }
 }
@@ -286,7 +298,7 @@ export async function estimateCarousel(flightNumber: string) {
     // Try to find flight data from FlightStatus table
     const flight = await db.flightStatus.findFirst({
       where: {
-        flightNumber: { contains: flightNumber, mode: 'insensitive' },
+        flightNumber: { contains: flightNumber },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -336,7 +348,9 @@ export async function estimateCarousel(flightNumber: string) {
       message: `Aucune donnée de vol trouvée pour ${flightNumber}. Veuillez vérifier le numéro de vol ou contacter le service bagages.`,
     }
   } catch (error) {
-    console.error('[baggage-claims.service] estimateCarousel failed:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[baggage-claims.service] estimateCarousel failed:', error)
+    }
     throw error
   }
 }

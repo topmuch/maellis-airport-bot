@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPayouts } from '@/lib/services/payout.service';
+import { requireRole } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // GET /api/payouts?merchantId=xxx&status=xxx&startDate=xxx&endDate=xxx
 // List payouts with optional filters and aggregate stats
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
+  const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN');
+  const authResult = await checkRole(request);
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const merchantId = searchParams.get('merchantId') || undefined;

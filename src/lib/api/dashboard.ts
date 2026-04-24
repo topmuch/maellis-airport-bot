@@ -70,8 +70,6 @@ export interface ActivityResponse {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const TIMEOUT_MS = 5000
-const RETRY_COUNT = 2
-
 async function fetchWithTimeout(
   url: string,
   options?: RequestInit,

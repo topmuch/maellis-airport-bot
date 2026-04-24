@@ -1,78 +1,41 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: maellis-db
-    environment:
-      POSTGRES_USER: maellis
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-maellis_secret_2024}
-      POSTGRES_DB: maellis_db
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U maellis"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Redis (Cache & Sessions)
-  redis:
-    image: redis:7-alpine
-    container_name: maellis-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Backend Bot Service (Bun)
-  bot-service:
-    build:
-      context: ./mini-services/bot-service
-      dockerfile: Dockerfile
-    container_name: maellis-bot
-    env_file:
-      - .env
-    environment:
-      - DATABASE_URL=postgresql://maellis:${DB_PASSWORD:-maellis_secret_2024}@postgres:5432/maellis_db
-      - REDIS_URL=redis://redis:6379
-    ports:
-      - "3005:3005"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # Frontend Dashboard (Next.js)
-  dashboard:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: maellis-dashboard
-    env_file:
-      - .env
+    expose:
+      - "3000"
     environment:
-      - DATABASE_URL=postgresql://maellis:${DB_PASSWORD:-maellis_secret_2024}@postgres:5432/maellis_db
-    ports:
-      - "3000:3000"
-    depends_on:
-      - bot-service
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/custom.db
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set}
+      - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET must be set}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+    volumes:
+      - app-data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Caddy reverse proxy (dev)
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
 
 volumes:
-  pgdata:
-    driver: local
-  redisdata:
-    driver: local
+  app-data:
+  caddy-data:
+  caddy-config:

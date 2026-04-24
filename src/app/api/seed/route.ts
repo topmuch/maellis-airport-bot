@@ -1,10 +1,31 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword } from '@/lib/auth'
+import { hashPassword, requireRole } from '@/lib/auth'
 import { createFAQ } from '@/lib/services/faq.service'
 
 // POST /api/seed - Seed database with realistic African airport data
-export async function POST() {
+// SECURITY: This route is PROTECTED and restricted to superadmin only.
+// It is BLOCKED entirely in production (NODE_ENV === 'production').
+export async function POST(request: NextRequest) {
+  // ─── PRODUCTION GUARD ─────────────────────────────────────────────
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('[SEED] Seed endpoint blocked in production environment')
+    return NextResponse.json(
+      { error: 'This endpoint is disabled in production.' },
+      { status: 403 }
+    )
+  }
+
+  // ─── AUTHENTICATION GUARD ────────────────────────────────────────
+  const checkRole = requireRole('superadmin')
+  const authResult = await checkRole(request)
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json(
+      { error: authResult.error || 'Authentication required' },
+      { status: authResult.status || 401 }
+    )
+  }
+
   try {
     // Clean existing data (ordered by dependencies)
     await db.message.deleteMany()
@@ -35,12 +56,16 @@ export async function POST() {
         name: 'Admin MAELLIS',
         email: 'admin@maellis.aero',
         role: 'superadmin',
-        passwordHash: hashPassword('Admin@123'),
+        passwordHash: hashPassword(process.env.SEED_ADMIN_PASSWORD || `SA_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`),
         airportCode: 'DSS',
         isActive: true,
         lastLogin: new Date(),
       },
     })
+
+    if (!process.env.SEED_ADMIN_PASSWORD) {
+      console.log(`[SEED] Admin created with auto-generated password. Set SEED_ADMIN_PASSWORD in .env to use a custom one.`)
+    }
 
     // ========================
     // 2. SETTINGS
@@ -86,7 +111,7 @@ export async function POST() {
       { phone: '+2348033456789', name: 'Emeka Eze', language: 'en' },
     ]
 
-    const createdUsers = []
+    const createdUsers: Awaited<ReturnType<typeof db.user.create>>[] = []
     for (const u of usersData) {
       createdUsers.push(await db.user.create({ data: u }))
     }
@@ -676,9 +701,9 @@ export async function POST() {
       counts,
     })
   } catch (error) {
-    console.error('Error seeding database:', error)
+    console.error('[SEED] Database seed error:', error)
     return NextResponse.json(
-      { error: 'Failed to seed database', details: String(error) },
+      { error: 'An error occurred while seeding the database.' },
       { status: 500 }
     )
   }

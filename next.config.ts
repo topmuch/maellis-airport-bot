@@ -4,10 +4,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 
-  reactStrictMode: false,
+  reactStrictMode: true,
 
   // ─── Cross-Origin Sandbox Support ─────────────────────────────────────
   // Allow preview panel (z.ai sandbox) to use Server Actions and load _next/* resources.

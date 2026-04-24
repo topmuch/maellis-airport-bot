@@ -1,19 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
-import { verifyRefreshToken, generateToken, type AuthUser } from '@/lib/auth'
+import { verifyRefreshToken, generateToken, normalizeRole, type AuthUser } from '@/lib/auth'
+
+// ─── Input Validation ───────────────────────────────────────────────
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+})
 
 // POST /api/auth/refresh — Refresh access token using refresh token
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { refreshToken: incomingRefreshToken } = body
-
-    if (!incomingRefreshToken) {
+    // Guard: JWT_SECRET must be configured
+    if (!process.env.JWT_SECRET) {
+      console.error('[AUTH] Token refresh attempt failed: JWT_SECRET is not configured')
       return NextResponse.json(
-        { error: 'Refresh token is required' },
+        { error: 'Authentication service is not configured. Contact your administrator.' },
+        { status: 503 }
+      )
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid request body. Expected JSON.' },
         { status: 400 }
       )
     }
+
+    const parsed = refreshSchema.safeParse(body)
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0]
+      return NextResponse.json(
+        { error: firstIssue?.message ?? 'Invalid input' },
+        { status: 400 }
+      )
+    }
+
+    const { refreshToken: incomingRefreshToken } = parsed.data
 
     // Verify the refresh token
     const verification = verifyRefreshToken(incomingRefreshToken)
@@ -63,7 +89,7 @@ export async function POST(request: NextRequest) {
       id: admin.id,
       email: admin.email,
       name: admin.name,
-      role: admin.role as AuthUser['role'],
+      role: normalizeRole(admin.role),
       airportCode: admin.airportCode ?? undefined,
     }
 

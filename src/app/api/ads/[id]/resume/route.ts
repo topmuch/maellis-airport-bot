@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resumeAd } from '@/lib/services/ad.service';
+import { requireRole } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // POST /api/ads/[id]/resume — Resume ad (paused → active)
@@ -9,11 +10,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Ad ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

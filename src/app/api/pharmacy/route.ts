@@ -6,9 +6,16 @@ import {
   getPharmacyOrders,
   getHealthStats,
 } from '@/lib/services/health-pharmacy.service'
+import { requireAuth } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/pharmacy - Search products, list merchants, list orders, or stats
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
@@ -62,6 +69,13 @@ export async function GET(request: NextRequest) {
         )
     }
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error in pharmacy GET handler:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to process pharmacy request' },
@@ -72,8 +86,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/pharmacy - Create a pharmacy order
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
-    const body = await request.json()
+    const body = await parseBody(request)
     const { customerName, customerPhone, items } = body
 
     if (!customerName || !customerPhone) {
@@ -102,10 +121,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: order }, { status: 201 })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error creating pharmacy order:', error)
-    const message = error instanceof Error ? error.message : 'Failed to create pharmacy order'
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: 'Failed to create pharmacy order' },
       { status: 500 }
     )
   }

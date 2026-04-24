@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || undefined
     const dateFrom = searchParams.get('dateFrom') || undefined
     const dateTo = searchParams.get('dateTo') || undefined
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20') || 20))
 
     const result = await getInvoices({
       clientId,
@@ -53,8 +53,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const { clientId, type, items, issueDate, dueDate, notes, currency } = body
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const { clientId, type, items, issueDate, dueDate, notes, currency } = body as Record<string, any>
 
     // Validation
     if (!clientId) {
@@ -86,13 +96,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
-      if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
         return NextResponse.json(
           { success: false, error: 'Each item must have a positive quantity' },
           { status: 400 }
         )
       }
-      if (typeof item.unitPrice !== 'number' || item.unitPrice < 0) {
+      if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) {
         return NextResponse.json(
           { success: false, error: 'Each item must have a non-negative unitPrice' },
           { status: 400 }

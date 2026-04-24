@@ -1,10 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 const FLIGHT_SERVICE_URL = 'http://localhost:3006'
 
+// ─────────────────────────────────────────────
+// Input validation schemas
+// ─────────────────────────────────────────────
+
+const VALID_FLIGHT_STATUSES = [
+  'scheduled',
+  'boarding',
+  'departed',
+  'in_flight',
+  'landed',
+  'arrived',
+  'delayed',
+  'cancelled',
+  'diverted',
+] as const
+
+const flightStatusQuerySchema = z.object({
+  status: z.string().max(200).optional(),
+  search: z.string().max(20).optional(),
+})
+
+const flightStatusBodySchema = z.object({
+  flightNumber: z.string().min(1).max(20),
+  date: z.string().max(30).optional(),
+})
+
 // Mock flight status data used as fallback
-function getMockFlightStatus(flightNumber: string) {
+function getMockFlightStatus(flightNumber: string): Record<string, unknown> {
   const mockData: Record<string, unknown> = {
     'AF123': {
       flightNumber: 'AF123',
@@ -48,7 +76,8 @@ function getMockFlightStatus(flightNumber: string) {
     },
   }
 
-  if (mockData[flightNumber]) return mockData[flightNumber]
+  const cached = mockData[flightNumber] as Record<string, unknown> | undefined
+  if (cached) return cached
 
   // Generate generic mock data for unknown flights
   return {
@@ -76,19 +105,43 @@ function getMockFlightStatus(flightNumber: string) {
 // GET /api/flights/status - List flight statuses with optional filters
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const statusFilter = searchParams.get('status')
-    const search = searchParams.get('search')
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
+
+    // Validate and sanitize query parameters
+    const rawParams: Record<string, string> = {}
+    request.nextUrl.searchParams.forEach((value, key) => {
+      rawParams[key] = value
+    })
+    const parsed = flightStatusQuerySchema.safeParse(rawParams)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid query parameters', details: parsed.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const { status: statusFilter, search } = parsed.data
 
     const where: Record<string, unknown> = {}
 
     if (statusFilter) {
-      const statuses = statusFilter.split(',').map((s) => s.trim())
-      where.status = { in: statuses }
+      // Sanitize: only allow known status values
+      const statuses = statusFilter
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => (VALID_FLIGHT_STATUSES as readonly string[]).includes(s))
+      if (statuses.length > 0) {
+        where.status = { in: statuses }
+      }
     }
 
     if (search) {
-      where.flightNumber = { contains: search.toUpperCase() }
+      // Sanitize: escape Prisma special chars for contains search
+      const sanitized = search.replace(/[%_\\]/g, '\\$&')
+      where.flightNumber = { contains: sanitized.toUpperCase() }
     }
 
     const statuses = await db.flightStatus.findMany({
@@ -113,16 +166,31 @@ export async function GET(request: NextRequest) {
 // POST /api/flights/status - Get single flight status
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { flightNumber, date } = body
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
 
-    if (!flightNumber) {
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const parsed = flightStatusBodySchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: 'flightNumber is required' },
+        { success: false, error: 'Invalid request body', details: parsed.error.issues },
         { status: 400 }
       )
     }
 
+    const { flightNumber, date } = parsed.data
     const normalizedFlight = flightNumber.toUpperCase().trim()
 
     // Step 1: Check DB for existing record
@@ -167,48 +235,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 4: Upsert to DB
-    await db.flightStatus.upsert({
-      where: { id: existing?.id || '__nonexistent__' },
-      create: {
-        flightNumber: (flightData.flightNumber as string) || normalizedFlight,
-        airline: (flightData.airline as string) || '',
-        departureCode: (flightData.departureCode as string) || '',
-        arrivalCode: (flightData.arrivalCode as string) || '',
-        scheduledDep: (flightData.scheduledDep as string) || null,
-        scheduledArr: (flightData.scheduledArr as string) || null,
-        estimatedDep: (flightData.estimatedDep as string) || null,
-        estimatedArr: (flightData.estimatedArr as string) || null,
-        actualDep: (flightData.actualDep as string) || null,
-        actualArr: (flightData.actualArr as string) || null,
-        gate: (flightData.gate as string) || null,
-        terminal: (flightData.terminal as string) || null,
-        status: (flightData.status as string) || 'scheduled',
-        delayMinutes: (flightData.delayMinutes as number) || 0,
-        aircraft: (flightData.aircraft as string) || null,
-        departureCity: (flightData.departureCity as string) || null,
-        arrivalCity: (flightData.arrivalCity as string) || null,
-        aircraftType: (flightData.aircraftType as string) || null,
-      },
-      update: {
-        airline: (flightData.airline as string) || '',
-        departureCode: (flightData.departureCode as string) || '',
-        arrivalCode: (flightData.arrivalCode as string) || '',
-        scheduledDep: (flightData.scheduledDep as string) || null,
-        scheduledArr: (flightData.scheduledArr as string) || null,
-        estimatedDep: (flightData.estimatedDep as string) || null,
-        estimatedArr: (flightData.estimatedArr as string) || null,
-        actualDep: (flightData.actualDep as string) || null,
-        actualArr: (flightData.actualArr as string) || null,
-        gate: (flightData.gate as string) || null,
-        terminal: (flightData.terminal as string) || null,
-        status: (flightData.status as string) || 'scheduled',
-        delayMinutes: (flightData.delayMinutes as number) || 0,
-        aircraft: (flightData.aircraft as string) || null,
-        departureCity: (flightData.departureCity as string) || null,
-        arrivalCity: (flightData.arrivalCity as string) || null,
-        aircraftType: (flightData.aircraftType as string) || null,
-      },
-    })
+    const flightRecord = {
+      flightNumber: (flightData.flightNumber as string) || normalizedFlight,
+      airline: (flightData.airline as string) || '',
+      departureCode: (flightData.departureCode as string) || '',
+      arrivalCode: (flightData.arrivalCode as string) || '',
+      scheduledDep: (flightData.scheduledDep as string) || null,
+      scheduledArr: (flightData.scheduledArr as string) || null,
+      estimatedDep: (flightData.estimatedDep as string) || null,
+      estimatedArr: (flightData.estimatedArr as string) || null,
+      actualDep: (flightData.actualDep as string) || null,
+      actualArr: (flightData.actualArr as string) || null,
+      gate: (flightData.gate as string) || null,
+      terminal: (flightData.terminal as string) || null,
+      status: (flightData.status as string) || 'scheduled',
+      delayMinutes: (flightData.delayMinutes as number) || 0,
+      aircraft: (flightData.aircraft as string) || null,
+      departureCity: (flightData.departureCity as string) || null,
+      arrivalCity: (flightData.arrivalCity as string) || null,
+      aircraftType: (flightData.aircraftType as string) || null,
+    }
+
+    if (existing) {
+      await db.flightStatus.update({
+        where: { id: existing.id },
+        data: flightRecord,
+      })
+    } else {
+      await db.flightStatus.create({
+        data: flightRecord,
+      })
+    }
 
     return NextResponse.json({
       success: true,

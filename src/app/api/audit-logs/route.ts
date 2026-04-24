@@ -1,10 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { requireRole } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+
+// ---------------------------------------------------------------------------
+// Shared: admin role guard
+// ---------------------------------------------------------------------------
+
+const requireAdmin = requireRole('SUPERADMIN', 'AIRPORT_ADMIN')
+
+// ---------------------------------------------------------------------------
+// Zod schemas
+// ---------------------------------------------------------------------------
+
+const validActions = ['create', 'update', 'delete', 'login', 'logout', 'export', 'view', 'configure'] as const
+const validModules = ['emergency', 'conversations', 'team', 'reports', 'settings', 'flights', 'payments', 'auth'] as const
+
+const auditPostSchema = z.object({
+  adminId: z.string().max(128).optional(),
+  action: z.enum(validActions, {
+    message: `Invalid action. Allowed: ${validActions.join(', ')}`,
+  }),
+  module: z.enum(validModules, {
+    message: `Invalid module. Allowed: ${validModules.join(', ')}`,
+  }),
+  details: z.string().max(2000).optional(),
+})
 
 // GET /api/audit-logs — Query audit logs with pagination and filters
 export async function GET(request: NextRequest) {
   try {
+    // ── Auth & role check ──
+    const user = await requireAdmin(request)
+    if (!user.success) return NextResponse.json({ success: false, error: user.error }, { status: user.status })
+
     const { searchParams } = request.nextUrl
 
     const page = Math.max(1, Number(searchParams.get('page')) || 1)
@@ -28,12 +58,23 @@ export async function GET(request: NextRequest) {
       where.adminId = adminIdFilter
     }
     if (from || to) {
-      where.createdAt = {}
-      if (from) {
-        ;(where.createdAt as Record<string, unknown>).gte = new Date(from)
+      const fromDate = from ? new Date(from) : undefined
+      const toDate = to ? new Date(to) : undefined
+
+      // Validate date range: reject unreasonable spans (> 1 year) to prevent DoS
+      if (fromDate && toDate && (toDate.getTime() - fromDate.getTime()) > 365 * 24 * 60 * 60 * 1000) {
+        return NextResponse.json(
+          { success: false, error: 'Date range must not exceed 1 year' },
+          { status: 400 },
+        )
       }
-      if (to) {
-        ;(where.createdAt as Record<string, unknown>).lte = new Date(to)
+
+      where.createdAt = {}
+      if (fromDate && !isNaN(fromDate.getTime())) {
+        ;(where.createdAt as Record<string, unknown>).gte = fromDate
+      }
+      if (toDate && !isNaN(toDate.getTime())) {
+        ;(where.createdAt as Record<string, unknown>).lte = toDate
       }
     }
 
@@ -61,6 +102,7 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.ceil(total / limit)
 
     return NextResponse.json({
+      success: true,
       data,
       pagination: {
         page,
@@ -72,8 +114,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching audit logs:', error)
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération des journaux d\'audit' },
-      { status: 500 }
+      { success: false, error: 'Internal server error' },
+      { status: 500 },
     )
   }
 }
@@ -81,48 +123,47 @@ export async function GET(request: NextRequest) {
 // POST /api/audit-logs — Manual audit entry
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { adminId, action, module, details } = body
+    // ── Auth & role check ──
+    const user = await requireAdmin(request)
+    if (!user.success) return NextResponse.json({ success: false, error: user.error }, { status: user.status })
 
-    if (!action || !module) {
+    // Parse & validate body with Zod
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
       return NextResponse.json(
-        { error: 'Les champs action et module sont obligatoires' },
-        { status: 400 }
+        { success: false, error: 'Request body must be valid JSON' },
+        { status: 400 },
       )
     }
 
-    const validActions = ['create', 'update', 'delete', 'login', 'logout', 'export', 'view', 'configure']
-    if (!validActions.includes(action)) {
+    const parsed = auditPostSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: `Action invalide. Valeurs acceptées: ${validActions.join(', ')}` },
-        { status: 400 }
+        { success: false, error: parsed.error.issues[0].message },
+        { status: 400 },
       )
     }
 
-    const validModules = ['emergency', 'conversations', 'team', 'reports', 'settings', 'flights', 'payments', 'auth']
-    if (!validModules.includes(module)) {
-      return NextResponse.json(
-        { error: `Module invalide. Valeurs acceptées: ${validModules.join(', ')}` },
-        { status: 400 }
-      )
-    }
+    const { adminId, action, module, details } = parsed.data
 
     await logAudit({
-      adminId: adminId || undefined,
-      action: action as 'create' | 'update' | 'delete' | 'login' | 'logout' | 'export' | 'view' | 'configure',
+      adminId,
+      action,
       module,
       details,
     })
 
     return NextResponse.json(
-      { message: 'Entrée d\'audit créée avec succès' },
-      { status: 201 }
+      { success: true, message: 'Audit entry created successfully' },
+      { status: 201 },
     )
   } catch (error) {
     console.error('Error creating audit log:', error)
     return NextResponse.json(
-      { error: 'Erreur lors de la création de l\'entrée d\'audit' },
-      { status: 500 }
+      { success: false, error: 'Internal server error' },
+      { status: 500 },
     )
   }
 }

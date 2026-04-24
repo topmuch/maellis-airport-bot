@@ -1,5 +1,39 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { z } from 'zod';
+
+// ---------------------------------------------------------------------------
+// Validation Helpers
+// ---------------------------------------------------------------------------
+
+/** Validate a non-negative finite number (must be >= 0) */
+function validateNonNegative(value: unknown, fieldName: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return n;
+}
+
+/** Wrap error to prevent internal details from leaking */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[rebooking.service] ${context}:`, message);
+  }
+  if (error instanceof Error) {
+    return new Error(error.message.includes('Prisma') ? 'Database error' : error.message);
+  }
+  return new Error('An unexpected error occurred');
+}
+
+/** Validate phone format */
+function validatePhone(phone: unknown, fieldName = 'phone'): string {
+  if (typeof phone !== 'string' || !/^[+\d\s\-()]{6,20}$/.test(phone.trim())) {
+    throw new Error(`Invalid ${fieldName}: must be 6-20 characters and contain only digits, spaces, +, -, ()`);
+  }
+  return phone.trim();
+}
 
 // ---------------------------------------------------------------------------
 // TypeScript types
@@ -32,17 +66,52 @@ export interface AlternativeFlight {
   seatsAvailable: number;
 }
 
+const VALID_REBOOKING_STATUSES = [
+  'detected',
+  'notified',
+  'accepted',
+  'rejected',
+  'expired',
+] as const;
+
+// ─── Zod Validation Schemas ──────────────────────────────────────────────
+
+const iataCodeRegex = /^[A-Za-z]{2,4}$/;
+const iataCodeSchema = z.string().regex(iataCodeRegex, 'Must be a valid IATA code (2-4 letters)').transform(v => v.toUpperCase());
+const yyyyMmddRegex = /^\d{4}-\d{2}-\d{2}$/;
+const dateSchema = z.string().regex(yyyyMmddRegex, 'Must be a valid date in YYYY-MM-DD format');
+
+const createRebookingAlertSchema = z.object({
+  phone: z.string().min(1, 'phone is required'),
+  passengerName: z.string().max(200, 'passengerName must be at most 200 characters').optional(),
+  originalFlight: z.string().min(1, 'originalFlight is required'),
+  originalAirline: z.string().max(100).optional(),
+  originalDepCode: z.string().max(10).optional(),
+  originalArrCode: z.string().max(10).optional(),
+  suggestedFlight: z.string().max(20).optional(),
+  suggestedAirline: z.string().max(100).optional(),
+  suggestedDepTime: z.string().max(50).optional(),
+  suggestedPrice: z.number().min(0).optional(),
+});
+
 // ---------------------------------------------------------------------------
 // 1. detectCancelledFlights — Check FlightStatus for cancelled flights
 // ---------------------------------------------------------------------------
 export async function detectCancelledFlights(airportCode: string) {
   try {
+    // Zod validation
+    const parsed = iataCodeSchema.safeParse(airportCode);
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const validatedCode = parsed.data;
+
     const cancelledFlights = await db.flightStatus.findMany({
       where: {
         status: 'cancelled',
         OR: [
-          { departureCode: airportCode.toUpperCase() },
-          { arrivalCode: airportCode.toUpperCase() },
+          { departureCode: validatedCode },
+          { arrivalCode: validatedCode },
         ],
       },
       orderBy: { updatedAt: 'desc' },
@@ -50,8 +119,10 @@ export async function detectCancelledFlights(airportCode: string) {
 
     return cancelledFlights;
   } catch (error) {
-    console.error('[rebooking.service] detectCancelledFlights error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'detectCancelledFlights');
   }
 }
 
@@ -64,11 +135,28 @@ export async function findAlternativeFlights(
   date: string,
 ): Promise<AlternativeFlight[]> {
   try {
+    // Zod validation
+    const depParsed = iataCodeSchema.safeParse(depCode);
+    if (!depParsed.success) {
+      throw new Error(`Validation failed: depCode - ${depParsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const arrParsed = iataCodeSchema.safeParse(arrCode);
+    if (!arrParsed.success) {
+      throw new Error(`Validation failed: arrCode - ${arrParsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const dateParsed = dateSchema.safeParse(date);
+    if (!dateParsed.success) {
+      throw new Error(`Validation failed: date - ${dateParsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const validatedDep = depParsed.data;
+    const validatedArr = arrParsed.data;
+    const validatedDate = dateParsed.data;
+
     // Check for existing FlightStatus entries with the same route that are not cancelled
     const existingFlights = await db.flightStatus.findMany({
       where: {
-        departureCode: depCode.toUpperCase(),
-        arrivalCode: arrCode.toUpperCase(),
+        departureCode: validatedDep,
+        arrivalCode: validatedArr,
         status: {
           not: 'cancelled',
         },
@@ -98,12 +186,12 @@ export async function findAlternativeFlights(
       {
         flightNumber: 'HC301',
         airline: 'Air Senegal',
-        departureCode: depCode.toUpperCase(),
-        arrivalCode: arrCode.toUpperCase(),
+        departureCode: validatedDep,
+        arrivalCode: validatedArr,
         departureCity: 'Dakar',
         arrivalCity: 'Paris CDG',
-        scheduledDep: `${date}T10:30:00`,
-        scheduledArr: `${date}T18:45:00`,
+        scheduledDep: `${validatedDate}T10:30:00`,
+        scheduledArr: `${validatedDate}T18:45:00`,
         price: 385000,
         currency: 'XOF',
         seatsAvailable: 12,
@@ -111,12 +199,12 @@ export async function findAlternativeFlights(
       {
         flightNumber: 'AF722',
         airline: 'Air France',
-        departureCode: depCode.toUpperCase(),
-        arrivalCode: arrCode.toUpperCase(),
+        departureCode: validatedDep,
+        arrivalCode: validatedArr,
         departureCity: 'Dakar',
         arrivalCity: 'Paris CDG',
-        scheduledDep: `${date}T23:15:00`,
-        scheduledArr: `${date}T07:30:00`,
+        scheduledDep: `${validatedDate}T23:15:00`,
+        scheduledArr: `${validatedDate}T07:30:00`,
         price: 420000,
         currency: 'XOF',
         seatsAvailable: 8,
@@ -124,12 +212,12 @@ export async function findAlternativeFlights(
       {
         flightNumber: 'SS721',
         airline: 'Corsair',
-        departureCode: depCode.toUpperCase(),
-        arrivalCode: arrCode.toUpperCase(),
+        departureCode: validatedDep,
+        arrivalCode: validatedArr,
         departureCity: 'Dakar',
         arrivalCity: 'Paris ORY',
-        scheduledDep: `${date}T21:00:00`,
-        scheduledArr: `${date}T05:30:00`,
+        scheduledDep: `${validatedDate}T21:00:00`,
+        scheduledArr: `${validatedDate}T05:30:00`,
         price: 350000,
         currency: 'XOF',
         seatsAvailable: 15,
@@ -137,12 +225,12 @@ export async function findAlternativeFlights(
       {
         flightNumber: 'TU604',
         airline: 'Tunisair',
-        departureCode: depCode.toUpperCase(),
-        arrivalCode: arrCode.toUpperCase(),
+        departureCode: validatedDep,
+        arrivalCode: validatedArr,
         departureCity: 'Dakar',
         arrivalCity: 'Tunis',
-        scheduledDep: `${date}T02:45:00`,
-        scheduledArr: `${date}T07:00:00`,
+        scheduledDep: `${validatedDate}T02:45:00`,
+        scheduledArr: `${validatedDate}T07:00:00`,
         price: 280000,
         currency: 'XOF',
         seatsAvailable: 20,
@@ -151,11 +239,13 @@ export async function findAlternativeFlights(
 
     // Filter by the requested departure code (mock routes only serve DSS for now)
     return mockAlternatives.filter(
-      (f) => f.departureCode === depCode.toUpperCase(),
+      (f) => f.departureCode === validatedDep,
     );
   } catch (error) {
-    console.error('[rebooking.service] findAlternativeFlights error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'findAlternativeFlights');
   }
 }
 
@@ -166,18 +256,30 @@ export async function createRebookingAlert(
   data: CreateRebookingAlertInput,
 ) {
   try {
+    // Zod validation
+    const parsed = createRebookingAlertSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+    const validatedData = parsed.data;
+
+    // Validate inputs
+    const safePhone = validatePhone(validatedData.phone, 'phone');
+    const safeSuggestedPrice = validatedData.suggestedPrice !== undefined && validatedData.suggestedPrice !== null
+      ? validateNonNegative(validatedData.suggestedPrice, 'suggestedPrice') : null;
+
     const rebookingLog = await db.rebookingLog.create({
       data: {
-        phone: data.phone,
-        passengerName: data.passengerName ?? null,
-        originalFlight: data.originalFlight,
-        originalAirline: data.originalAirline ?? null,
-        originalDepCode: data.originalDepCode ?? null,
-        originalArrCode: data.originalArrCode ?? null,
-        suggestedFlight: data.suggestedFlight ?? null,
-        suggestedAirline: data.suggestedAirline ?? null,
-        suggestedDepTime: data.suggestedDepTime ?? null,
-        suggestedPrice: data.suggestedPrice ?? null,
+        phone: safePhone,
+        passengerName: validatedData.passengerName ?? null,
+        originalFlight: validatedData.originalFlight,
+        originalAirline: validatedData.originalAirline ?? null,
+        originalDepCode: validatedData.originalDepCode ?? null,
+        originalArrCode: validatedData.originalArrCode ?? null,
+        suggestedFlight: validatedData.suggestedFlight ?? null,
+        suggestedAirline: validatedData.suggestedAirline ?? null,
+        suggestedDepTime: validatedData.suggestedDepTime ?? null,
+        suggestedPrice: safeSuggestedPrice,
         currency: 'XOF',
         status: 'detected',
       },
@@ -185,8 +287,10 @@ export async function createRebookingAlert(
 
     return rebookingLog;
   } catch (error) {
-    console.error('[rebooking.service] createRebookingAlert error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error;
+    }
+    throw safeError(error, 'createRebookingAlert');
   }
 }
 
@@ -208,8 +312,7 @@ export async function getRebookingLogs(phone?: string) {
 
     return logs;
   } catch (error) {
-    console.error('[rebooking.service] getRebookingLogs error:', error);
-    throw error;
+    throw safeError(error, 'getRebookingLogs');
   }
 }
 
@@ -222,12 +325,21 @@ export async function updateRebookingStatus(
   response?: string,
 ) {
   try {
+    // Validate status against allowed values
+    if (!VALID_REBOOKING_STATUSES.includes(status as typeof VALID_REBOOKING_STATUSES[number])) {
+      throw new Error(
+        `Invalid status '${status}'. Must be one of: ${VALID_REBOOKING_STATUSES.join(', ')}`,
+      );
+    }
+
     // Verify the log entry exists
     const existing = await db.rebookingLog.findUnique({ where: { id } });
     if (!existing) {
-      console.error(
-        `[rebooking.service] updateRebookingStatus: log not found: ${id}`,
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.error(
+          `[rebooking.service] updateRebookingStatus: log not found: ${id}`,
+        );
+      }
       return null;
     }
 
@@ -241,8 +353,10 @@ export async function updateRebookingStatus(
 
     return updatedLog;
   } catch (error) {
-    console.error('[rebooking.service] updateRebookingStatus error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.includes('Must be one of'))) {
+      throw error;
+    }
+    throw safeError(error, 'updateRebookingStatus');
   }
 }
 
@@ -354,7 +468,6 @@ export async function getRebookingStats() {
       uniquePassengers: uniquePassengers.length,
     };
   } catch (error) {
-    console.error('[rebooking.service] getRebookingStats error:', error);
-    throw error;
+    throw safeError(error, 'getRebookingStats');
   }
 }

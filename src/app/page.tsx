@@ -1,82 +1,128 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useNavigationStore } from '@/lib/store'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
-import { OverviewModule } from '@/components/dashboard/modules/OverviewModule'
-import { FlightsModule } from '@/components/dashboard/modules/FlightsModule'
-import { BaggageModule } from '@/components/dashboard/modules/BaggageModule'
-import { LoungeModule } from '@/components/dashboard/modules/LoungeModule'
-import { TransportModule } from '@/components/dashboard/modules/TransportModule'
-import { PaymentsModule } from '@/components/dashboard/modules/PaymentsModule'
-import { EmergencyModule } from '@/components/dashboard/modules/EmergencyModule'
-import { PartnersModule } from '@/components/dashboard/modules/PartnersModule'
-import { ConversationsModule } from '@/components/dashboard/modules/ConversationsModule'
-import { AnalyticsModule } from '@/components/dashboard/modules/AnalyticsModule'
-import { TeamModule } from '@/components/dashboard/modules/TeamModule'
-import { ReportsModule } from '@/components/dashboard/modules/ReportsModule'
-import { MarketplaceModule } from '@/components/dashboard/modules/MarketplaceModule'
-import { TicketScansModule } from '@/components/dashboard/modules/TicketScansModule'
-import { AdsModule } from '@/components/dashboard/modules/AdsModule'
-import { InvoicesModule } from '@/components/dashboard/modules/InvoicesModule'
-import { ModuleManagement } from '@/components/dashboard/modules/ModuleManagement'
-import { DemoModule } from '@/components/dashboard/modules/DemoModule'
-import { DocsModule } from '@/components/dashboard/modules/DocsModule'
-import { SettingsModule } from '@/components/dashboard/modules/SettingsModule'
-import { FAQModule } from '@/components/dashboard/modules/FAQModule'
-import { KnowledgeBaseModule } from '@/components/dashboard/modules/KnowledgeBaseModule'
-import { HotelsModule } from '@/components/dashboard/modules/HotelsModule'
-import { RebookingModule } from '@/components/dashboard/modules/RebookingModule'
-import { PmrAudioModule } from '@/components/dashboard/modules/PmrAudioModule'
-import { HealthPharmacyModule } from '@/components/dashboard/modules/HealthPharmacyModule'
-import { WifiModule } from '@/components/dashboard/modules/WifiModule'
-import { CheckinModule } from '@/components/dashboard/modules/CheckinModule'
-import { MilesModule } from '@/components/dashboard/modules/MilesModule'
-import { MusicModule } from '@/components/dashboard/modules/MusicModule'
-import { Navbar } from '@/components/landing/Navbar'
-import { Hero } from '@/components/landing/Hero'
-import { LogoCloud } from '@/components/landing/LogoCloud'
-import { ProblemSolution } from '@/components/landing/ProblemSolution'
-import { FeaturesGrid } from '@/components/landing/FeaturesGrid'
-import { ChatSimulator } from '@/components/landing/ChatSimulator'
-import { PricingTable } from '@/components/landing/PricingTable'
-import { Testimonials } from '@/components/landing/Testimonials'
-import { FAQ } from '@/components/landing/FAQ'
-import { FinalCTA } from '@/components/landing/FinalCTA'
-import { Footer } from '@/components/landing/Footer'
 import type { ModuleKey } from '@/lib/store'
 
-const modules: Record<ModuleKey, React.ComponentType> = {
-  overview: OverviewModule,
-  flights: FlightsModule,
-  baggage: BaggageModule,
-  lounge: LoungeModule,
-  transport: TransportModule,
-  payments: PaymentsModule,
-  emergency: EmergencyModule,
-  partners: PartnersModule,
-  conversations: ConversationsModule,
-  analytics: AnalyticsModule,
-  team: TeamModule,
-  reports: ReportsModule,
-  marketplace: MarketplaceModule,
-  ticket_scans: TicketScansModule,
-  ads: AdsModule,
-  invoices: InvoicesModule,
-  modules: ModuleManagement,
-  demo: DemoModule,
-  docs: DocsModule,
-  settings: SettingsModule,
-  faq: FAQModule,
-  knowledge_base: KnowledgeBaseModule,
-  hotels: HotelsModule,
-  rebooking: RebookingModule,
-  pmr_audio: PmrAudioModule,
-  health_pharmacy: HealthPharmacyModule,
-  wifi: WifiModule,
-  checkin: CheckinModule,
-  miles: MilesModule,
-  music: MusicModule,
+// ─── Skeleton loader for lazy-loaded modules ─────────────────────────────────
+function ModuleSkeleton() {
+  return (
+    <div className="space-y-4 p-6">
+      <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-32 animate-pulse rounded-lg bg-muted" />
+        ))}
+      </div>
+      <div className="h-64 animate-pulse rounded-lg bg-muted" />
+    </div>
+  )
 }
+
+function LandingSkeleton() {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-7xl space-y-12 p-6">
+        <div className="h-16 animate-pulse rounded bg-muted" />
+        <div className="h-96 animate-pulse rounded-lg bg-muted" />
+      </div>
+    </div>
+  )
+}
+
+// ─── Dynamic imports for dashboard modules (code splitting) ─────────────────
+const loadModule = (name: string) =>
+  dynamic(
+    () =>
+      import(`@/components/dashboard/modules/${name}`).then((m) => {
+        const Component = Object.values(m)[0] as React.ComponentType
+        return { default: Component }
+      }),
+    {
+      loading: () => <ModuleSkeleton />,
+      ssr: false,
+    }
+  )
+
+const modules: Record<ModuleKey, React.ComponentType> = {
+  overview: loadModule('OverviewModule'),
+  flights: loadModule('FlightsModule'),
+  baggage: loadModule('BaggageModule'),
+  lounge: loadModule('LoungeModule'),
+  transport: loadModule('TransportModule'),
+  payments: loadModule('PaymentsModule'),
+  emergency: loadModule('EmergencyModule'),
+  partners: loadModule('PartnersModule'),
+  conversations: loadModule('ConversationsModule'),
+  analytics: loadModule('AnalyticsModule'),
+  team: loadModule('TeamModule'),
+  reports: loadModule('ReportsModule'),
+  marketplace: loadModule('MarketplaceModule'),
+  ticket_scans: loadModule('TicketScansModule'),
+  ads: loadModule('AdsModule'),
+  invoices: loadModule('InvoicesModule'),
+  modules: loadModule('ModuleManagement'),
+  demo: loadModule('DemoModule'),
+  docs: loadModule('DocsModule'),
+  settings: loadModule('SettingsModule'),
+  faq: loadModule('FAQModule'),
+  knowledge_base: loadModule('KnowledgeBaseModule'),
+  hotels: loadModule('HotelsModule'),
+  rebooking: loadModule('RebookingModule'),
+  pmr_audio: loadModule('PmrAudioModule'),
+  health_pharmacy: loadModule('HealthPharmacyModule'),
+  wifi: loadModule('WifiModule'),
+  checkin: loadModule('CheckinModule'),
+  miles: loadModule('MilesModule'),
+  music: loadModule('MusicModule'),
+}
+
+// ─── Dynamic imports for landing page components ─────────────────────────────
+const Navbar = dynamic(
+  () => import('@/components/landing/Navbar').then((m) => ({ default: m.Navbar })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const Hero = dynamic(
+  () => import('@/components/landing/Hero').then((m) => ({ default: m.Hero })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const LogoCloud = dynamic(
+  () => import('@/components/landing/LogoCloud').then((m) => ({ default: m.LogoCloud })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const ProblemSolution = dynamic(
+  () => import('@/components/landing/ProblemSolution').then((m) => ({ default: m.ProblemSolution })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const FeaturesGrid = dynamic(
+  () => import('@/components/landing/FeaturesGrid').then((m) => ({ default: m.FeaturesGrid })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const ChatSimulator = dynamic(
+  () => import('@/components/landing/ChatSimulator').then((m) => ({ default: m.ChatSimulator })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const PricingTable = dynamic(
+  () => import('@/components/landing/PricingTable').then((m) => ({ default: m.PricingTable })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const Testimonials = dynamic(
+  () => import('@/components/landing/Testimonials').then((m) => ({ default: m.Testimonials })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const FAQ = dynamic(
+  () => import('@/components/landing/FAQ').then((m) => ({ default: m.FAQ })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const FinalCTA = dynamic(
+  () => import('@/components/landing/FinalCTA').then((m) => ({ default: m.FinalCTA })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const Footer = dynamic(
+  () => import('@/components/landing/Footer').then((m) => ({ default: m.Footer })),
+  { loading: LandingSkeleton, ssr: false }
+)
 
 export default function Home() {
   const { showLanding, activeModule, setShowLanding } = useNavigationStore()

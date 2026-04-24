@@ -1,22 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { SAFETY_TAKE } from '@/lib/validate'
 
-interface MessagePayload {
-  role: string
-  content: string
-  intent?: string
-  entities?: unknown
-  language?: string
-  metadata?: unknown
-}
+// ─────────────────────────────────────────────
+// Input validation schemas
+// ─────────────────────────────────────────────
+
+const VALID_MESSAGE_ROLES = ['user', 'assistant', 'system', 'agent'] as const
+
+const createMessageSchema = z.object({
+  role: z.enum(VALID_MESSAGE_ROLES),
+  content: z.string().min(1).max(10000),
+  intent: z.string().max(100).optional(),
+  entities: z.unknown().optional(),
+  language: z.string().max(10).optional(),
+  metadata: z.unknown().optional(),
+})
 
 // GET /api/conversations/[id]/messages — List all messages for a conversation
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
+
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length < 1 || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
 
     // Verify conversation exists
     const conversation = await db.conversation.findUnique({
@@ -33,6 +51,7 @@ export async function GET(
     const messages = await db.conversationMessage.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
+      take: SAFETY_TAKE,
     })
 
     return NextResponse.json({ data: messages })
@@ -51,22 +70,32 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
-    const body = (await request.json()) as MessagePayload
-
-    // Validate required fields
-    if (!body.role || !body.content) {
-      return NextResponse.json(
-        { error: 'role and content are required' },
-        { status: 400 }
-      )
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
     }
 
-    // Validate role
-    const validRoles = ['user', 'assistant', 'system', 'agent']
-    if (!validRoles.includes(body.role)) {
+    const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length < 1 || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
+
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const parsed = createMessageSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: `role must be one of: ${validRoles.join(', ')}` },
+        { error: 'Invalid request body', details: parsed.error.issues },
         { status: 400 }
       )
     }
@@ -83,16 +112,18 @@ export async function POST(
       )
     }
 
+    const data = parsed.data
+
     // Create the message
     const message = await db.conversationMessage.create({
       data: {
         conversationId: id,
-        role: body.role,
-        content: body.content,
-        intent: body.intent ?? null,
-        entities: body.entities ? JSON.stringify(body.entities) : null,
-        language: body.language ?? null,
-        metadata: body.metadata ? JSON.stringify(body.metadata) : null,
+        role: data.role,
+        content: data.content,
+        intent: data.intent ?? null,
+        entities: data.entities ? JSON.stringify(data.entities) : null,
+        language: data.language ?? null,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
       },
     })
 

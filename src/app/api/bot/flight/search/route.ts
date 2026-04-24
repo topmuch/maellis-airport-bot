@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
+import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
 const BOT_SERVICE_URL = 'http://localhost:3005';
 
@@ -10,7 +12,19 @@ const BOT_SERVICE_URL = 'http://localhost:3005';
  * Returns: Flight search results from bot service, with fallback mock data
  */
 export async function POST(request: NextRequest) {
+  // Rate limit check (before auth)
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+  const { success, remaining } = rateLimit(`bot:search:${clientIp}`, RATE_LIMITS.search);
+  if (!success) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.', remaining: 0 }, { status: 429 });
+  }
+
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const body = await request.json();
     const { departureCode, arrivalCode, date, passengers } = body;
 

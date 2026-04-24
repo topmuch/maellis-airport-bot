@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { sendEmergencyAlert } from '@/lib/email'
 import { declareIncident, getIncidents } from '@/lib/services/emergency.service'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/emergency/incidents?airport=DSS&status=open&severity=critical
 export async function GET(request: NextRequest) {
@@ -23,6 +24,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: incidents })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error fetching emergency incidents:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch emergency incidents' },
@@ -31,10 +39,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/emergency/incidents — Declare incident (no auth for bot usage)
+// POST /api/emergency/incidents — Declare incident
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const authResult = await requireAuth(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || 'Authentication required' },
+        { status: authResult.status || 401 }
+      )
+    }
+    const body = await parseBody(request)
     const {
       airportCode,
       userPhone,
@@ -123,6 +138,13 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error declaring emergency incident:', error)
 
     const message = error instanceof Error ? error.message : 'Failed to declare emergency incident'

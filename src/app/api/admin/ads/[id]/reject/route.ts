@@ -1,33 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireRole } from '@/lib/auth';
 import { rejectAd } from '@/lib/services/ad.service';
 
 // ---------------------------------------------------------------------------
 // PUT /api/admin/ads/[id]/reject — Reject ad (pending → rejected)
 // ---------------------------------------------------------------------------
+
+/** Validate that the dynamic id segment is a valid identifier */
+const idSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'Invalid ad ID format');
+
+/** Validate the rejection request body */
+const rejectBodySchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, 'A rejection reason is required')
+    .max(1000, 'Rejection reason must not exceed 1000 characters'),
+});
+
+const requireAdmin = requireRole('SUPERADMIN', 'AIRPORT_ADMIN');
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    // ── Auth & role check (defense-in-depth) ──
+    const user = await requireAdmin(request);
+    if (!user.success) {
+      return NextResponse.json(
+        { success: false, error: user.error },
+        { status: user.status },
+      );
+    }
+
     const { id } = await params;
 
-    if (!id) {
+    // Validate id parameter
+    const idResult = idSchema.safeParse(id);
+    if (!idResult.success) {
       return NextResponse.json(
-        { success: false, error: 'Ad ID is required' },
+        { success: false, error: 'Invalid ad ID format' },
         { status: 400 },
       );
     }
 
-    const body = await request.json();
-
-    if (!body.reason || typeof body.reason !== 'string' || body.reason.trim().length === 0) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
-        { success: false, error: 'A rejection reason is required' },
+        { success: false, error: 'Request body must be valid JSON' },
         { status: 400 },
       );
     }
 
-    const ad = await rejectAd(id, body.reason.trim());
+    const bodyResult = rejectBodySchema.safeParse(body);
+    if (!bodyResult.success) {
+      return NextResponse.json(
+        { success: false, error: bodyResult.error.issues[0].message },
+        { status: 400 },
+      );
+    }
+
+    const ad = await rejectAd(id, bodyResult.data.reason);
 
     if (!ad) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { validateId, ValidationError } from '@/lib/validate'
 
 // GET /api/clients/:id — Get single client (admin only)
 export async function GET(
@@ -17,6 +18,14 @@ export async function GET(
     }
 
     const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
 
     const client = await db.billingClient.findUnique({
       where: { id },
@@ -63,6 +72,14 @@ export async function PATCH(
     }
 
     const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
 
     // Verify client exists
     const existing = await db.billingClient.findUnique({ where: { id } })
@@ -73,8 +90,18 @@ export async function PATCH(
       )
     }
 
-    const body = await request.json()
-    const { name, email, phone, company, taxId, address, currency, taxRate, isActive, notes } = body
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const { name, email, phone, company, taxId, address, currency, taxRate, isActive, notes } = body as Record<string, unknown>
 
     // Build update data — only include provided fields
     const data: Record<string, unknown> = {}
@@ -141,6 +168,14 @@ export async function DELETE(
     }
 
     const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
 
     // Verify client exists
     const existing = await db.billingClient.findUnique({

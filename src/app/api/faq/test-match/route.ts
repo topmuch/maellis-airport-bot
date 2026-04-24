@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { matchFAQ } from '@/lib/services/faq.service';
 
 /**
@@ -9,6 +10,14 @@ import { matchFAQ } from '@/lib/services/faq.service';
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+    if (!user.success) {
+      return NextResponse.json(
+        { success: false, error: user.error },
+        { status: user.status },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const question = searchParams.get('q');
 

@@ -7,6 +7,63 @@ import { addMinutes, differenceInMinutes } from 'date-fns'
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────
+
+/**
+ * Wrap a raw internal error into a safe, user-facing message.
+ * Logs the original error but never leaks internals.
+ */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[concierge.service] ${context}:`, message)
+  }
+  return new Error(`An error occurred while ${context}. Please try again later.`)
+}
+
+/**
+ * Validate a phone number contains only digits, spaces, +, -, ().
+ */
+function validatePhone(phone: unknown, field = 'phone'): string {
+  if (typeof phone !== 'string' || phone.trim().length === 0) {
+    throw new Error(`${field} is required and must be a non-empty string`)
+  }
+  const cleaned = phone.trim()
+  if (!/^[+\d\s\-()]{6,20}$/.test(cleaned)) {
+    throw new Error(`Invalid ${field}: must be 6-20 characters (digits, spaces, +, -, ())`)
+  }
+  return cleaned
+}
+
+/**
+ * Sanitize a free-text string: trim, limit length.
+ */
+function sanitizeText(value: unknown, field: string, maxLength = 500): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string`)
+  }
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    throw new Error(`${field} is required`)
+  }
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be at most ${maxLength} characters`)
+  }
+  return trimmed
+}
+
+/**
+ * Sanitize optional text: trim, limit length, return null if empty.
+ */
+function sanitizeOptionalText(value: unknown, maxLength = 100): string | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed.slice(0, maxLength) : null
+}
+
+// ─────────────────────────────────────────────
 // Constants & validation
 // ─────────────────────────────────────────────
 
@@ -61,55 +118,56 @@ export async function createTicket(data: {
   category?: string
 }) {
   try {
-    const {
-      phone,
-      passengerName,
-      type,
-      priority = 'normal',
-      description,
-      flightNumber,
-      gate,
-      category,
-    } = data
+    const { type, priority = 'normal' } = data
 
     // Validate required fields
-    if (!phone || !passengerName || !type || !description) {
+    if (!data.phone || !data.passengerName || !data.type || !data.description) {
       throw new Error('phone, passengerName, type, and description are required')
     }
+
+    // Validate & sanitize inputs
+    const safePhone = validatePhone(data.phone, 'phone')
+    const safeName = sanitizeText(data.passengerName, 'passengerName', 200)
+    const safeDescription = sanitizeText(data.description, 'description', 5000)
+    const safeFlightNumber = sanitizeOptionalText(data.flightNumber, 10)
+    const safeGate = sanitizeOptionalText(data.gate, 10)
+    const safeCategory = sanitizeOptionalText(data.category, 100)
 
     // Validate type
     if (!(VALID_TYPES as readonly string[]).includes(type)) {
       throw new Error(
-        `Invalid type "${type}". Must be one of: ${VALID_TYPES.join(', ')}`
+        `Invalid type. Must be one of: ${VALID_TYPES.join(', ')}`
       )
     }
 
     // Validate priority
     if (!(VALID_PRIORITIES as readonly string[]).includes(priority)) {
       throw new Error(
-        `Invalid priority "${priority}". Must be one of: ${VALID_PRIORITIES.join(', ')}`
+        `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}`
       )
     }
 
-    // Calculate SLA deadline
+    // Calculate SLA deadline (guaranteed safe since priority is validated)
     const slaDeadline = addMinutes(new Date(), SLA_MINUTES[priority])
 
     return db.ticket.create({
       data: {
-        phone,
-        passengerName,
+        phone: safePhone,
+        passengerName: safeName,
         type,
         priority,
-        description,
-        flightNumber: flightNumber || null,
-        gate: gate || null,
-        category: category || null,
+        description: safeDescription,
+        flightNumber: safeFlightNumber,
+        gate: safeGate,
+        category: safeCategory,
         slaDeadline,
       },
     })
   } catch (error) {
-    console.error('[concierge.service] createTicket error:', error)
-    throw error
+    if (error instanceof Error && (error.message.includes('is required') || error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'creating ticket')
   }
 }
 
@@ -136,19 +194,25 @@ export async function getTickets(params?: {
 
     // Validate status filter
     if (status && !(VALID_STATUSES as readonly string[]).includes(status)) {
-      console.warn(`[concierge.service] getTickets: invalid status "${status}"`)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[concierge.service] getTickets: invalid status "${status}"`)
+      }
       return { tickets: [], total: 0, page, limit, totalPages: 0 }
     }
 
     // Validate type filter
     if (type && !(VALID_TYPES as readonly string[]).includes(type)) {
-      console.warn(`[concierge.service] getTickets: invalid type "${type}"`)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[concierge.service] getTickets: invalid type "${type}"`)
+      }
       return { tickets: [], total: 0, page, limit, totalPages: 0 }
     }
 
     // Validate priority filter
     if (priority && !(VALID_PRIORITIES as readonly string[]).includes(priority)) {
-      console.warn(`[concierge.service] getTickets: invalid priority "${priority}"`)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[concierge.service] getTickets: invalid priority "${priority}"`)
+      }
       return { tickets: [], total: 0, page, limit, totalPages: 0 }
     }
 
@@ -176,8 +240,7 @@ export async function getTickets(params?: {
       totalPages: Math.ceil(total / limit),
     }
   } catch (error) {
-    console.error('[concierge.service] getTickets error:', error)
-    throw error
+    throw safeError(error, 'retrieving tickets')
   }
 }
 
@@ -192,20 +255,20 @@ export async function updateTicketStatus(
   assignedTo?: string
 ) {
   try {
-    if (!ticketId) {
+    if (!ticketId || typeof ticketId !== 'string' || ticketId.trim().length === 0) {
       throw new Error('Ticket ID is required')
     }
 
     if (!(VALID_STATUSES as readonly string[]).includes(status)) {
       throw new Error(
-        `Invalid status "${status}". Must be one of: ${VALID_STATUSES.join(', ')}`
+        `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
       )
     }
 
     // Verify ticket exists
     const existing = await db.ticket.findUnique({ where: { id: ticketId } })
     if (!existing) {
-      throw new Error(`Ticket with id "${ticketId}" not found`)
+      throw new Error('Ticket not found')
     }
 
     // Validate transition
@@ -220,8 +283,15 @@ export async function updateTicketStatus(
     // Build update data
     const updateData: Record<string, unknown> = { status }
 
-    if (resolution !== undefined) updateData.resolution = resolution
-    if (assignedTo !== undefined) updateData.assignedTo = assignedTo
+    if (resolution !== undefined) {
+      updateData.resolution = typeof resolution === 'string' ? resolution.trim().slice(0, 2000) : resolution
+    }
+    if (assignedTo !== undefined) {
+      if (typeof assignedTo !== 'string' || assignedTo.trim().length === 0) {
+        throw new Error('assignedTo must be a non-empty string')
+      }
+      updateData.assignedTo = assignedTo.trim().slice(0, 200)
+    }
 
     // Auto-set resolvedAt when transitioning to resolved
     if (status === 'resolved') {
@@ -233,8 +303,10 @@ export async function updateTicketStatus(
       data: updateData,
     })
   } catch (error) {
-    console.error('[concierge.service] updateTicketStatus error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Ticket') || error.message.startsWith('Invalid') || error.message.startsWith('Cannot') || error.message.includes('is required') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'updating ticket status')
   }
 }
 
@@ -244,20 +316,21 @@ export async function updateTicketStatus(
 
 export async function assignTicket(ticketId: string, assignedTo: string) {
   try {
-    if (!ticketId) {
+    if (!ticketId || typeof ticketId !== 'string' || ticketId.trim().length === 0) {
       throw new Error('Ticket ID is required')
     }
-    if (!assignedTo) {
-      throw new Error('assignedTo is required')
+    if (!assignedTo || typeof assignedTo !== 'string' || assignedTo.trim().length === 0) {
+      throw new Error('assignedTo is required and must be a non-empty string')
     }
+    const safeAssignedTo = assignedTo.trim().slice(0, 200)
 
     // Verify ticket exists
     const existing = await db.ticket.findUnique({ where: { id: ticketId } })
     if (!existing) {
-      throw new Error(`Ticket with id "${ticketId}" not found`)
+      throw new Error('Ticket not found')
     }
 
-    const updateData: Record<string, unknown> = { assignedTo }
+    const updateData: Record<string, unknown> = { assignedTo: safeAssignedTo }
 
     // Set status to "assigned" if currently "open"
     if (existing.status === 'open') {
@@ -269,8 +342,10 @@ export async function assignTicket(ticketId: string, assignedTo: string) {
       data: updateData,
     })
   } catch (error) {
-    console.error('[concierge.service] assignTicket error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Ticket') || error.message.includes('is required'))) {
+      throw error
+    }
+    throw safeError(error, 'assigning ticket')
   }
 }
 
@@ -357,7 +432,6 @@ export async function getTicketStats() {
       slaBreaches,
     }
   } catch (error) {
-    console.error('[concierge.service] getTicketStats error:', error)
-    throw error
+    throw safeError(error, 'retrieving ticket statistics')
   }
 }

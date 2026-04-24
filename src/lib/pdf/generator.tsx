@@ -23,9 +23,7 @@ export async function generateRevenuePDF(data: RevenueReportData): Promise<Buffe
     return Buffer.from(buffer)
   } catch (error) {
     console.error('Error generating revenue PDF:', error)
-    throw new Error(
-      `Échec de la génération du PDF de revenus: ${error instanceof Error ? error.message : 'Erreur inconnue'}`
-    )
+    throw new Error('Échec de la génération du PDF de revenus')
   }
 }
 
@@ -42,9 +40,7 @@ export async function generateActivityPDF(data: ActivityReportData): Promise<Buf
     return Buffer.from(buffer)
   } catch (error) {
     console.error('Error generating activity PDF:', error)
-    throw new Error(
-      `Échec de la génération du PDF d'activité: ${error instanceof Error ? error.message : 'Erreur inconnue'}`
-    )
+    throw new Error("Échec de la génération du PDF d'activité")
   }
 }
 
@@ -68,10 +64,15 @@ export function generateRevenueCSV(data: RevenueReportData): string {
   ])
 
   const escapeCSV = (value: string): string => {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`
+    // Prevent CSV injection: prefix dangerous first characters with a single quote
+    let safeValue = value
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+      safeValue = "'" + safeValue
     }
-    return value
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+      return `"${safeValue.replace(/"/g, '""')}"`
+    }
+    return safeValue
   }
 
   const csvLines = [
@@ -90,6 +91,18 @@ export function generateRevenueCSV(data: RevenueReportData): string {
  */
 export function generateActivityCSV(data: ActivityReportData): string {
   const BOM = '\uFEFF'
+
+  // Escape CSV cell: prevent injection + handle special chars
+  const escapeCSV = (value: string): string => {
+    let safeValue = value
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+      safeValue = "'" + safeValue
+    }
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+      return `"${safeValue.replace(/"/g, '""')}"`
+    }
+    return safeValue
+  }
 
   // Summary section
   const lines: string[] = [
@@ -112,7 +125,7 @@ export function generateActivityCSV(data: ActivityReportData): string {
     ...data.topIntents.map((i) => `${i.intent},${i.count},${i.percentage.toFixed(1)}%`),
   ]
 
-  return BOM + lines.join('\n')
+  return BOM + lines.map(escapeCSV).join('\n')
 }
 
 // ─── Invoice PDF Generation ───────────────────────────────────────────────
@@ -130,9 +143,7 @@ export async function generateInvoicePDFBuffer(data: InvoicePDFData): Promise<Bu
     return Buffer.from(buffer)
   } catch (error) {
     console.error('Error generating invoice PDF:', error)
-    throw new Error(
-      `Échec de la génération du PDF de facture: ${error instanceof Error ? error.message : 'Erreur inconnue'}`
-    )
+    throw new Error('Échec de la génération du PDF de facture')
   }
 }
 
@@ -177,10 +188,15 @@ export function generateInvoiceCSV(
   ]
 
   const escapeCSV = (value: string): string => {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`
+    // Prevent CSV injection: prefix dangerous first characters
+    let safeValue = value
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+      safeValue = "'" + safeValue
     }
-    return value
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+      return `"${safeValue.replace(/"/g, '""')}"`
+    }
+    return safeValue
   }
 
   const rows = invoices.map((inv) => [

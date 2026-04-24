@@ -6,6 +6,71 @@ import { db } from '@/lib/db'
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────
+
+/**
+ * Wrap a raw internal error into a safe, user-facing message.
+ * Logs the original error but never leaks internals.
+ */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`[emergency.service] ${context}:`, message)
+  return new Error(`An error occurred while ${context}. Please try again later.`)
+}
+
+/**
+ * Validate a phone number contains only digits, spaces, +, -, ().
+ */
+function validatePhone(phone: unknown, field = 'phone'): string {
+  if (typeof phone !== 'string' || phone.trim().length === 0) {
+    throw new Error(`${field} is required and must be a non-empty string`)
+  }
+  const cleaned = phone.trim()
+  if (!/^[+\d\s\-()]{6,20}$/.test(cleaned)) {
+    throw new Error(`Invalid ${field}: must be 6-20 characters (digits, spaces, +, -, ())`)
+  }
+  return cleaned
+}
+
+/**
+ * Validate IATA airport code (3 letters).
+ */
+function validateAirportCode(code: unknown): string {
+  if (typeof code !== 'string' || !/^[A-Za-z]{3}$/.test(code.trim())) {
+    throw new Error('Airport code must be a 3-letter IATA code')
+  }
+  return code.trim().toUpperCase()
+}
+
+/**
+ * Sanitize a free-text string: trim, limit length.
+ */
+function sanitizeText(value: unknown, field: string, maxLength = 500): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string`)
+  }
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    throw new Error(`${field} is required`)
+  }
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be at most ${maxLength} characters`)
+  }
+  return trimmed
+}
+
+/**
+ * Sanitize optional text: trim, limit length, return null if empty.
+ */
+function sanitizeOptionalText(value: unknown, maxLength = 1000): string | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed.slice(0, maxLength) : null
+}
+
+// ─────────────────────────────────────────────
 // Valid categories & severities (for validation)
 // ─────────────────────────────────────────────
 
@@ -41,8 +106,10 @@ function isValidStatus(val: string): boolean {
 
 export async function getContacts(airportCode: string, category?: string) {
   try {
+    const safeAirportCode = validateAirportCode(airportCode)
+
     const where: Record<string, unknown> = {
-      airportCode,
+      airportCode: safeAirportCode,
       isActive: true,
     }
 
@@ -59,8 +126,7 @@ export async function getContacts(airportCode: string, category?: string) {
       orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }],
     })
   } catch (error) {
-    console.error(`[emergency.service] getContacts failed:`, error)
-    throw error
+    throw safeError(error, 'retrieving emergency contacts')
   }
 }
 
@@ -70,7 +136,7 @@ export async function getContacts(airportCode: string, category?: string) {
 
 export async function getContactById(id: string) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       console.warn(`[emergency.service] getContactById: missing id`)
       return null
     }
@@ -79,8 +145,7 @@ export async function getContactById(id: string) {
       where: { id },
     })
   } catch (error) {
-    console.error(`[emergency.service] getContactById failed:`, error)
-    throw error
+    throw safeError(error, 'retrieving emergency contact')
   }
 }
 
@@ -91,21 +156,22 @@ export async function getContactById(id: string) {
 export async function getPrimaryContact(airportCode: string, category: string) {
   try {
     if (!isValidCategory(category)) {
-      console.warn(`[emergency.service] getPrimaryContact: invalid category "${category}"`)
+      console.warn(`[emergency.service] getPrimaryContact: invalid category`)
       return null
     }
 
+    const safeAirportCode = validateAirportCode(airportCode)
+
     return db.emergencyContact.findFirst({
       where: {
-        airportCode,
+        airportCode: safeAirportCode,
         category,
         isPrimary: true,
         isActive: true,
       },
     })
   } catch (error) {
-    console.error(`[emergency.service] getPrimaryContact failed:`, error)
-    throw error
+    throw safeError(error, 'retrieving primary contact')
   }
 }
 
@@ -125,35 +191,43 @@ export async function createContact(data: {
   notes?: string
 }) {
   try {
-    const { airportCode, category, name, phoneNumber, whatsappNum, email, isPrimary, notes } = data
+    const { category, isPrimary } = data
+    const safeAirportCode = validateAirportCode(data.airportCode)
+    const safeName = sanitizeText(data.name, 'name', 200)
+    const safePhone = validatePhone(data.phoneNumber, 'phoneNumber')
+    const safeWhatsapp = data.whatsappNum ? validatePhone(data.whatsappNum, 'whatsappNum') : null
+    const safeEmail = sanitizeOptionalText(data.email, 200)
+    const safeNotes = sanitizeOptionalText(data.notes, 2000)
 
     if (!isValidCategory(category)) {
-      throw new Error(`Invalid category "${category}". Must be one of: ${VALID_CATEGORIES.join(', ')}`)
+      throw new Error(`Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`)
     }
 
     // If setting as primary, unset any existing primary for this airport+category
     if (isPrimary) {
       await db.emergencyContact.updateMany({
-        where: { airportCode, category, isPrimary: true },
+        where: { airportCode: safeAirportCode, category, isPrimary: true },
         data: { isPrimary: false },
       })
     }
 
     return db.emergencyContact.create({
       data: {
-        airportCode,
+        airportCode: safeAirportCode,
         category,
-        name,
-        phoneNumber,
-        whatsappNum: whatsappNum || null,
-        email: email || null,
+        name: safeName,
+        phoneNumber: safePhone,
+        whatsappNum: safeWhatsapp,
+        email: safeEmail,
         isPrimary: isPrimary || false,
-        notes: notes || null,
+        notes: safeNotes,
       },
     })
   } catch (error) {
-    console.error(`[emergency.service] createContact failed:`, error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Airport') || error.message.includes('is required') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'creating emergency contact')
   }
 }
 
@@ -177,13 +251,33 @@ export async function updateContact(
   }>
 ) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Contact ID is required')
     }
 
     // If changing category, validate it
     if (data.category && !isValidCategory(data.category)) {
-      throw new Error(`Invalid category "${data.category}". Must be one of: ${VALID_CATEGORIES.join(', ')}`)
+      throw new Error(`Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`)
+    }
+
+    // Validate incoming fields if provided
+    if (data.airportCode !== undefined) {
+      data.airportCode = validateAirportCode(data.airportCode)
+    }
+    if (data.phoneNumber !== undefined) {
+      data.phoneNumber = validatePhone(data.phoneNumber, 'phoneNumber')
+    }
+    if (data.whatsappNum !== undefined) {
+      data.whatsappNum = data.whatsappNum ? validatePhone(data.whatsappNum, 'whatsappNum') : undefined
+    }
+    if (data.name !== undefined) {
+      data.name = sanitizeText(data.name, 'name', 200)
+    }
+    if (data.notes !== undefined) {
+      data.notes = sanitizeOptionalText(data.notes, 2000) ?? undefined
+    }
+    if (data.email !== undefined) {
+      data.email = sanitizeOptionalText(data.email, 200) ?? undefined
     }
 
     // If setting as primary, need to unset other primaries for same airport+category
@@ -226,8 +320,10 @@ export async function updateContact(
       data: updateData,
     })
   } catch (error) {
-    console.error(`[emergency.service] updateContact failed:`, error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Contact') || error.message.startsWith('Invalid') || error.message.includes('is required') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'updating emergency contact')
   }
 }
 
@@ -237,22 +333,24 @@ export async function updateContact(
 
 export async function deleteContact(id: string) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Contact ID is required')
     }
 
     // Verify contact exists before deleting
     const existing = await db.emergencyContact.findUnique({ where: { id } })
     if (!existing) {
-      throw new Error(`Contact with id "${id}" not found`)
+      throw new Error('Contact not found')
     }
 
     return db.emergencyContact.delete({
       where: { id },
     })
   } catch (error) {
-    console.error(`[emergency.service] deleteContact failed:`, error)
-    throw error
+    if (error instanceof Error && error.message.startsWith('Contact')) {
+      throw error
+    }
+    throw safeError(error, 'deleting emergency contact')
   }
 }
 
@@ -263,17 +361,17 @@ export async function deleteContact(id: string) {
 
 export async function setPrimary(id: string) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Contact ID is required')
     }
 
     // Fetch the contact to determine its airport+category scope
     const contact = await db.emergencyContact.findUnique({ where: { id } })
     if (!contact) {
-      throw new Error(`Contact with id "${id}" not found`)
+      throw new Error('Contact not found')
     }
     if (!contact.isActive) {
-      throw new Error(`Cannot set inactive contact "${id}" as primary`)
+      throw new Error('Cannot set inactive contact as primary')
     }
 
     // Unset all other primaries for the same airport+category
@@ -293,8 +391,10 @@ export async function setPrimary(id: string) {
       data: { isPrimary: true },
     })
   } catch (error) {
-    console.error(`[emergency.service] setPrimary failed:`, error)
-    throw error
+    if (error instanceof Error && error.message.startsWith('Contact') && !error.message.startsWith('An error')) {
+      throw error
+    }
+    throw safeError(error, 'setting primary contact')
   }
 }
 
@@ -316,20 +416,17 @@ export async function declareIncident(data: {
   severity?: string
 }) {
   try {
-    const {
-      airportCode,
-      userPhone,
-      userEmail,
-      userName,
-      alertType,
-      location,
-      description,
-      severity,
-    } = data
+    const { alertType, severity } = data
+    const safeAirportCode = validateAirportCode(data.airportCode || 'DSS')
+    const safePhone = validatePhone(data.userPhone, 'userPhone')
+    const safeEmail = sanitizeOptionalText(data.userEmail, 200)
+    const safeName = sanitizeOptionalText(data.userName, 200)
+    const safeLocation = sanitizeOptionalText(data.location, 500)
+    const safeDescription = sanitizeText(data.description, 'description', 5000)
 
     // Validate category
     if (!isValidCategory(alertType)) {
-      throw new Error(`Invalid alert type "${alertType}". Must be one of: ${VALID_CATEGORIES.join(', ')}`)
+      throw new Error(`Invalid alert type. Must be one of: ${VALID_CATEGORIES.join(', ')}`)
     }
 
     // Validate severity (default to 'medium')
@@ -338,22 +435,22 @@ export async function declareIncident(data: {
     // 1. Create the incident record
     const incident = await db.emergencyAlert.create({
       data: {
-        airportCode: airportCode || 'DSS',
-        userPhone,
-        userEmail: userEmail || null,
-        userName: userName || null,
+        airportCode: safeAirportCode,
+        userPhone: safePhone,
+        userEmail: safeEmail,
+        userName: safeName,
         alertType,
         severity: normalizedSeverity,
         status: 'open',
-        location: location || null,
-        description: description || '',
+        location: safeLocation,
+        description: safeDescription,
       },
     })
 
     // 2. Find the primary emergency contact for this category at this airport
     const primaryContact = await db.emergencyContact.findFirst({
       where: {
-        airportCode: airportCode || 'DSS',
+        airportCode: safeAirportCode,
         category: alertType,
         isPrimary: true,
         isActive: true,
@@ -362,7 +459,7 @@ export async function declareIncident(data: {
 
     if (!primaryContact) {
       console.warn(
-        `[emergency.service] declareIncident: no primary contact found for airport="${airportCode || 'DSS'}" category="${alertType}"`
+        `[emergency.service] declareIncident: no primary contact found for airport="${safeAirportCode}" category="${alertType}"`
       )
     }
 
@@ -372,8 +469,10 @@ export async function declareIncident(data: {
       primaryContact: primaryContact || null,
     }
   } catch (error) {
-    console.error(`[emergency.service] declareIncident failed:`, error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Airport') || error.message.includes('is required') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'declaring emergency incident')
   }
 }
 
@@ -390,33 +489,35 @@ export async function updateIncident(
   }
 ) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Incident ID is required')
     }
 
     // Validate status if provided
     if (data.status && !isValidStatus(data.status)) {
-      throw new Error(`Invalid status "${data.status}". Must be one of: ${VALID_STATUSES.join(', ')}`)
+      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`)
     }
 
     // Verify incident exists
     const existing = await db.emergencyAlert.findUnique({ where: { id } })
     if (!existing) {
-      throw new Error(`Incident with id "${id}" not found`)
+      throw new Error('Incident not found')
     }
 
     const updateData: Record<string, unknown> = {}
     if (data.status !== undefined) updateData.status = data.status
-    if (data.assignedTo !== undefined) updateData.assignedTo = data.assignedTo
-    if (data.resolution !== undefined) updateData.resolution = data.resolution
+    if (data.assignedTo !== undefined) updateData.assignedTo = typeof data.assignedTo === 'string' ? data.assignedTo.trim().slice(0, 200) : data.assignedTo
+    if (data.resolution !== undefined) updateData.resolution = typeof data.resolution === 'string' ? data.resolution.trim().slice(0, 2000) : data.resolution
 
     return db.emergencyAlert.update({
       where: { id },
       data: updateData,
     })
   } catch (error) {
-    console.error(`[emergency.service] updateIncident failed:`, error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Incident') || error.message.startsWith('Invalid') || error.message.includes('is required'))) {
+      throw error
+    }
+    throw safeError(error, 'updating emergency incident')
   }
 }
 
@@ -429,12 +530,18 @@ export async function getIncidents(airportCode?: string, status?: string, severi
     const where: Record<string, unknown> = {}
 
     if (airportCode) {
-      where.airportCode = airportCode
+      where.airportCode = validateAirportCode(airportCode)
     }
     if (status) {
+      if (!isValidStatus(status)) {
+        throw new Error(`Invalid status filter. Must be one of: ${VALID_STATUSES.join(', ')}`)
+      }
       where.status = status
     }
     if (severity) {
+      if (!isValidSeverity(severity)) {
+        throw new Error(`Invalid severity filter. Must be one of: ${VALID_SEVERITIES.join(', ')}`)
+      }
       where.severity = severity
     }
 
@@ -443,8 +550,10 @@ export async function getIncidents(airportCode?: string, status?: string, severi
       orderBy: { createdAt: 'desc' },
     })
   } catch (error) {
-    console.error(`[emergency.service] getIncidents failed:`, error)
-    throw error
+    if (error instanceof Error && error.message.startsWith('Invalid')) {
+      throw error
+    }
+    throw safeError(error, 'retrieving emergency incidents')
   }
 }
 
@@ -454,7 +563,7 @@ export async function getIncidents(airportCode?: string, status?: string, severi
 
 export async function getIncidentById(id: string) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       console.warn(`[emergency.service] getIncidentById: missing id`)
       return null
     }
@@ -463,8 +572,7 @@ export async function getIncidentById(id: string) {
       where: { id },
     })
   } catch (error) {
-    console.error(`[emergency.service] getIncidentById failed:`, error)
-    throw error
+    throw safeError(error, 'retrieving emergency incident')
   }
 }
 
@@ -474,10 +582,10 @@ export async function getIncidentById(id: string) {
 
 export async function assignIncident(id: string, contactId: string) {
   try {
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
       throw new Error('Incident ID is required')
     }
-    if (!contactId) {
+    if (!contactId || typeof contactId !== 'string' || contactId.trim().length === 0) {
       throw new Error('Contact ID is required')
     }
 
@@ -488,13 +596,13 @@ export async function assignIncident(id: string, contactId: string) {
     ])
 
     if (!incident) {
-      throw new Error(`Incident with id "${id}" not found`)
+      throw new Error('Incident not found')
     }
     if (!contact) {
-      throw new Error(`Contact with id "${contactId}" not found`)
+      throw new Error('Contact not found')
     }
     if (!contact.isActive) {
-      throw new Error(`Cannot assign incident to inactive contact "${contactId}"`)
+      throw new Error('Cannot assign incident to inactive contact')
     }
 
     return db.emergencyAlert.update({
@@ -505,8 +613,10 @@ export async function assignIncident(id: string, contactId: string) {
       },
     })
   } catch (error) {
-    console.error(`[emergency.service] assignIncident failed:`, error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Incident') || error.message.startsWith('Contact') || error.message.startsWith('Cannot'))) {
+      throw error
+    }
+    throw safeError(error, 'assigning emergency incident')
   }
 }
 
@@ -518,7 +628,7 @@ export async function getIncidentStats(airportCode?: string) {
   try {
     const where: Record<string, unknown> = {}
     if (airportCode) {
-      where.airportCode = airportCode
+      where.airportCode = validateAirportCode(airportCode)
     }
 
     const [total, open, inProgress, resolved, critical] = await Promise.all([
@@ -537,7 +647,6 @@ export async function getIncidentStats(airportCode?: string) {
       critical,
     }
   } catch (error) {
-    console.error(`[emergency.service] getIncidentStats failed:`, error)
-    throw error
+    throw safeError(error, 'retrieving incident statistics')
   }
 }

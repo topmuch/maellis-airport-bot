@@ -105,7 +105,7 @@ export async function parseDocument(
   switch (normalizedType) {
     case 'pdf': {
       try {
-        const result = await pdfParse(buffer)
+        const result = await (pdfParse as unknown as (buf: Buffer) => Promise<{text: string}>)(buffer)
         return cleanExtractedText(result.text)
       } catch (error) {
         throw new Error(

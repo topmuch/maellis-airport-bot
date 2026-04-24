@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getProactiveRules } from '@/lib/services/proactive.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ---------------------------------------------------------------------------
 // GET /api/proactive/rules — Return all proactive rules with enabled state
 // ---------------------------------------------------------------------------
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const rules = await getProactiveRules();
 
@@ -14,6 +21,13 @@ export async function GET() {
       data: rules,
     });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[GET /api/proactive/rules] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -27,8 +41,13 @@ export async function GET() {
 // Body: { ruleId: string, enabled: boolean }
 // ---------------------------------------------------------------------------
 export async function PUT(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await parseBody(request);
     const { ruleId, enabled } = body;
 
     if (!ruleId || typeof ruleId !== 'string') {
@@ -80,6 +99,13 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[PUT /api/proactive/rules] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

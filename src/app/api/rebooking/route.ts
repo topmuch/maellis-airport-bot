@@ -4,9 +4,16 @@ import {
   createRebookingAlert,
   getRebookingStats,
 } from '@/lib/services/rebooking.service'
+import { requireAuth, requireRole } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/rebooking - List rebooking logs and stats
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const phone = searchParams.get('phone')
@@ -23,6 +30,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: logs })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error fetching rebooking data:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch rebooking data' },
@@ -33,8 +47,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/rebooking - Create a rebooking alert
 export async function POST(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT')(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
-    const body = await request.json()
+    const body = await parseBody(request)
     const { phone, originalFlight } = body
 
     if (!phone || !originalFlight) {
@@ -59,6 +78,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: alert }, { status: 201 })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error creating rebooking alert:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create rebooking alert' },

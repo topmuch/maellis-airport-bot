@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { getFamilyProfile } from '@/lib/services/family-mode.service';
 
 // ---------------------------------------------------------------------------
 // GET /api/family-mode/profile?phone=xxx — Get family profile for a user
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const phone = searchParams.get('phone');

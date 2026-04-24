@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkoutCart } from '@/lib/services/cart.service';
+import { requireAuth } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // POST /api/cart/checkout — Checkout cart and create orders per merchant
@@ -8,7 +10,12 @@ import { checkoutCart } from '@/lib/services/cart.service';
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = ['phone', 'type', 'customerName', 'paymentMethod'];
@@ -96,6 +103,9 @@ export async function POST(request: NextRequest) {
       message: `Checkout successful — ${result.ordersCount} order(s) created`,
     });
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       const message = error.message;
 

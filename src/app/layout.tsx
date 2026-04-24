@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 import { Providers } from "@/components/providers";
 import {
@@ -156,7 +157,8 @@ export default function RootLayout({
         >
           <Providers>
             {children}
-            <Toaster />
+            <SonnerToaster duration={4000} richColors position="top-right" />
+            <ShadcnToaster />
           </Providers>
         </ThemeProvider>
       </body>

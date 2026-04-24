@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cancelOrder } from '@/lib/services/merchant.service';
+import { requireAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // PUT /api/orders/[id]/cancel — Cancel order
@@ -8,12 +9,17 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Order ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

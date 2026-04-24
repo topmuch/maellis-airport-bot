@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ─────────────────────────────────────────────
 // TF-IDF Search Utilities
@@ -57,7 +59,12 @@ function tfidfSearch(
 // POST /api/knowledge-base/search — Search the knowledge base (used by bot)
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const authResult = await requireAuth(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
+    const body = await parseBody(req)
     const { query, airportCode = 'DSS', topK = 5, minScore = 0 } = body
 
     if (!query || typeof query !== 'string') {
@@ -180,6 +187,9 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('KnowledgeBase SEARCH error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to search knowledge base' },

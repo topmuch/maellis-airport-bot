@@ -18,6 +18,10 @@ export async function POST(
 
     const { id } = await params
 
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
+
     const result = await markAsSent(id)
 
     if (!result) {

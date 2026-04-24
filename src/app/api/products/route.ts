@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProducts, searchProducts, createProduct } from '@/lib/services/merchant.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ---------------------------------------------------------------------------
 // GET /api/products?merchantId=xxx&category=xxx&search=xxx&available=true
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const merchantId = searchParams.get('merchantId') || undefined;
@@ -35,6 +42,13 @@ export async function GET(request: NextRequest) {
       count: products.length,
     });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[GET /api/products] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -47,8 +61,13 @@ export async function GET(request: NextRequest) {
 // POST /api/products — Create product (merchantId in body)
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await parseBody(request);
 
     const requiredFields: string[] = ['merchantId', 'name', 'category', 'price'];
     const missingFields = requiredFields.filter((field) => !body[field]);

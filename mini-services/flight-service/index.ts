@@ -22,7 +22,7 @@ const subscriptions = new Map<string, FlightSubscription>();
 // ---- CORS Headers ----
 
 const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || 'http://localhost:3001',
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-ID",
 };
@@ -177,6 +177,12 @@ const server = Bun.serve({
 
       // ---- DELETE /api/cache ----
       if (method === "DELETE" && path === "/api/cache") {
+        const authToken = req.headers.get("authorization")?.replace('Bearer ', '')
+        if (!authToken || authToken !== process.env.FLIGHT_SERVICE_SECRET) {
+          logRequest(method, path, 401);
+          return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+        }
+
         const pattern = url.searchParams.get("pattern") || undefined;
         const statsBefore = getCacheStats();
         clearCache(pattern);
@@ -218,7 +224,7 @@ const server = Bun.serve({
         {
           success: false,
           error: "Internal Server Error",
-          message: err instanceof Error ? err.message : "Unknown error",
+          message: "Internal server error",
         },
         500,
       );

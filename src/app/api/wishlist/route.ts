@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { getWishlist, addToWishlist } from '@/lib/services/merchant.service';
 
 // ---------------------------------------------------------------------------
 // GET /api/wishlist?customerPhone=xxx
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const customerPhone = searchParams.get('customerPhone');
@@ -36,6 +42,11 @@ export async function GET(request: NextRequest) {
 // POST /api/wishlist — Add to wishlist
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const body = await request.json();
 

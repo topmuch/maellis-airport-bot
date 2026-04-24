@@ -422,10 +422,10 @@ export function FlightsModule() {
           }))
         )
       } else {
-        setRecentSearches(mockRecentSearches)
+        setRecentSearches([])
       }
     } catch {
-      setRecentSearches(mockRecentSearches)
+      setRecentSearches([])
     } finally {
       setLoadingRecent(false)
     }
@@ -458,10 +458,10 @@ export function FlightsModule() {
           }))
         )
       } else {
-        setFlightStatuses(mockFlightStatuses)
+        setFlightStatuses([])
       }
     } catch {
-      setFlightStatuses(mockFlightStatuses)
+      setFlightStatuses([])
     } finally {
       setLoadingStatus(false)
       setIsRefreshing(false)
@@ -511,11 +511,12 @@ export function FlightsModule() {
         }),
       })
       if (!res.ok) throw new Error('Failed to search')
-      // Show mock results regardless
-      setSearchResults(mockSearchResults)
+      const data = await res.json()
+      const items = Array.isArray(data) ? data : (data.data ?? data.results ?? [])
+      setSearchResults(items)
     } catch {
-      // Fallback to mock data
-      setSearchResults(mockSearchResults)
+      // API error — leave results empty
+      setSearchResults([])
     } finally {
       setIsSearching(false)
     }

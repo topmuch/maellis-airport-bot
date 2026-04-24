@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFeedbackAnalytics } from '@/lib/services/feedback.service';
+import { requireRole } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // GET /api/feedback/analytics?airportCode=xxx
@@ -7,6 +8,11 @@ import { getFeedbackAnalytics } from '@/lib/services/feedback.service';
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airportCode') || undefined;

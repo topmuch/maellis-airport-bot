@@ -21,6 +21,11 @@ export async function GET(
     }
 
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
+
     const { searchParams } = new URL(request.url)
     const month = searchParams.get('month') || undefined
 

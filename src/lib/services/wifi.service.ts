@@ -63,7 +63,9 @@ export async function generateVoucher(data: GenerateVoucherInput) {
 
     return voucher;
   } catch (error) {
-    console.error('[wifi.service] generateVoucher error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[wifi.service] generateVoucher error:', error);
+    }
     throw error;
   }
 }
@@ -93,7 +95,9 @@ export async function validateVoucher(
 
     return { valid: true, voucher };
   } catch (error) {
-    console.error('[wifi.service] validateVoucher error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[wifi.service] validateVoucher error:', error);
+    }
     throw error;
   }
 }
@@ -133,7 +137,9 @@ export async function activateVoucher(code: string) {
 
     return activated;
   } catch (error) {
-    console.error('[wifi.service] activateVoucher error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[wifi.service] activateVoucher error:', error);
+    }
     throw error;
   }
 }
@@ -150,7 +156,9 @@ export async function getVoucherByPhone(phone: string) {
 
     return vouchers;
   } catch (error) {
-    console.error('[wifi.service] getVoucherByPhone error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[wifi.service] getVoucherByPhone error:', error);
+    }
     throw error;
   }
 }
@@ -204,7 +212,9 @@ export async function getWifiStats(airportCode: string) {
       })),
     };
   } catch (error) {
-    console.error('[wifi.service] getWifiStats error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[wifi.service] getWifiStats error:', error);
+    }
     throw error;
   }
 }

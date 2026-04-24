@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTracks, getAllTracks, createTrack, getMusicStats } from '@/lib/services/music.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/music/tracks — public tracks (with optional ?categoryId=) or admin (?admin=true or ?stats=true)
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get('categoryId') || undefined;
@@ -17,6 +24,13 @@ export async function GET(request: NextRequest) {
     const data = admin ? await getAllTracks() : await getTracks(categoryId);
     return NextResponse.json({ success: true, data });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error fetching music tracks:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch tracks' }, { status: 500 });
   }
@@ -24,8 +38,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/music/tracks — create a new track (admin)
 export async function POST(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await parseBody(request);
     const { categoryId, youtubeUrl } = body;
 
     if (!categoryId || !youtubeUrl) {
@@ -35,8 +54,15 @@ export async function POST(request: NextRequest) {
     const track = await createTrack(body);
     return NextResponse.json({ success: true, data: track }, { status: 201 });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error creating music track:', error);
     const message = error instanceof Error ? error.message : 'Failed to create track';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

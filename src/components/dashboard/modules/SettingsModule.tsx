@@ -45,8 +45,8 @@ interface SettingItem {
   description?: string | null
 }
 
-// ─── Mock Settings ───────────────────────────────────────────────
-const MOCK_SETTINGS: Record<string, string> = {
+// ─── Mock Settings Reference (development only, NOT used in production) ───
+const _MOCK_SETTINGS_REFERENCE: Record<string, string> = {
   // General
   airport_name: 'Aéroport International Léopold Sédar Senghor',
   airport_iata: 'DSS',
@@ -55,8 +55,9 @@ const MOCK_SETTINGS: Record<string, string> = {
   maintenance_mode: 'false',
 
   // WhatsApp
-  whatsapp_verify_token: 'my_verify_token_12345',
-  whatsapp_access_token: 'EAAGm0PX4ZCpsBAO...',
+  // NOTE: Secret values must be loaded from server API and masked before displaying (show only last 4 chars)
+  whatsapp_verify_token: '••••••••',
+  whatsapp_access_token: '••••••••',
   whatsapp_phone_number: '+221 78 000 00 00',
   whatsapp_webhook_url: 'https://api.maellis.ai/webhook',
   whatsapp_connected: 'true',
@@ -64,19 +65,19 @@ const MOCK_SETTINGS: Record<string, string> = {
   // AI
   ai_provider: 'groq',
   ai_model: 'llama-3-8b',
-  ai_api_key: 'gsk_abc123def456...',
+  ai_api_key: '••••••••',
   ai_temperature: '0.7',
   ai_max_tokens: '2048',
   ai_default_language: 'fr',
 
   // Payments
-  orange_money_api_key: 'om_key_xxxxx',
+  orange_money_api_key: '••••••••',
   orange_money_merchant_id: 'OM-DSS-001',
   orange_money_enabled: 'true',
-  wave_api_key: 'wave_key_xxxxx',
+  wave_api_key: '••••••••',
   wave_merchant_id: 'WV-DSS-001',
   wave_enabled: 'true',
-  mtn_momo_api_key: 'mtn_key_xxxxx',
+  mtn_momo_api_key: '••••••••',
   mtn_momo_enabled: 'false',
 
   // Emergency
@@ -1093,13 +1094,13 @@ export function SettingsModule() {
             })
             setSettings(map)
           } else {
-            setSettings(MOCK_SETTINGS)
+            setSettings({})
           }
         } else {
-          setSettings(MOCK_SETTINGS)
+          setSettings({})
         }
       } catch {
-        setSettings(MOCK_SETTINGS)
+        setSettings({})
       } finally {
         setLoading(false)
       }

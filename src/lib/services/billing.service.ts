@@ -1,9 +1,133 @@
 import { db } from '@/lib/db'
+import { z } from 'zod'
 
 // ═══════════════════════════════════════════════════════════════
 // MAELLIS Billing Module — Service Layer
 // Clients, Invoices, Payments, Reminders, Settings, PDF, CSV
 // ═══════════════════════════════════════════════════════════════
+
+// ─── Zod Validation Schemas ──────────────────────────────────────────────
+
+const getClientsSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().max(200).optional(),
+})
+
+const invoiceStatusEnum = z.enum(['draft', 'sent', 'paid', 'overdue', 'cancelled', 'partial'])
+const invoiceTypeEnum = z.enum(['standard', 'recurring'])
+const yyyyMmddRegex = /^\d{4}-\d{2}-\d{2}$/
+const dateSchema = z.string().regex(yyyyMmddRegex, 'Must be a valid date in YYYY-MM-DD format')
+
+const getInvoicesSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  clientId: z.string().optional(),
+  status: invoiceStatusEnum.optional(),
+  type: invoiceTypeEnum.optional(),
+  dateFrom: dateSchema.optional(),
+  dateTo: dateSchema.optional(),
+})
+
+const iso4217Regex = /^[A-Z]{3}$/
+
+const createInvoiceSchema = z.object({
+  clientId: z.string().min(1, 'clientId is required'),
+  type: invoiceTypeEnum,
+  items: z.array(z.object({
+    description: z.string().min(1).max(500),
+    quantity: z.number().positive('Item quantity must be positive'),
+    unitPrice: z.number().min(0, 'Item unit price must be non-negative'),
+  })).min(1, 'At least one item is required'),
+  issueDate: z.union([z.string(), z.date()]).optional(),
+  dueDate: z.union([z.string(), z.date()]).optional(),
+  notes: z.string().max(2000).optional(),
+  currency: z.string().regex(iso4217Regex, 'Currency must be a valid ISO 4217 code (3 uppercase letters)').optional(),
+})
+
+const updateBillingSettingsSchema = z.object({
+  defaultTaxRate: z.number().min(0).max(100, 'defaultTaxRate must be between 0 and 100').optional(),
+  gracePeriodDays: z.coerce.number().int().min(1, 'gracePeriodDays must be a positive integer').optional(),
+  reminderDays: z.coerce.number().int().min(1, 'reminderDays must be a positive integer').optional(),
+  legalName: z.string().max(200).optional(),
+  legalAddress: z.string().max(500).optional(),
+  legalTaxId: z.string().max(50).optional(),
+  legalRccm: z.string().max(50).optional(),
+  bankName: z.string().max(200).optional(),
+  bankAccount: z.string().max(100).optional(),
+  paymentLink: z.string().max(500).optional(),
+})
+
+// ─────────────────────────────────────────────
+// Validation Helpers
+// ─────────────────────────────────────────────
+
+/** Validate a positive finite number (must be > 0) */
+function validatePositive(value: unknown, fieldName: string): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`${fieldName} must be a positive number`)
+  }
+  return n
+}
+
+/** Validate a non-negative finite number (must be >= 0) */
+function validateNonNegative(value: unknown, fieldName: string): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`)
+  }
+  return n
+}
+
+/** Safe string with max length — returns empty string for non-string input */
+function sanitizeText(text: unknown, maxLength: number, fieldName: string): string {
+  if (typeof text !== 'string') return ''
+  const trimmed = text.trim()
+  if (trimmed.length === 0) {
+    throw new Error(`${fieldName} is required`)
+  }
+  return trimmed.slice(0, maxLength)
+}
+
+/** Wrap error to prevent internal details from leaking */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`[billing.service] ${context}:`, message)
+  if (error instanceof Error) {
+    return new Error(error.message.includes('Prisma') ? 'Database error' : error.message)
+  }
+  return new Error('An unexpected error occurred')
+}
+
+/** Validate phone format */
+function validatePhone(phone: unknown, fieldName = 'phone'): string {
+  if (typeof phone !== 'string' || !/^[+\d\s\-()]{6,20}$/.test(phone.trim())) {
+    throw new Error(`Invalid ${fieldName}: must be 6-20 characters and contain only digits, spaces, +, -, ()`)
+  }
+  return phone.trim()
+}
+
+/** Validate email format */
+function validateEmail(email: unknown, fieldName = 'email'): string {
+  if (typeof email !== 'string' || email.trim().length === 0) {
+    throw new Error(`${fieldName} is required and must be a non-empty string`)
+  }
+  const trimmed = email.trim()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    throw new Error(`Invalid ${fieldName} format`)
+  }
+  return trimmed
+}
+
+/** Escape CSV field to prevent CSV injection */
+function escapeCSV(value: unknown): string {
+  const str = typeof value === 'string' ? value : String(value ?? '')
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return "'" + str
+  }
+  return str
+}
 
 // ─────────────────────────────────────────────
 // TypeScript Interfaces
@@ -82,7 +206,12 @@ export interface OverdueResult {
 
 export async function getClients(params: GetClientsParams) {
   try {
-    const { search, page, limit } = params
+    // Zod validation
+    const parsed = getClientsSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
+    }
+    const { search, page, limit } = parsed.data
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}
@@ -121,28 +250,36 @@ export async function getClients(params: GetClientsParams) {
       },
     }
   } catch (error) {
-    console.error('[billing.service] getClients error:', error)
-    throw error
+    throw safeError(error, 'getClients')
   }
 }
 
 export async function createClient(params: CreateClientParams) {
   try {
+    // Validate inputs
+    const name = sanitizeText(params.name, 200, 'name')
+    const email = validateEmail(params.email, 'email')
+    const phone = validatePhone(params.phone, 'phone')
+    const company = params.company ? sanitizeText(params.company, 200, 'company') : null
+    const taxId = params.taxId ? sanitizeText(params.taxId, 50, 'taxId') : null
+
     return await db.billingClient.create({
       data: {
-        name: params.name,
-        email: params.email,
-        phone: params.phone,
-        company: params.company || null,
-        taxId: params.taxId || null,
+        name,
+        email,
+        phone,
+        company,
+        taxId,
         address: params.address || '{}',
         currency: params.currency || 'XOF',
-        taxRate: params.taxRate !== undefined ? params.taxRate : 0.18,
+        taxRate: params.taxRate !== undefined ? validateNonNegative(params.taxRate, 'taxRate') : 0.18,
       },
     })
   } catch (error) {
-    console.error('[billing.service] createClient error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Invalid ') || error.message.includes('is required') || error.message.includes('format'))) {
+      throw error
+    }
+    throw safeError(error, 'createClient')
   }
 }
 
@@ -152,7 +289,12 @@ export async function createClient(params: CreateClientParams) {
 
 export async function getInvoices(params: GetInvoicesParams) {
   try {
-    const { clientId, status, type, dateFrom, dateTo, page, limit } = params
+    // Zod validation
+    const parsed = getInvoicesSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
+    }
+    const { clientId, status, type, dateFrom, dateTo, page, limit } = parsed.data
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}
@@ -215,14 +357,37 @@ export async function getInvoices(params: GetInvoicesParams) {
       },
     }
   } catch (error) {
-    console.error('[billing.service] getInvoices error:', error)
-    throw error
+    throw safeError(error, 'getInvoices')
   }
 }
 
 export async function createInvoice(params: CreateInvoiceParams) {
   try {
+    // Zod validation for top-level fields (type, currency, dates)
+    const createInvoicePartialSchema = createInvoiceSchema.pick({
+      clientId: true, type: true, notes: true, currency: true,
+      issueDate: true, dueDate: true,
+    })
+    const parsed = createInvoicePartialSchema.safeParse(params)
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
+    }
     const { clientId, type, items, issueDate, dueDate, notes, currency } = params
+
+    // Validate items
+    for (const item of items) {
+      if (typeof item.description !== 'string' || item.description.trim().length === 0) {
+        throw new Error('Item description is required')
+      }
+      if (item.description.length > 500) {
+        throw new Error('Item description must be at most 500 characters')
+      }
+      validatePositive(item.quantity, 'Item quantity')
+      validateNonNegative(item.unitPrice, 'Item unit price')
+    }
+
+    // Validate notes length
+    const safeNotes = notes ? sanitizeText(notes, 2000, 'notes') : null
 
     // Fetch client to get taxRate and currency
     const client = await db.billingClient.findUnique({ where: { id: clientId } })
@@ -272,10 +437,10 @@ export async function createInvoice(params: CreateInvoiceParams) {
       await tx.invoiceItem.createMany({
         data: items.map((item) => ({
           invoiceId: newInvoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          total: item.quantity * item.unitPrice,
+          description: item.description.trim().slice(0, 500),
+          quantity: Math.round(validatePositive(item.quantity, 'quantity') * 100) / 100,
+          unitPrice: Math.round(validateNonNegative(item.unitPrice, 'unit price') * 100) / 100,
+          total: Math.round(item.quantity * item.unitPrice * 100) / 100,
         })),
       })
 
@@ -310,8 +475,10 @@ export async function createInvoice(params: CreateInvoiceParams) {
 
     return invoice
   } catch (error) {
-    console.error('[billing.service] createInvoice error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Item') || error.message.includes('is required') || error.message.includes('at most') || error.message.includes('must be'))) {
+      throw error
+    }
+    throw safeError(error, 'createInvoice')
   }
 }
 
@@ -347,7 +514,7 @@ export async function markAsSent(invoiceId: string) {
           invoiceNumber: updated.invoiceNumber,
           amount: updated.total,
           currency: updated.currency,
-          dueDate: updated.dueDate,
+          dueDate: updated.dueDate.toISOString(),
         }).catch((emailError) => {
           console.error('[billing.service] Failed to send invoice email:', emailError)
         })
@@ -358,8 +525,10 @@ export async function markAsSent(invoiceId: string) {
 
     return updated
   } catch (error) {
-    console.error('[billing.service] markAsSent error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invoice') || error.message.startsWith('Cannot'))) {
+      throw error
+    }
+    throw safeError(error, 'markAsSent')
   }
 }
 
@@ -369,6 +538,9 @@ export async function markAsSent(invoiceId: string) {
 
 export async function recordPayment(invoiceId: string, params: RecordPaymentParams) {
   try {
+    // Validate payment amount
+    const safeAmount = validatePositive(params.amount, 'Payment amount')
+
     const invoice = await db.invoice.findUnique({
       where: { id: invoiceId },
       include: {
@@ -395,9 +567,9 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
     const totalPaid = invoice.invoicePayments.reduce((sum, p) => sum + p.amount, 0)
     const remaining = invoice.total - totalPaid
 
-    if (params.amount > remaining + 0.01) {
+    if (safeAmount > remaining + 0.01) {
       throw new Error(
-        `Payment amount (${params.amount}) exceeds remaining balance (${remaining.toFixed(2)}). Invoice would be overpaid.`
+        `Payment amount (${safeAmount}) exceeds remaining balance (${remaining.toFixed(2)}). Invoice would be overpaid.`
       )
     }
 
@@ -407,7 +579,7 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
       const payment = await tx.invoicePayment.create({
         data: {
           invoiceId,
-          amount: params.amount,
+          amount: safeAmount,
           method: params.method,
           transactionId: params.transactionId || null,
           status: 'completed',
@@ -417,7 +589,7 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
       })
 
       // Recalculate total paid
-      const newTotalPaid = totalPaid + params.amount
+      const newTotalPaid = totalPaid + safeAmount
 
       // Determine new status
       let newStatus: string
@@ -452,8 +624,10 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
 
     return result
   } catch (error) {
-    console.error('[billing.service] recordPayment error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('Invoice') || error.message.startsWith('Cannot') || error.message.includes('exceeds'))) {
+      throw error
+    }
+    throw safeError(error, 'recordPayment')
   }
 }
 
@@ -534,8 +708,7 @@ export async function generateInvoicePDF(invoiceId: string): Promise<PDFResult |
       invoiceNumber: invoice.invoiceNumber,
     }
   } catch (error) {
-    console.error('[billing.service] generateInvoicePDF error:', error)
-    throw error
+    throw safeError(error, 'generateInvoicePDF')
   }
 }
 
@@ -547,11 +720,11 @@ export function generateInvoiceCSV(invoices: unknown[]): string {
   const header = 'Numéro,Client,Société,Type,Statut,Date émission,Date échéance,Sous-total,TVA,Total,Devise'
   const rows = (invoices as Record<string, unknown>[]).map((inv) => {
     const client = inv.client as Record<string, unknown> | undefined
-    const clientName = client?.name || ''
-    const company = client?.company || ''
-    const invoiceNumber = inv.invoiceNumber || ''
-    const type = inv.type || ''
-    const status = inv.status || ''
+    const clientName = escapeCSV(client?.name || '')
+    const company = escapeCSV(client?.company || '')
+    const invoiceNumber = escapeCSV(inv.invoiceNumber || '')
+    const type = escapeCSV(inv.type || '')
+    const status = escapeCSV(inv.status || '')
     const issueDate = inv.issueDate instanceof Date
       ? inv.issueDate.toISOString().slice(0, 10)
       : String(inv.issueDate || '')
@@ -561,7 +734,7 @@ export function generateInvoiceCSV(invoices: unknown[]): string {
     const subtotal = inv.subtotal || 0
     const taxAmount = inv.taxAmount || 0
     const total = inv.total || 0
-    const currency = inv.currency || 'XOF'
+    const currency = escapeCSV(inv.currency || 'XOF')
 
     return `"${invoiceNumber}","${clientName}","${company}","${type}","${status}","${issueDate}","${dueDate}",${subtotal},${taxAmount},${total},"${currency}"`
   })
@@ -680,8 +853,7 @@ export async function getBillingStats() {
       recentInvoices,
     }
   } catch (error) {
-    console.error('[billing.service] getBillingStats error:', error)
-    throw error
+    throw safeError(error, 'getBillingStats')
   }
 }
 
@@ -700,34 +872,26 @@ export async function getBillingSettings() {
 
     return settings
   } catch (error) {
-    console.error('[billing.service] getBillingSettings error:', error)
-    throw error
+    throw safeError(error, 'getBillingSettings')
   }
 }
 
 export async function updateBillingSettings(data: Record<string, unknown>) {
   try {
+    // Zod validation
+    const parsed = updateBillingSettingsSchema.safeParse(data)
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`)
+    }
+
     const settings = await getBillingSettings()
 
-    // Build update data — only update provided fields
+    // Build update data — only update provided fields (already validated by Zod)
     const updateData: Record<string, unknown> = {}
 
-    const allowedFields = [
-      'defaultTaxRate',
-      'gracePeriodDays',
-      'reminderDays',
-      'legalName',
-      'legalAddress',
-      'legalTaxId',
-      'legalRccm',
-      'bankName',
-      'bankAccount',
-      'paymentLink',
-    ]
-
-    for (const field of allowedFields) {
-      if (data[field] !== undefined) {
-        updateData[field] = data[field]
+    for (const [field, value] of Object.entries(parsed.data)) {
+      if (value !== undefined) {
+        updateData[field] = value
       }
     }
 
@@ -736,8 +900,10 @@ export async function updateBillingSettings(data: Record<string, unknown>) {
       data: updateData,
     })
   } catch (error) {
-    console.error('[billing.service] updateBillingSettings error:', error)
-    throw error
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error
+    }
+    throw safeError(error, 'updateBillingSettings')
   }
 }
 
@@ -822,8 +988,7 @@ export async function handleInvoicePaymentWebhook(
       }
     }
   } catch (error) {
-    console.error('[billing.service] handleInvoicePaymentWebhook error:', error)
-    throw error
+    throw safeError(error, 'handleInvoicePaymentWebhook')
   }
 }
 
@@ -862,8 +1027,7 @@ export async function checkOverdueInvoices(): Promise<OverdueResult> {
       invoices: updated,
     }
   } catch (error) {
-    console.error('[billing.service] checkOverdueInvoices error:', error)
-    throw error
+    throw safeError(error, 'checkOverdueInvoices')
   }
 }
 
@@ -945,7 +1109,6 @@ export async function processReminders(): Promise<ReminderResult> {
 
     return { sent, failed, reminders: processed }
   } catch (error) {
-    console.error('[billing.service] processReminders error:', error)
-    throw error
+    throw safeError(error, 'processReminders')
   }
 }

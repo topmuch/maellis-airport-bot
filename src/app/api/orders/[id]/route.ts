@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
+
+// ─────────────────────────────────────────────
+// Input validation schemas
+// ─────────────────────────────────────────────
+
+/**
+ * Validate the dynamic [id] route parameter.
+ * Accepts:
+ *  - UUID format (cuid / uuid)
+ *  - Order numbers matching ORD-YYYY-XXXXXX
+ */
+const orderIdSchema = z.string().min(1).max(50).regex(
+  /^(ORD-\d{4}-\d{6}|[a-z0-9]{20,})$/i,
+  'Invalid order ID or order number format'
+);
 
 // ---------------------------------------------------------------------------
 // GET /api/orders/[id] — Get order by ID or order number
@@ -9,12 +26,19 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    // ── Validate ID format ──
+    const parsed = orderIdSchema.safeParse(id);
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: 'Order ID or order number is required' },
+        { success: false, error: 'Invalid order ID format' },
         { status: 400 },
       );
     }

@@ -113,7 +113,9 @@ export async function getProactiveRules(): Promise<ProactiveRule[]> {
       enabled: enabledMap.has(rule.id) ? enabledMap.get(rule.id)! : true,
     }));
   } catch (error) {
-    console.error('[proactive.service] getProactiveRules error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[proactive.service] getProactiveRules error:', error);
+    }
     throw error;
   }
 }
@@ -188,7 +190,9 @@ export async function evaluateFlightsForProactive(
 
     return actions;
   } catch (error) {
-    console.error('[proactive.service] evaluateFlightsForProactive error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[proactive.service] evaluateFlightsForProactive error:', error);
+    }
     throw error;
   }
 }
@@ -242,7 +246,9 @@ export async function sendProactiveMessage(
 
     return log;
   } catch (error) {
-    console.error('[proactive.service] sendProactiveMessage error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[proactive.service] sendProactiveMessage error:', error);
+    }
     throw error;
   }
 }
@@ -291,7 +297,9 @@ export async function getProactiveLogs(
       totalPages: Math.ceil(total / limit),
     };
   } catch (error) {
-    console.error('[proactive.service] getProactiveLogs error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[proactive.service] getProactiveLogs error:', error);
+    }
     throw error;
   }
 }
@@ -358,7 +366,9 @@ export async function getProactiveStats(
       deliveredRate,
     };
   } catch (error) {
-    console.error('[proactive.service] getProactiveStats error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[proactive.service] getProactiveStats error:', error);
+    }
     throw error;
   }
 }

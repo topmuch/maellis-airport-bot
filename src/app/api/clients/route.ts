@@ -41,8 +41,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const { name, email, phone, company, taxId, address, currency, taxRate } = body
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const { name, email, phone, company, taxId, address, currency, taxRate } = body as Record<string, any>
 
     // Basic validation
     if (!name || !email || !phone) {

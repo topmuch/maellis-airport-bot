@@ -4,12 +4,19 @@ import {
   createCampaign,
   VALID_CAMPAIGN_STATUSES,
 } from '@/lib/services/ad.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // GET /api/ads/campaigns?airport=DSS&status=active — List campaigns
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airport') || undefined;
     const status = searchParams.get('status') || undefined;
@@ -42,7 +49,12 @@ export async function GET(request: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = ['airportCode', 'name', 'startDate', 'endDate', 'totalBudget'];
@@ -103,6 +115,9 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     console.error('[POST /api/ads/campaigns] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

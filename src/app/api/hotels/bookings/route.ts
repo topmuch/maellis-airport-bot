@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserBookings, getHotelStats } from '@/lib/services/hotels.service'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/hotels/bookings - List bookings and stats
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const phone = searchParams.get('phone')

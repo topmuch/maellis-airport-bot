@@ -30,7 +30,7 @@ import {
 
 interface Campaign { id: string; airportCode: string; name: string; description?: string; startDate: string; endDate: string; totalBudget: number; spentBudget: number; status: string; _count?: { advertisements: number }; createdAt: string }
 
-interface Ad { id: string; airportCode: string; campaignId?: string; campaignName?: string; merchantId?: string; merchantName?: string; title: string; description?: string; type: string; placement: string; imageUrl: string; targetUrl?: string; ctaText: string; startDate: string; endDate: string; budget: number; budgetType: string; cpmRate?: number; cpcRate?: number; impressions: number; clicks: number; conversions: number; revenue: number; status: string; rejectionReason?: string; createdAt: string }
+interface Ad { id: string; airportCode: string; campaignId?: string; campaignName?: string; merchantId?: string; merchantName?: string; title: string; description?: string; type: string; placement: string; imageUrl: string; videoUrl?: string; targetUrl?: string; ctaText: string; startDate: string; endDate: string; budget: number; budgetType: string; cpmRate?: number; cpcRate?: number; impressions: number; clicks: number; conversions: number; revenue: number; status: string; rejectionReason?: string; createdAt: string }
 
 // ── Constants ───────────────────────────────────────────────────────────────
 

@@ -3,6 +3,8 @@ import {
   createCrisisAlert,
   getCrisisAlerts,
 } from '@/lib/services/crisis-broadcast.service'
+import { requireRole } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ─────────────────────────────────────────────
 // GET /api/crisis?airportCode=xxx&status=xxx&severity=xxx&page=1&limit=20
@@ -10,12 +12,17 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN')
+    const authResult = await checkRole(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
     const { searchParams } = new URL(request.url)
     const airportCode = searchParams.get('airportCode') || undefined
     const status = searchParams.get('status') || undefined
     const severity = searchParams.get('severity') || undefined
     const page = Math.max(1, Number(searchParams.get('page')) || 1)
-    const limit = Math.max(1, Number(searchParams.get('limit')) || 20)
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20))
 
     const result = await getCrisisAlerts(airportCode, status, severity, page, limit)
 
@@ -24,6 +31,13 @@ export async function GET(request: NextRequest) {
       data: result,
     })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[GET /api/crisis] error:', error)
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -38,7 +52,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN')
+    const authResult = await checkRole(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+    const body = await parseBody(request)
     const {
       airportCode,
       title,
@@ -74,6 +93,13 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[POST /api/crisis] error:', error)
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

@@ -441,8 +441,8 @@ export async function getProducts(
     }
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
+        { description: { contains: search } },
       ];
     }
     if (isAvailable !== undefined) {
@@ -621,10 +621,10 @@ export async function searchProducts(
       AND: [
         {
           OR: [
-            { name: { contains: query, mode: 'insensitive' } },
-            { description: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query } },
+            { description: { contains: query } },
             { tags: { contains: query } },
-            { category: { contains: query, mode: 'insensitive' } },
+            { category: { contains: query } },
           ],
         },
       ],
@@ -640,7 +640,7 @@ export async function searchProducts(
       (where.AND as Prisma.ProductWhereInput[]).push({ isAvailable: filters.isAvailable });
     }
     if (filters?.minPrice !== undefined || filters?.maxPrice !== undefined) {
-      const priceFilter: Prisma.FloatNullableFilter = {};
+      const priceFilter: Prisma.FloatFilter = {};
       if (filters.minPrice !== undefined) priceFilter.gte = filters.minPrice;
       if (filters.maxPrice !== undefined) priceFilter.lte = filters.maxPrice;
       (where.AND as Prisma.ProductWhereInput[]).push({ price: priceFilter });
@@ -1172,19 +1172,25 @@ export async function getWishlist(customerPhone: string) {
   try {
     const wishlist = await db.wishlist.findMany({
       where: { customerPhone },
-      include: {
-        product: {
-          include: {
-            merchant: {
-              select: { id: true, name: true, logo: true },
-            },
-          },
-        },
-      },
       orderBy: { createdAt: 'desc' },
     });
 
-    return wishlist;
+    // Manually fetch product details for each wishlist item
+    const products = await db.product.findMany({
+      where: { id: { in: wishlist.map(w => w.productId) } },
+      include: {
+        merchant: {
+          select: { id: true, name: true, logo: true },
+        },
+      },
+    });
+
+    const productMap = new Map(products.map(p => [p.id, p]));
+
+    return wishlist.map(item => ({
+      ...item,
+      product: productMap.get(item.productId) ?? null,
+    }));
   } catch (error) {
     console.error('[merchant.service] getWishlist error:', error);
     throw error;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCampaignStats } from '@/lib/services/ad.service';
+import { requireAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // GET /api/ads/campaigns/[id]/stats — Campaign statistics
@@ -9,11 +10,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Campaign ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

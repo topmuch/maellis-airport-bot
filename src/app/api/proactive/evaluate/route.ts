@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { evaluateFlightsForProactive } from '@/lib/services/proactive.service';
+import { requireAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // POST /api/proactive/evaluate?airportCode=DSS
 // Evaluate flights for proactive message triggers
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airportCode');

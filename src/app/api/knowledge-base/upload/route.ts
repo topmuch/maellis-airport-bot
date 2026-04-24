@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { PDFParse as pdfParse } from 'pdf-parse'
+import { requireRole } from '@/lib/auth'
 
 // ─────────────────────────────────────────────
 // Text chunking utility
@@ -47,7 +48,7 @@ async function extractTextFromFile(
 ): Promise<string> {
   switch (fileType) {
     case 'pdf': {
-      const data = await pdfParse(buffer)
+      const data = await (pdfParse as unknown as (buf: Buffer) => Promise<{text?: string}>)(buffer)
       return data.text || ''
     }
     case 'txt':
@@ -68,6 +69,11 @@ const UPLOAD_DIR = join(process.cwd(), 'upload', 'kb')
 // POST /api/knowledge-base/upload — Upload file, extract text, chunk and store
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const title = (formData.get('title') as string) || ''

@@ -5,6 +5,7 @@ import {
   updateLounge,
   deleteLounge,
 } from '@/lib/services/lounge.service';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // GET /api/lounges/[id] — Get a single lounge by ID
@@ -14,11 +15,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Lounge ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
@@ -54,29 +60,26 @@ export async function PUT(
 ) {
   try {
     // Authenticate and authorize
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
       return NextResponse.json({ success: false, error: authResult.error || 'Unauthorized' }, { status: authResult.status || 401 });
-    }
-    if (!['superadmin', 'airport_admin'].includes(authResult.user.role)) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Lounge ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
 
-    const body = await request.json();
+    const body = await parseBody(request);
 
     // Validate numeric fields when provided
     const priceFields = ['priceStandard', 'priceBusiness', 'priceFirstClass', 'priceChild'];
     for (const field of priceFields) {
-      if (body[field] !== undefined && (typeof body[field] !== 'number' || body[field] < 0)) {
+      if (body[field] !== undefined && (!Number.isFinite(body[field]) || body[field] < 0)) {
         return NextResponse.json(
           { success: false, error: `${field} must be a non-negative number` },
           { status: 400 },
@@ -155,6 +158,9 @@ export async function PUT(
       message: 'Lounge updated successfully',
     });
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
         return NextResponse.json(
@@ -187,19 +193,16 @@ export async function DELETE(
 ) {
   try {
     // Authenticate and authorize
-    const authResult = await requireAuth(request);
-    if (!authResult.success || !authResult.user) {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
       return NextResponse.json({ success: false, error: authResult.error || 'Unauthorized' }, { status: authResult.status || 401 });
-    }
-    if (!['superadmin', 'airport_admin'].includes(authResult.user.role)) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Lounge ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

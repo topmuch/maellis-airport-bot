@@ -1,9 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
-import { updateContact, deleteContact } from '@/lib/services/emergency.service'
+import { requireAuth, requireRole } from '@/lib/auth'
+import { updateContact, deleteContact, getContactById } from '@/lib/services/emergency.service'
+import { validateId, ValidationError, parseBody } from '@/lib/validate'
 
 interface RouteParams {
   params: Promise<{ id: string }>
+}
+
+// GET /api/emergency/contacts/[id] — Get contact by ID
+export async function GET(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  try {
+    const authResult = await requireAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
+    const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
+    return NextResponse.json({ success: true, data: { id } })
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
 }
 
 // PUT /api/emergency/contacts/[id] — Update contact (admin only)
@@ -12,16 +39,21 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin')(request)
+    const authResult = await requireAuth(request)
     if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      )
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
     }
 
     const { id } = await params
-    const body = await request.json()
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
+    const body = await parseBody(request)
 
     // At least one field must be provided
     const updatableFields = [
@@ -45,15 +77,22 @@ export async function PUT(
       message: 'Emergency contact updated successfully',
     })
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error updating emergency contact:', error)
 
-    const message = error instanceof Error ? error.message : 'Failed to update emergency contact'
+    const internalMessage = error instanceof Error ? error.message : ''
 
-    if (message.includes('not found')) {
-      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    if (internalMessage.includes('not found')) {
+      return NextResponse.json({ success: false, error: 'Emergency contact not found' }, { status: 404 })
     }
-    if (message.startsWith('Invalid category')) {
-      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    if (internalMessage.startsWith('Invalid category')) {
+      return NextResponse.json({ success: false, error: 'Invalid category' }, { status: 400 })
     }
 
     return NextResponse.json(
@@ -69,15 +108,20 @@ export async function DELETE(
   { params }: RouteParams
 ) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin')(request)
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT')(request)
     if (!authResult.success) {
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: authResult.status }
-      )
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
     }
 
     const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
 
     const result = await deleteContact(id)
 
@@ -87,12 +131,19 @@ export async function DELETE(
       message: 'Emergency contact deleted successfully',
     })
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error deleting emergency contact:', error)
 
-    const message = error instanceof Error ? error.message : 'Failed to delete emergency contact'
+    const internalMessage = error instanceof Error ? error.message : ''
 
-    if (message.includes('not found')) {
-      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    if (internalMessage.includes('not found')) {
+      return NextResponse.json({ success: false, error: 'Emergency contact not found' }, { status: 404 })
     }
 
     return NextResponse.json(

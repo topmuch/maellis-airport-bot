@@ -49,7 +49,9 @@ export async function generateAudio(data: GenerateAudioInput) {
 
     return generation;
   } catch (error) {
-    console.error('[pmr-audio.service] generateAudio error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[pmr-audio.service] generateAudio error:', error);
+    }
     throw error;
   }
 }
@@ -73,7 +75,9 @@ export async function getAudioHistory(phone?: string) {
 
     return history;
   } catch (error) {
-    console.error('[pmr-audio.service] getAudioHistory error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[pmr-audio.service] getAudioHistory error:', error);
+    }
     throw error;
   }
 }
@@ -88,13 +92,17 @@ export async function getAudioById(id: string) {
     });
 
     if (!audio) {
-      console.error(`[pmr-audio.service] Audio not found: ${id}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[pmr-audio.service] Audio not found: ${id}`);
+      }
       return null;
     }
 
     return audio;
   } catch (error) {
-    console.error('[pmr-audio.service] getAudioById error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[pmr-audio.service] getAudioById error:', error);
+    }
     throw error;
   }
 }
@@ -106,14 +114,18 @@ export async function deleteAudio(id: string) {
   try {
     const existing = await db.audioGeneration.findUnique({ where: { id } });
     if (!existing) {
-      console.error(`[pmr-audio.service] Audio not found: ${id}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[pmr-audio.service] Audio not found: ${id}`);
+      }
       return null;
     }
 
     await db.audioGeneration.delete({ where: { id } });
     return { success: true, deletedId: id };
   } catch (error) {
-    console.error('[pmr-audio.service] deleteAudio error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[pmr-audio.service] deleteAudio error:', error);
+    }
     throw error;
   }
 }
@@ -180,7 +192,9 @@ export async function getPmrStats() {
       totalDurationSec: totalDuration._sum.durationSec || 0,
     };
   } catch (error) {
-    console.error('[pmr-audio.service] getPmrStats error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[pmr-audio.service] getPmrStats error:', error);
+    }
     throw error;
   }
 }

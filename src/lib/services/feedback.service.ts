@@ -134,7 +134,9 @@ export async function submitFeedback(data: SubmitFeedbackInput) {
 
     return feedback;
   } catch (error) {
-    console.error('[feedback.service] submitFeedback error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[feedback.service] submitFeedback error:', error);
+    }
     throw error;
   }
 }
@@ -195,7 +197,9 @@ export async function getFeedbacks(filters: FeedbackFilters = {}): Promise<Feedb
       totalPages: Math.ceil(total / limit),
     };
   } catch (error) {
-    console.error('[feedback.service] getFeedbacks error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[feedback.service] getFeedbacks error:', error);
+    }
     throw error;
   }
 }
@@ -286,7 +290,9 @@ export async function getNPSScore(
       ratingDistribution,
     };
   } catch (error) {
-    console.error('[feedback.service] getNPSScore error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[feedback.service] getNPSScore error:', error);
+    }
     throw error;
   }
 }
@@ -433,7 +439,9 @@ export async function getFeedbackAnalytics(
       lowScoreAlerts,
     };
   } catch (error) {
-    console.error('[feedback.service] getFeedbackAnalytics error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[feedback.service] getFeedbackAnalytics error:', error);
+    }
     throw error;
   }
 }
@@ -468,7 +476,9 @@ export async function getRecentAlerts(
       timeWindow: '24h',
     };
   } catch (error) {
-    console.error('[feedback.service] getRecentAlerts error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[feedback.service] getRecentAlerts error:', error);
+    }
     throw error;
   }
 }

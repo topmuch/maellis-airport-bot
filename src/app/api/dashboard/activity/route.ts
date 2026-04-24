@@ -1,9 +1,14 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 // ── GET /api/dashboard/activity?page=1&limit=5 ────────────────────────────
 // Returns recent conversations with user info
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+  }
   try {
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))

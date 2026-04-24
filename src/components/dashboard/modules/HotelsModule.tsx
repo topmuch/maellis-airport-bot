@@ -81,7 +81,7 @@ export function HotelsModule() {
 
   const loadData = async () => {
     try {
-      const [hotelsRes, bookingsRes, statsRes] = await Promise.all([
+      const [hotelsRes, bookingsRes] = await Promise.all([
         fetch('/api/hotels?airportCode=DSS'),
         fetch('/api/hotels/bookings?stats=true'),
       ])

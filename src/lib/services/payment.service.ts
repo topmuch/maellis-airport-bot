@@ -145,6 +145,61 @@ const STATUS_MAP: Record<string, 'paid' | 'pending' | 'failed'> = {
 // ─────────────────────────────────────────────
 
 /**
+ * Validate that a monetary amount is a positive, finite number.
+ * Throws a descriptive error if invalid.
+ */
+function validatePositiveAmount(amount: unknown, field = 'amount'): number {
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || isNaN(amount) || amount <= 0) {
+    throw new Error(`Invalid ${field}: must be a positive number, received ${amount}`)
+  }
+  return Math.round(amount * 100) / 100 // round to 2 decimal places
+}
+
+/**
+ * Validate a phone number contains only digits, spaces, +, and -.
+ * Returns the stripped/normalized phone, or throws.
+ */
+function sanitizePhone(phone: unknown, field = 'phone'): string {
+  if (typeof phone !== 'string' || phone.trim().length === 0) {
+    throw new Error(`${field} is required and must be a non-empty string`)
+  }
+  const cleaned = phone.trim()
+  if (!/^[+\d\s\-()]{6,20}$/.test(cleaned)) {
+    throw new Error(`Invalid ${field}: must be 6-20 characters and contain only digits, spaces, +, -, ()`)
+  }
+  return cleaned
+}
+
+/**
+ * Sanitize a free-text string: trim, limit length.
+ */
+function sanitizeText(value: unknown, field: string, maxLength = 500): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a string`)
+  }
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    throw new Error(`${field} is required`)
+  }
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be at most ${maxLength} characters`)
+  }
+  return trimmed
+}
+
+/**
+ * Wrap a raw internal error into a safe, user-facing message.
+ * Logs the original error but never leaks internals.
+ */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  if (process.env.NODE_ENV === 'development') {
+    console.error(`[payment.service] ${context}:`, message)
+  }
+  return new Error(`An error occurred while processing your ${context}. Please try again later.`)
+}
+
+/**
  * Split a full name into first name and last name.
  * If only one word is provided, it becomes the surname with an empty name.
  */
@@ -249,47 +304,57 @@ export async function generateCinetPayPayment(
   params: GeneratePaymentParams
 ): Promise<GeneratePaymentResult> {
   try {
+    // ── Validate inputs ──
+    const safeAmount = validatePositiveAmount(params.amount, 'payment amount')
+    const safeOrderNumber = sanitizeText(params.orderNumber, 'orderNumber', 100)
+    const safeCustomerName = sanitizeText(params.customerName, 'customerName', 200)
+    const safeCustomerPhone = sanitizePhone(params.customerPhone, 'customerPhone')
+    const safeDescription = sanitizeText(params.description, 'description', 500)
+    const safeCustomerEmail = params.customerEmail?.trim() || undefined
+
     const apiKey = process.env.CINETPAY_API_KEY
     const siteId = process.env.CINETPAY_SITE_ID
-    const { name, surname } = splitFullName(params.customerName)
+    const { name, surname } = splitFullName(safeCustomerName)
 
     const requestBody: CinetPayCheckoutRequest = {
       site_id: siteId ?? '',
       apikey: apiKey ?? '',
-      amount: params.amount,
+      amount: safeAmount,
       currency: DEFAULT_CURRENCY,
-      description: params.description,
-      transaction_id: params.orderNumber,
+      description: safeDescription,
+      transaction_id: safeOrderNumber,
       customer_name: name,
       customer_surname: surname,
-      customer_phone_number: params.customerPhone,
-      customer_email: params.customerEmail,
+      customer_phone_number: safeCustomerPhone,
+      customer_email: safeCustomerEmail,
       channels: 'ALL',
       lang: 'FR',
     }
 
     // ── Fallback for missing API credentials ──
     if (!apiKey || !siteId) {
-      console.warn(
-        '[payment.service] CINETPAY_API_KEY or CINETPAY_SITE_ID not configured. ' +
-        'Returning mock payment URL for development.'
-      )
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          '[payment.service] CINETPAY_API_KEY or CINETPAY_SITE_ID not configured. ' +
+          'Returning mock payment URL for development.'
+        )
+      }
 
       const mockResult: GeneratePaymentResult = {
-        paymentUrl: `https://pay.maellis.aero/pay?ref=${params.orderNumber}`,
-        paymentToken: `mock_token_${params.orderNumber}_${Date.now()}`,
+        paymentUrl: `https://pay.maellis.aero/pay?ref=${encodeURIComponent(safeOrderNumber)}`,
+        paymentToken: `mock_token_${safeOrderNumber}_${Date.now()}`,
       }
 
       // Store pending Payment record even for mock payments
       await db.payment.create({
         data: {
-          bookingId: params.orderNumber,
+          bookingId: safeOrderNumber,
           bookingType: 'order',
-          phone: params.customerPhone,
+          phone: safeCustomerPhone,
           provider: 'cinetpay',
           country: DEFAULT_COUNTRY,
           currency: DEFAULT_CURRENCY,
-          amount: params.amount,
+          amount: safeAmount,
           status: 'pending',
           externalRef: mockResult.paymentToken,
         },
@@ -314,8 +379,9 @@ export async function generateCinetPayPayment(
     const result: CinetPayCheckoutResponse = await response.json()
 
     if (result.code !== '201') {
-      throw new Error(
-        `CinetPay payment generation failed: ${result.message}`
+      throw safeError(
+        new Error(`CinetPay code ${result.code}: ${result.message}`),
+        'payment generation'
       )
     }
 
@@ -339,7 +405,7 @@ export async function generateCinetPayPayment(
         provider: 'cinetpay',
         country: DEFAULT_COUNTRY,
         currency: DEFAULT_CURRENCY,
-        amount: params.amount,
+        amount: safeAmount,
         status: 'pending',
         externalRef: result.data.trans_id ?? result.data.payment_token,
       },
@@ -347,8 +413,10 @@ export async function generateCinetPayPayment(
 
     return paymentResult
   } catch (error) {
-    console.error('[payment.service] generateCinetPayPayment error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('An error occurred'))) {
+      throw error
+    }
+    throw safeError(error, 'payment generation')
   }
 }
 
@@ -375,10 +443,11 @@ export async function handleCinetPayWebhook(
   try {
     // ── Validate webhook body ──
     if (!validateWebhookBody(body)) {
-      console.error(
-        '[payment.service] Webhook validation failed: missing required fields',
-        Object.keys(body)
-      )
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          '[payment.service] Webhook validation failed: missing required fields'
+        )
+      }
       return {
         success: false,
         message: 'Webhook validation failed: missing required fields',
@@ -402,7 +471,18 @@ export async function handleCinetPayWebhook(
     } = webhook
 
     const internalStatus = mapCinetPayStatus(cinetStatus)
-    const fullPhone = `${phonePrefix}${phoneNumber}`
+    const rawAmount = parseFloat(amount)
+    if (!Number.isFinite(rawAmount) || isNaN(rawAmount) || rawAmount < 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[payment.service] Webhook received invalid amount:', amount)
+      }
+      return {
+        success: false,
+        message: 'Invalid payment amount received from provider',
+      }
+    }
+    const safeAmount = Math.round(rawAmount * 100) / 100
+    const fullPhone = `${String(phonePrefix)}${String(phoneNumber)}`
 
     // ── Idempotency check: has this transaction already been processed? ──
     const existingPayment = await db.payment.findFirst({
@@ -413,10 +493,12 @@ export async function handleCinetPayWebhook(
     })
 
     if (existingPayment) {
-      console.log(
-        `[payment.service] Transaction ${transactionId} already processed ` +
-        `(status: ${existingPayment.status}). Skipping.`
-      )
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `[payment.service] Transaction ${transactionId} already processed ` +
+          `(status: ${existingPayment.status}). Skipping.`
+        )
+      }
       return {
         success: true,
         message: `Transaction already processed as "${existingPayment.status}"`,
@@ -439,10 +521,11 @@ export async function handleCinetPayWebhook(
     })
 
     if (!order) {
-      console.warn(
-        `[payment.service] Order not found for orderNumber: ${orderNumber}. ` +
-        `Updating Payment record status only.`
-      )
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `[payment.service] Order not found for webhook. Updating Payment record status only.`
+        )
+      }
     }
 
     if (isSuccessfulStatus(cinetStatus)) {
@@ -467,7 +550,7 @@ export async function handleCinetPayWebhook(
             provider: 'cinetpay',
             country: DEFAULT_COUNTRY,
             currency: currency || DEFAULT_CURRENCY,
-            amount: parseFloat(amount) || 0,
+            amount: safeAmount,
             status: 'paid',
             externalRef: transactionId,
           },
@@ -516,7 +599,7 @@ export async function handleCinetPayWebhook(
             provider: 'cinetpay',
             country: DEFAULT_COUNTRY,
             currency: currency || DEFAULT_CURRENCY,
-            amount: parseFloat(amount) || 0,
+            amount: safeAmount,
             status: 'failed',
             externalRef: transactionId,
             errorMessage: errorMessage ?? `Payment ${cinetStatus}`,
@@ -542,8 +625,7 @@ export async function handleCinetPayWebhook(
       }
     }
   } catch (error) {
-    console.error('[payment.service] handleCinetPayWebhook error:', error)
-    throw error
+    throw safeError(error, 'webhook processing')
   }
 }
 
@@ -588,16 +670,18 @@ export async function checkPaymentStatus(
     })
 
     if (!response.ok) {
-      throw new Error(
-        `CinetPay check API returned HTTP ${response.status}: ${response.statusText}`
+      throw safeError(
+        new Error(`CinetPay check API HTTP ${response.status}`),
+        'payment status check'
       )
     }
 
     const result: CinetPayCheckResponse = await response.json()
 
     if (result.code !== '200' && result.code !== '201') {
-      throw new Error(
-        `CinetPay check failed: ${result.message}`
+      throw safeError(
+        new Error(`CinetPay check code ${result.code}`),
+        'payment status check'
       )
     }
 
@@ -608,18 +692,24 @@ export async function checkPaymentStatus(
     }
 
     const status = mapCinetPayStatus(data.cpm_trans_status ?? 'PENDING')
+    const rawAmount = parseFloat(data.cpm_amount ?? '0')
+    const safeAmount = (Number.isFinite(rawAmount) && !isNaN(rawAmount))
+      ? Math.round(rawAmount * 100) / 100
+      : 0
 
     return {
       status,
-      amount: parseFloat(data.cpm_amount ?? '0'),
+      amount: safeAmount,
       provider: 'cinetpay',
       timestamp: data.cpm_payment_date && data.cpm_payment_time
         ? `${data.cpm_payment_date} ${data.cpm_payment_time}`
         : null,
     }
   } catch (error) {
-    console.error('[payment.service] checkPaymentStatus error:', error)
-    throw error
+    if (error instanceof Error && (error.message.startsWith('CinetPay') || error.message.startsWith('An error occurred'))) {
+      throw error
+    }
+    throw safeError(error, 'payment status check')
   }
 }
 
@@ -646,19 +736,14 @@ export async function getOrderPaymentLink(
   customerPhone: string,
   customerEmail?: string
 ): Promise<GeneratePaymentResult> {
-  try {
-    return await generateCinetPayPayment({
-      orderNumber,
-      amount,
-      customerName,
-      customerPhone,
-      customerEmail,
-      description: `Paiement commande ${orderNumber} — MAELLIS Marketplace`,
-    })
-  } catch (error) {
-    console.error('[payment.service] getOrderPaymentLink error:', error)
-    throw error
-  }
+  return generateCinetPayPayment({
+    orderNumber,
+    amount,
+    customerName,
+    customerPhone,
+    customerEmail,
+    description: `Paiement commande — MAELLIS Marketplace`,
+  })
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -679,22 +764,31 @@ export async function createPaymentRecord(
   data: CreatePaymentData
 ) {
   try {
+    const safeAmount = validatePositiveAmount(data.amount, 'payment amount')
+    const safeBookingId = sanitizeText(data.bookingId, 'bookingId', 200)
+    const safeBookingType = sanitizeText(data.bookingType, 'bookingType', 50)
+    const safePhone = sanitizePhone(data.phone, 'phone')
+    const safeProvider = sanitizeText(data.provider, 'provider', 50)
+    const safeCountry = sanitizeText(data.country, 'country', 10)
+
     return await db.payment.create({
       data: {
-        bookingId: data.bookingId,
-        bookingType: data.bookingType,
-        phone: data.phone,
-        provider: data.provider,
-        country: data.country,
+        bookingId: safeBookingId,
+        bookingType: safeBookingType,
+        phone: safePhone,
+        provider: safeProvider,
+        country: safeCountry,
         currency: DEFAULT_CURRENCY,
-        amount: data.amount,
+        amount: safeAmount,
         status: 'pending',
         externalRef: data.externalRef ?? null,
       },
     })
   } catch (error) {
-    console.error('[payment.service] createPaymentRecord error:', error)
-    throw error
+    if (error instanceof Error && error.message.startsWith('Invalid')) {
+      throw error
+    }
+    throw safeError(error, 'payment record creation')
   }
 }
 
@@ -724,7 +818,6 @@ export async function getPaymentByBooking(
       },
     })
   } catch (error) {
-    console.error('[payment.service] getPaymentByBooking error:', error)
-    throw error
+    throw safeError(error, 'payment lookup')
   }
 }

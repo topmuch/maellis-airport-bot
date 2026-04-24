@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { dashboardKeys } from './useDashboardData'
 import { useAirportSocket, type AirportSocketCallbacks } from './useAirportSocket'
@@ -98,14 +98,23 @@ export function useRealtimeDashboard(options: UseRealtimeDashboardOptions) {
     [queryClient],
   )
 
-  // ── Socket callbacks ────────────────────────────────────────────────────────
-  const callbacks: AirportSocketCallbacks = {
-    onConversationNew: handleConversationEvent,
-    onConversationMessage: handleMessageEvent,
-    onEmergencyAlert: handleEmergencyEvent,
-    onEmergencyUpdate: handleEmergencyUpdateEvent,
-    onStatsUpdate: handleStatsUpdate,
-  }
+  // ── Socket callbacks (memoized to avoid unnecessary ref updates in useAirportSocket) ──
+  const callbacks: AirportSocketCallbacks = useMemo(
+    () => ({
+      onConversationNew: handleConversationEvent,
+      onConversationMessage: handleMessageEvent,
+      onEmergencyAlert: handleEmergencyEvent,
+      onEmergencyUpdate: handleEmergencyUpdateEvent,
+      onStatsUpdate: handleStatsUpdate,
+    }),
+    [
+      handleConversationEvent,
+      handleMessageEvent,
+      handleEmergencyEvent,
+      handleEmergencyUpdateEvent,
+      handleStatsUpdate,
+    ],
+  )
 
   // ── Connect socket ──────────────────────────────────────────────────────────
   const { isConnected } = useAirportSocket(

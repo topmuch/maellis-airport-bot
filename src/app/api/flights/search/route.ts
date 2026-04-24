@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
 const FLIGHT_SERVICE_URL = 'http://localhost:3006'
+
+// ─────────────────────────────────────────────
+// Input validation schemas
+// ─────────────────────────────────────────────
+
+const flightsSearchQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+
+const searchFlightsSchema = z.object({
+  departureCode: z.string().min(1).max(10),
+  arrivalCode: z.string().max(10).optional(),
+  date: z.string().max(30).optional(),
+  flightNumber: z.string().max(20).optional(),
+  passengers: z.number().int().min(1).max(20).optional(),
+})
 
 // City name map for common airport codes
 const CITY_NAMES: Record<string, string> = {
@@ -94,9 +113,25 @@ function getMockSearchResults(
 // GET /api/flights/search - List flight searches with pagination
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
+
+    // Validate pagination params
+    const rawParams: Record<string, string> = {}
+    request.nextUrl.searchParams.forEach((value, key) => {
+      rawParams[key] = value
+    })
+    const parsed = flightsSearchQuerySchema.safeParse(rawParams)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid query parameters', details: parsed.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const { page, limit } = parsed.data
     const skip = (page - 1) * limit
 
     const [flights, total] = await Promise.all([
@@ -130,21 +165,31 @@ export async function GET(request: NextRequest) {
 // POST /api/flights/search - Search flights
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const {
-      departureCode,
-      arrivalCode,
-      date,
-      flightNumber,
-      passengers,
-    } = body
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
 
-    if (!departureCode) {
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const parsed = searchFlightsSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: 'departureCode is required' },
+        { success: false, error: 'Invalid request body', details: parsed.error.issues },
         { status: 400 }
       )
     }
+
+    const { departureCode, arrivalCode, date, flightNumber, passengers } = parsed.data
 
     const depCode = departureCode.toUpperCase().trim()
     const arrCode = arrivalCode ? arrivalCode.toUpperCase().trim() : ''

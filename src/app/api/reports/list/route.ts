@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 
 // Available report types definition
 const REPORT_TYPES = [
@@ -81,8 +82,13 @@ const REPORT_TYPES = [
 ]
 
 // GET /api/reports/list
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ success: false, error: user.error }, { status: user.status })
+    }
+
     return NextResponse.json({
       reports: REPORT_TYPES,
       summary: {

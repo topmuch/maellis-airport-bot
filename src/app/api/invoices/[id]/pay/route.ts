@@ -17,11 +17,26 @@ export async function POST(
     }
 
     const { id } = await params
-    const body = await request.json()
-    const { amount, method, transactionId, metadata } = body
+
+    if (!id || typeof id !== 'string' || id.length < 1 || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
+
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const { amount, method, transactionId, metadata } = body as Record<string, any>
 
     // Validation
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json(
         { success: false, error: 'amount is required and must be a positive number' },
         { status: 400 }

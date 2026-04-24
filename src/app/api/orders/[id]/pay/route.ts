@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getOrderPaymentLink } from '@/lib/services/payment.service';
+import { requireAuth } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // POST /api/orders/[id]/pay — Generate payment link for an order
@@ -11,17 +13,22 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Order ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
 
-    const body = await request.json();
+    const body = await parseBody(request);
 
     // Validate paymentMethod (optional, for future extension)
     if (body.paymentMethod && typeof body.paymentMethod !== 'string') {
@@ -89,6 +96,9 @@ export async function POST(
       message: 'Payment link generated',
     });
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       const message = error.message;
 

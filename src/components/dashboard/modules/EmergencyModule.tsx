@@ -223,6 +223,7 @@ export function EmergencyModule() {
   const fetchContacts = useCallback(async () => {
     setLoadingContacts(true)
     try {
+      // TODO: Replace with authenticated user's airport code from session
       const res = await fetch('/api/emergency/contacts?airport=DSS')
       if (res.ok) {
         const json = await res.json()
@@ -279,6 +280,7 @@ export function EmergencyModule() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // TODO: Replace with authenticated user's airport code from session
           airportCode: 'DSS',
           category: formCategory,
           userName: formUserName || undefined,
@@ -391,6 +393,7 @@ export function EmergencyModule() {
     setContactSubmitting(true)
     try {
       const payload = {
+        // TODO: Replace with authenticated user's airport code from session
         airportCode: 'DSS',
         category: cfCategory,
         name: cfName,
@@ -906,7 +909,8 @@ export function EmergencyModule() {
               {editingContact ? 'Modifier le contact' : 'Ajouter un contact'}
             </DialogTitle>
             <DialogDescription>
-              Contact d&apos;urgence pour l&apos;aéroport DSS.
+              {/* TODO: Replace with authenticated user's airport code from session */}
+              Contact d&apos;urgence pour cet aéroport.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

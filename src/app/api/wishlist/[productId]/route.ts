@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { removeFromWishlist } from '@/lib/services/merchant.service';
+import { requireAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // DELETE /api/wishlist/[productId]?customerPhone=xxx
@@ -8,12 +9,17 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ productId: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { productId } = await params;
 
-    if (!productId) {
+    if (!productId || typeof productId !== 'string' || productId.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Product ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

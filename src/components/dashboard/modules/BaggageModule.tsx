@@ -229,7 +229,7 @@ function StatCard({ title, value, icon, colorClass, iconBgClass }: StatCardProps
 
 export function BaggageModule() {
   const [baggageList, setBaggageList] = useState<BaggageEntry[]>([])
-  const [stats, setStats] = useState<BaggageStats>(MOCK_STATS)
+  const [stats, setStats] = useState<BaggageStats>({ total: 0, active: 0, expired: 0 })
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -260,17 +260,17 @@ export function BaggageModule() {
         const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
         setBaggageList(items)
         setStats({
-          total: data.stats?.total ?? data.length ?? MOCK_STATS.total,
-          active: data.stats?.active ?? MOCK_STATS.active,
-          expired: data.stats?.expired ?? MOCK_STATS.expired,
+          total: data.stats?.total ?? data.length ?? 0,
+          active: data.stats?.active ?? 0,
+          expired: data.stats?.expired ?? 0,
         })
         return
       }
     } catch {
-      // Fallback to mock data
+      // API error — leave lists empty
     }
-    setBaggageList(MOCK_BAGGAGE)
-    setStats(MOCK_STATS)
+    setBaggageList([])
+    setStats({ total: 0, active: 0, expired: 0 })
   }, [])
 
   useEffect(() => {
@@ -313,34 +313,10 @@ export function BaggageModule() {
         return
       }
     } catch {
-      // Proceed with local mock creation
+      toast.error('Erreur lors de la création du QR bagage')
+    } finally {
+      setSubmitting(false)
     }
-
-    // Local mock creation
-    const newEntry: BaggageEntry = {
-      id: `bg-${Date.now()}`,
-      passenger: form.passenger,
-      flightNumber: form.flightNumber,
-      pnr: form.pnr,
-      tagNumber: form.tagNumber,
-      destination: form.destination,
-      weight: form.weight || 0,
-      status: 'active',
-      expiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    }
-    setBaggageList((prev) => [newEntry, ...prev])
-    setStats((prev) => ({ ...prev, total: prev.total + 1, active: prev.active + 1 }))
-    toast.success('QR de bagage créé avec succès')
-    setCreateOpen(false)
-    setForm({
-      passenger: '',
-      flightNumber: '',
-      pnr: '',
-      tagNumber: '',
-      weight: 0,
-      destination: '',
-    })
-    setSubmitting(false)
   }
 
   const handleViewQR = (entry: BaggageEntry) => {

@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth, requireRole } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/knowledge-base — List all KnowledgeBase documents for an airport
 export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const airportCode = searchParams.get('airportCode') || 'DSS'
     const status = searchParams.get('status') || undefined
@@ -70,7 +77,12 @@ export async function GET(req: NextRequest) {
 // POST /api/knowledge-base — Create a new KnowledgeBase entry (metadata only)
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
+    const body = await parseBody(req)
     const { title, airportCode = 'DSS', fileType } = body
 
     if (!title) {
@@ -94,6 +106,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: document }, { status: 201 })
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('KnowledgeBase POST error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create knowledge base document' },

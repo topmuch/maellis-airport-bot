@@ -279,7 +279,6 @@ const AIRLINE_CODES: Record<string, string> = {
   IY: 'Yemenia',
   UM: 'Air Maroc',
   AT: 'Royal Air Maroc',
-  KP: 'Air Côte d\'Ivoire',
   HF: 'Air Côte d\'Ivoire',
   PN: 'Pan African Airlines',
   HT: 'Air Togo',
@@ -301,7 +300,6 @@ const AIRLINE_CODES: Record<string, string> = {
   LX: 'Swiss International',
   AZ: 'ITA Airways',
   OK: 'Czech Airlines',
-  AF: 'Air France',
   BJ: 'Air Benin',
   C5: 'Camair-Co',
   HC: 'Air Côte d\'Ivoire Express',
@@ -704,7 +702,9 @@ export async function analyzeImage(params: {
   try {
     // Step 1: Get the configured OCR provider
     const provider = getProvider()
-    console.log(`[ocr.service] Using provider: ${provider.name}`)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[ocr.service] Using provider: ${provider.name}`)
+    }
 
     // Step 2: Extract text from image
     const ocrResult = await provider.extractText(imageData)
@@ -730,7 +730,9 @@ export async function analyzeImage(params: {
       }
     }
 
-    console.log(`[ocr.service] OCR extracted ${ocrResult.text.length} chars in ${ocrResult.processingTimeMs}ms (confidence: ${ocrResult.confidence}%)`)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[ocr.service] OCR extracted ${ocrResult.text.length} chars in ${ocrResult.processingTimeMs}ms (confidence: ${ocrResult.confidence}%)`)
+    }
 
     // Step 3: Parse the extracted text for boarding pass fields
     const extraction = parseBoardingPass(ocrResult.text)
@@ -739,14 +741,16 @@ export async function analyzeImage(params: {
     // Use the lower of OCR confidence and extraction confidence
     extraction.confidence = Math.min(ocrResult.confidence, extraction.confidence)
 
-    console.log(`[ocr.service] Extraction result:`, JSON.stringify({
-      pnr: extraction.pnr,
-      flight: extraction.flightNumber,
-      airline: extraction.airline,
-      route: `${extraction.departureCode || '?'} → ${extraction.arrivalCode || '?'}`,
-      date: extraction.flightDate,
-      confidence: extraction.confidence,
-    }))
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[ocr.service] Extraction result:`, JSON.stringify({
+        pnr: extraction.pnr,
+        flight: extraction.flightNumber,
+        airline: extraction.airline,
+        route: `${extraction.departureCode || '?'} → ${extraction.arrivalCode || '?'}`,
+        date: extraction.flightDate,
+        confidence: extraction.confidence,
+      }))
+    }
 
     // Step 4: Check if minimum viable data was extracted (PNR or flight number)
     const hasMinimum = extraction.pnr || extraction.flightNumber

@@ -1,10 +1,51 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Import email helper (API routes will call it, NOT this service)
 // ---------------------------------------------------------------------------
 import { sendLoungeConfirmation } from '@/lib/email';
+
+// ---------------------------------------------------------------------------
+// Validation Helpers
+// ---------------------------------------------------------------------------
+
+/** Validate a positive finite number (must be >= 1 for counts) */
+function validatePositiveInteger(value: unknown, fieldName: string, min = 1): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || Math.floor(n) !== n) {
+    throw new Error(`${fieldName} must be an integer >= ${min}`);
+  }
+  return n;
+}
+
+/** Validate a non-negative finite number (must be >= 0) */
+function validateNonNegative(value: unknown, fieldName: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return n;
+}
+
+/** Wrap error to prevent internal details from leaking */
+function safeError(error: unknown, context: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[lounge.service] ${context}:`, message);
+  if (error instanceof Error) {
+    return new Error(error.message.includes('Prisma') ? 'Database error' : error.message);
+  }
+  return new Error('An unexpected error occurred');
+}
+
+/** Validate phone format */
+function validatePhone(phone: unknown, fieldName = 'phone'): string {
+  if (typeof phone !== 'string' || !/^[+\d\s\-()]{6,20}$/.test(phone.trim())) {
+    throw new Error(`Invalid ${fieldName}: must be 6-20 characters and contain only digits, spaces, +, -, ()`);
+  }
+  return phone.trim();
+}
 
 // ---------------------------------------------------------------------------
 // TypeScript types
@@ -76,6 +117,47 @@ export interface AvailabilityResult {
 
 export type TicketClass = 'standard' | 'business' | 'first' | 'child';
 
+// ─── Zod Validation Schemas ──────────────────────────────────────────────
+
+const loungeBookingStatusEnum = z.enum(['confirmed', 'cancelled', 'completed', 'checked_in', 'expired']);
+const yyyyMmddRegex = /^\d{4}-\d{2}-\d{2}$/;
+const dateSchema = z.string().regex(yyyyMmddRegex, 'Must be a valid date in YYYY-MM-DD format');
+
+const updateLoungeFieldSchemas = {
+  name: z.string().min(1).max(200, 'name must be 1-200 characters'),
+  description: z.string().max(2000, 'description must be at most 2000 characters'),
+  terminal: z.string().max(10, 'terminal must be at most 10 characters'),
+  gateLocation: z.string().max(50, 'gateLocation must be at most 50 characters'),
+  location: z.string().max(200, 'location must be at most 200 characters'),
+  imageUrl: z.string().max(500, 'imageUrl must be at most 500 characters').nullable(),
+  priceStandard: z.number().min(0, 'priceStandard must be non-negative'),
+  priceBusiness: z.number().min(0, 'priceBusiness must be non-negative'),
+  priceFirstClass: z.number().min(0, 'priceFirstClass must be non-negative'),
+  priceChild: z.number().min(0, 'priceChild must be non-negative'),
+  currency: z.string().regex(/^[A-Z]{3}$/, 'Currency must be a valid ISO 4217 code'),
+  maxCapacity: z.number().int().min(1, 'maxCapacity must be a positive integer'),
+  currentOccupancy: z.number().int().min(0, 'currentOccupancy must be a non-negative integer'),
+  isOpen: z.boolean(),
+  openingTime: z.string().regex(/^\d{2}:\d{2}$/, 'openingTime must be in HH:MM format'),
+  closingTime: z.string().regex(/^\d{2}:\d{2}$/, 'closingTime must be in HH:MM format'),
+  openingHours: z.string().max(100, 'openingHours must be at most 100 characters'),
+  amenities: z.string().max(2000, 'amenities must be at most 2000 characters'),
+  accessLevel: z.string().max(50, 'accessLevel must be at most 50 characters'),
+} as const;
+
+type UpdateLoungeFieldKey = keyof typeof updateLoungeFieldSchemas;
+
+const getLoungeBookingsSchema = z.object({
+  loungeId: z.string().optional(),
+  status: loungeBookingStatusEnum.optional(),
+  date: dateSchema.optional(),
+});
+
+const checkAvailabilitySchema = z.object({
+  loungeId: z.string().min(1, 'loungeId is required'),
+  date: dateSchema,
+});
+
 // ---------------------------------------------------------------------------
 // Public fields returned by list endpoints (no internal/admin fields leaked)
 // ---------------------------------------------------------------------------
@@ -129,8 +211,7 @@ export async function getLounges(
 
     return lounges;
   } catch (error) {
-    console.error('[lounge.service] getLounges error:', error);
-    throw error;
+    throw safeError(error, 'getLounges');
   }
 }
 
@@ -150,8 +231,7 @@ export async function getLoungeById(id: string) {
 
     return lounge;
   } catch (error) {
-    console.error('[lounge.service] getLoungeById error:', error);
-    throw error;
+    throw safeError(error, 'getLoungeById');
   }
 }
 
@@ -160,6 +240,13 @@ export async function getLoungeById(id: string) {
 // ---------------------------------------------------------------------------
 export async function createLounge(data: CreateLoungeInput) {
   try {
+    // Validate pricing fields
+    const safePriceStandard = validateNonNegative(data.priceStandard ?? 0, 'priceStandard');
+    const safePriceBusiness = validateNonNegative(data.priceBusiness ?? 0, 'priceBusiness');
+    const safePriceFirstClass = validateNonNegative(data.priceFirstClass ?? 0, 'priceFirstClass');
+    const safePriceChild = validateNonNegative(data.priceChild ?? 0, 'priceChild');
+    const safeMaxCapacity = validatePositiveInteger(data.maxCapacity ?? 50, 'maxCapacity');
+
     const lounge = await db.lounge.create({
       data: {
         airportCode: data.airportCode.toUpperCase(),
@@ -171,12 +258,12 @@ export async function createLounge(data: CreateLoungeInput) {
           data.location ??
           `${data.terminal ?? ''} ${data.gateLocation ?? ''}`.trim(),
         imageUrl: data.imageUrl ?? null,
-        priceStandard: data.priceStandard ?? 0,
-        priceBusiness: data.priceBusiness ?? 0,
-        priceFirstClass: data.priceFirstClass ?? 0,
-        priceChild: data.priceChild ?? 0,
+        priceStandard: safePriceStandard,
+        priceBusiness: safePriceBusiness,
+        priceFirstClass: safePriceFirstClass,
+        priceChild: safePriceChild,
         currency: data.currency ?? 'XOF',
-        maxCapacity: data.maxCapacity ?? 50,
+        maxCapacity: safeMaxCapacity,
         currentOccupancy: 0,
         isOpen: true,
         openingTime: data.openingTime ?? '06:00',
@@ -191,8 +278,10 @@ export async function createLounge(data: CreateLoungeInput) {
 
     return lounge;
   } catch (error) {
-    console.error('[lounge.service] createLounge error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.includes('must be'))) {
+      throw error;
+    }
+    throw safeError(error, 'createLounge');
   }
 }
 
@@ -201,6 +290,29 @@ export async function createLounge(data: CreateLoungeInput) {
 // ---------------------------------------------------------------------------
 export async function updateLounge(id: string, data: UpdateLoungeInput) {
   try {
+    // ─── Zod field-by-field validation (partial update) ────────────────────
+    const validatedData: Record<string, unknown> = {};
+    const validationErrors: string[] = [];
+
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+      const fieldSchema = updateLoungeFieldSchemas[key as UpdateLoungeFieldKey];
+      if (!fieldSchema) {
+        validationErrors.push(`Unknown field: ${key}`);
+        continue;
+      }
+      const result = fieldSchema.safeParse(value);
+      if (!result.success) {
+        validationErrors.push(`${key}: ${result.error.issues.map(i => i.message).join(', ')}`);
+      } else {
+        validatedData[key] = result.data;
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      throw new Error(`Validation failed: ${validationErrors.join('; ')}`);
+    }
+
     // Verify the lounge exists
     const existing = await db.lounge.findUnique({ where: { id } });
     if (!existing) {
@@ -210,17 +322,15 @@ export async function updateLounge(id: string, data: UpdateLoungeInput) {
 
     const lounge = await db.lounge.update({
       where: { id },
-      data: {
-        ...data,
-        // Only update location if explicitly provided (not undefined)
-        ...(data.location !== undefined ? { location: data.location } : {}),
-      },
+      data: validatedData,
     });
 
     return lounge;
   } catch (error) {
-    console.error('[lounge.service] updateLounge error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'updateLounge');
   }
 }
 
@@ -243,8 +353,7 @@ export async function deleteLounge(id: string) {
 
     return { success: true, deletedId: id, lounge };
   } catch (error) {
-    console.error('[lounge.service] deleteLounge error:', error);
-    throw error;
+    throw safeError(error, 'deleteLounge');
   }
 }
 
@@ -256,16 +365,24 @@ export async function checkAvailability(
   date: string,
 ): Promise<AvailabilityResult> {
   try {
-    const lounge = await db.lounge.findUnique({ where: { id: loungeId } });
+    // Zod validation
+    const parsed = checkAvailabilitySchema.safeParse({ loungeId, date });
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+
+    const lounge = await db.lounge.findUnique({ where: { id: parsed.data.loungeId } });
     if (!lounge) {
       throw new Error('Lounge not found');
     }
 
+    const validatedDate = parsed.data.date;
+
     // Count confirmed bookings for this lounge on this date
     const occupied = await db.loungeBooking.count({
       where: {
-        loungeId,
-        bookingDate: date,
+        loungeId: parsed.data.loungeId,
+        bookingDate: validatedDate,
         status: {
           in: ['confirmed', 'checked_in'],
         },
@@ -276,8 +393,8 @@ export async function checkAvailability(
     const bookingsOnDate = await db.loungeBooking.aggregate({
       _sum: { guests: true },
       where: {
-        loungeId,
-        bookingDate: date,
+        loungeId: parsed.data.loungeId,
+        bookingDate: validatedDate,
         status: {
           in: ['confirmed', 'checked_in'],
         },
@@ -293,8 +410,10 @@ export async function checkAvailability(
       capacity,
     };
   } catch (error) {
-    console.error('[lounge.service] checkAvailability error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Validation failed') || error.message.startsWith('Lounge'))) {
+      throw error;
+    }
+    throw safeError(error, 'checkAvailability');
   }
 }
 
@@ -311,6 +430,12 @@ export function calculatePrice(
   ticketClass: string,
   guests: number,
 ): { unitPrice: number; totalPrice: number } {
+  // Validate guests
+  const safeGuests = Number(guests);
+  if (!Number.isFinite(safeGuests) || safeGuests < 1) {
+    throw new Error('guests must be a positive number');
+  }
+
   let unitPrice: number;
 
   switch (ticketClass) {
@@ -330,7 +455,7 @@ export function calculatePrice(
 
   return {
     unitPrice,
-    totalPrice: unitPrice * guests,
+    totalPrice: unitPrice * safeGuests,
   };
 }
 
@@ -354,7 +479,18 @@ export async function createBooking(data: CreateBookingInput) {
       paymentMethod,
     } = data;
 
-    const guestCount = guests ?? 1;
+    // Validate inputs
+    if (typeof passengerName !== 'string' || passengerName.trim().length === 0) {
+      throw new Error('passengerName is required');
+    }
+    if (passengerName.length > 100) {
+      throw new Error('passengerName must be at most 100 characters');
+    }
+    const safePassengerName = passengerName.trim().slice(0, 100);
+    const safePhone = validatePhone(phone, 'phone');
+
+    const guestCount = typeof guests === 'number' ? guests : 1;
+    validatePositiveInteger(guestCount, 'guests');
     // ticketClass takes priority; fall back to accessLevel for backward compat
     const resolvedTicketClass: TicketClass =
       (ticketClass ?? accessLevel ?? 'standard') as TicketClass;
@@ -394,7 +530,7 @@ export async function createBooking(data: CreateBookingInput) {
     );
 
     // 5. Generate bookingRef: LNG- + first 2 chars of passenger name + - + 3 random digits
-    const namePrefix = passengerName.substring(0, 2).toUpperCase();
+    const namePrefix = safePassengerName.substring(0, 2).toUpperCase();
     const randomDigits = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
     const bookingRef = `LNG-${namePrefix}-${randomDigits}`;
 
@@ -404,8 +540,8 @@ export async function createBooking(data: CreateBookingInput) {
         loungeId,
         loungeName: lounge.name,
         airportCode: lounge.airportCode,
-        passengerName,
-        phone,
+        passengerName: safePassengerName,
+        phone: safePhone,
         email: email ?? null,
         guests: guestCount,
         bookingDate,
@@ -435,8 +571,10 @@ export async function createBooking(data: CreateBookingInput) {
     // 8. Return booking
     return booking;
   } catch (error) {
-    console.error('[lounge.service] createBooking error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Invalid') || error.message.startsWith('guests') || error.message.startsWith('passengerName') || error.message.startsWith('Lounge') || error.message.startsWith('Insufficient'))) {
+      throw error;
+    }
+    throw safeError(error, 'createBooking');
   }
 }
 
@@ -478,8 +616,10 @@ export async function cancelBooking(bookingId: string) {
 
     return updatedBooking;
   } catch (error) {
-    console.error('[lounge.service] cancelBooking error:', error);
-    throw error;
+    if (error instanceof Error && (error.message.startsWith('Booking') || error.message.startsWith('Cannot'))) {
+      throw error;
+    }
+    throw safeError(error, 'cancelBooking');
   }
 }
 
@@ -492,18 +632,24 @@ export async function getLoungeBookings(
   date?: string,
 ) {
   try {
+    // Zod validation
+    const parsed = getLoungeBookingsSchema.safeParse({ loungeId, status, date });
+    if (!parsed.success) {
+      throw new Error(`Validation failed: ${parsed.error.issues.map(i => i.message).join(', ')}`);
+    }
+
     const where: Prisma.LoungeBookingWhereInput = {};
 
-    if (loungeId) {
-      where.loungeId = loungeId;
+    if (parsed.data.loungeId) {
+      where.loungeId = parsed.data.loungeId;
     }
 
-    if (status) {
-      where.status = status;
+    if (parsed.data.status) {
+      where.status = parsed.data.status;
     }
 
-    if (date) {
-      where.bookingDate = date;
+    if (parsed.data.date) {
+      where.bookingDate = parsed.data.date;
     }
 
     const bookings = await db.loungeBooking.findMany({
@@ -525,8 +671,10 @@ export async function getLoungeBookings(
 
     return bookings;
   } catch (error) {
-    console.error('[lounge.service] getLoungeBookings error:', error);
-    throw error;
+    if (error instanceof Error && error.message.startsWith('Validation failed')) {
+      throw error;
+    }
+    throw safeError(error, 'getLoungeBookings');
   }
 }
 
@@ -548,7 +696,6 @@ export async function getLoungeBookingsByDate(loungeId: string, date: string) {
 
     return bookings;
   } catch (error) {
-    console.error('[lounge.service] getLoungeBookingsByDate error:', error);
-    throw error;
+    throw safeError(error, 'getLoungeBookingsByDate');
   }
 }

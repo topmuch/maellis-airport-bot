@@ -1,19 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 
-interface ConversationUpdatePayload {
-  status?: string
-  intent?: string
-  resolved?: boolean
-}
+// ─────────────────────────────────────────────
+// Input validation schemas
+// ─────────────────────────────────────────────
+
+const VALID_CONVERSATION_STATUSES = [
+  'active',
+  'pending',
+  'closed',
+  'archived',
+] as const
+
+const updateConversationSchema = z.object({
+  status: z.enum(VALID_CONVERSATION_STATUSES).optional(),
+  intent: z.string().max(100).optional(),
+  resolved: z.boolean().optional(),
+})
 
 // GET /api/conversations/[id] — Get single conversation with user info and message count
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
+
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length < 1 || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
 
     const conversation = await db.conversation.findUnique({
       where: { id },
@@ -64,14 +86,41 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
-    const body = (await request.json()) as ConversationUpdatePayload
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ error: user.error }, { status: user.status })
+    }
 
-    // Build update data from provided fields only
+    const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length < 1 || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
+
+    const contentType = request.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 })
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const parsed = updateConversationSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parsed.error.issues },
+        { status: 400 }
+      )
+    }
+
+    // Build update data from validated fields only
     const updateData: Record<string, unknown> = {}
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.intent !== undefined) updateData.intent = body.intent
-    if (body.resolved !== undefined) updateData.resolved = body.resolved
+    if (parsed.data.status !== undefined) updateData.status = parsed.data.status
+    if (parsed.data.intent !== undefined) updateData.intent = parsed.data.intent
+    if (parsed.data.resolved !== undefined) updateData.resolved = parsed.data.resolved
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(

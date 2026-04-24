@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processPayout } from '@/lib/services/payout.service';
+import { requireRole } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // POST /api/payouts/[id]/pay — Process (mark as paid) a single payout
@@ -9,12 +10,18 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN');
+  const authResult = await checkRole(request);
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Payout ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }

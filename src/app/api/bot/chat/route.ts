@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { matchFAQ } from '@/lib/services/faq.service';
 import { ragQuery } from '@/lib/services/rag.service';
+import { requireAuth } from '@/lib/auth';
+import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 const BOT_SERVICE_URL = 'http://localhost:3005';
 
@@ -16,8 +19,20 @@ const BOT_SERVICE_URL = 'http://localhost:3005';
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
+  // Rate limit check (before auth)
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+  const { success, remaining } = rateLimit(`bot:chat:${clientIp}`, RATE_LIMITS.botChat);
+  if (!success) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.', remaining: 0 }, { status: 429 });
+  }
+
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
     const { message, phone } = body;
 
     if (!message || typeof message !== 'string') {
@@ -92,6 +107,9 @@ export async function POST(request: NextRequest) {
       _serviceAvailable: serviceAvailable,
     });
   } catch (err) {
+    if (err instanceof ValidationError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode })
+    }
     console.error('Error in /api/bot/chat:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 import { createBooking } from '@/lib/services/transport.service'
 import { sendTransportConfirmation, sendDriverNotification } from '@/lib/email'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // POST /api/transport/book — Create a transport booking
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const authResult = await requireAuth(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+    const body = await parseBody(request)
+
     const {
       providerId,
       passengerName,
@@ -89,6 +96,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: booking }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('Error creating transport booking:', error)
 
     const message =
@@ -102,6 +112,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: message }, { status: 400 })
     }
 
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

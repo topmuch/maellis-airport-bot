@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProductById, updateProduct, deleteProduct } from '@/lib/services/merchant.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ---------------------------------------------------------------------------
 // GET /api/products/[id] — Get product by ID
@@ -8,12 +10,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Product ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
@@ -29,6 +36,13 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: product });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error(`[GET /api/products/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -44,17 +58,22 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Product ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
 
-    const body = await request.json();
+    const body = await parseBody(request);
 
     // Validate price if provided
     if (body.price !== undefined && (typeof body.price !== 'number' || body.price < 0)) {
@@ -117,6 +136,13 @@ export async function PUT(
       message: 'Product updated successfully',
     });
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error(`[PUT /api/products/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -132,12 +158,17 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 
-    if (!id) {
+    if (!id || typeof id !== 'string' || id.length > 200) {
       return NextResponse.json(
-        { success: false, error: 'Product ID is required' },
+        { success: false, error: 'Invalid ID format' },
         { status: 400 },
       );
     }
@@ -157,6 +188,13 @@ export async function DELETE(
       message: 'Product deleted successfully',
     });
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error(`[DELETE /api/products/:id] Error:`, error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

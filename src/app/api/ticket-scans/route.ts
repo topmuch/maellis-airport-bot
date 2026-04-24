@@ -4,15 +4,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth'
 import { getScans, confirmScan, rejectScan } from '@/lib/services/ocr.service'
 
 // GET /api/ticket-scans — List all scans (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin', 'agent')(request)
+    const authResult = await requireAuth(request)
     if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
 // PATCH /api/ticket-scans — Update scan status (confirm/reject)
 export async function PATCH(request: NextRequest) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin', 'agent')(request)
+    const authResult = await requireAuth(request)
     if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
     }
 
     const body = await request.json()
@@ -59,8 +59,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
     console.error('[api/ticket-scans] PATCH error:', error)
-    const message = error instanceof Error ? error.message : 'Internal server error'
-    const status = message.includes('not found') ? 404 : 500
-    return NextResponse.json({ error: message }, { status })
+    const internalMessage = error instanceof Error ? error.message : ''
+    const status = internalMessage.includes('not found') ? 404 : 500
+    return NextResponse.json({ error: 'Internal server error' }, { status })
   }
 }

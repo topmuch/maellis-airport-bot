@@ -310,13 +310,13 @@ export function PaymentsModule() {
           if (json.data && json.data.length > 0) {
             setPayments(json.data)
           } else {
-            setPayments(MOCK_PAYMENTS)
+            setPayments([])
           }
         } else {
-          setPayments(MOCK_PAYMENTS)
+          setPayments([])
         }
       } catch {
-        setPayments(MOCK_PAYMENTS)
+        setPayments([])
       } finally {
         setLoading(false)
       }

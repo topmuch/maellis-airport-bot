@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProactiveStats } from '@/lib/services/proactive.service';
+import { requireAuth } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // GET /api/proactive/stats?airportCode=xxx
 // Aggregate statistics for proactive messages
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airportCode') || undefined;

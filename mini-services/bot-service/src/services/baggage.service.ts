@@ -4,6 +4,11 @@
 
 import type { BaggageQRParams, BaggageQRResult, BaggageVerification } from "../types";
 
+if (!process.env.JWT_SECRET) {
+  console.error('[SECURITY] JWT_SECRET is required. Baggage QR tokens cannot be generated securely.')
+  process.exit(1)
+}
+
 // ---- JWT Implementation (no external library needed for Bun) ----
 
 function base64UrlEncode(data: string): string {
@@ -115,7 +120,7 @@ async function verifyJWT(token: string, secret: string): Promise<object | null> 
  * Returns a token, tracking URL, and informational message.
  */
 export async function generateBaggageQR(params: BaggageQRParams): Promise<BaggageQRResult> {
-  const jwtSecret = process.env.JWT_SECRET || "maellis_default_secret";
+  const jwtSecret = process.env.JWT_SECRET;
 
   // Generate JWT token
   const token = await createJWT(
@@ -164,7 +169,7 @@ export async function generateBaggageQR(params: BaggageQRParams): Promise<Baggag
 export async function verifyBaggageToken(
   token: string,
 ): Promise<BaggageVerification | null> {
-  const jwtSecret = process.env.JWT_SECRET || "maellis_default_secret";
+  const jwtSecret = process.env.JWT_SECRET;
   const payload = await verifyJWT(token, jwtSecret);
 
   if (!payload || (payload as Record<string, string>).type !== "baggage_claim") {

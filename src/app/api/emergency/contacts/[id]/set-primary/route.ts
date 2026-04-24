@@ -22,6 +22,10 @@ export async function PUT(
 
     const { id } = await params
 
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
+
     const contact = await setPrimary(id)
 
     return NextResponse.json({
@@ -32,13 +36,13 @@ export async function PUT(
   } catch (error: unknown) {
     console.error('Error setting primary emergency contact:', error)
 
-    const message = error instanceof Error ? error.message : 'Failed to set primary contact'
+    const internalMessage = error instanceof Error ? error.message : ''
 
-    if (message.includes('not found') || message.includes('Contact ID is required')) {
-      return NextResponse.json({ success: false, error: message }, { status: 404 })
+    if (internalMessage.includes('not found') || internalMessage.includes('Contact ID is required')) {
+      return NextResponse.json({ success: false, error: 'Emergency contact not found' }, { status: 404 })
     }
-    if (message.includes('Cannot set inactive')) {
-      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    if (internalMessage.includes('Cannot set inactive')) {
+      return NextResponse.json({ success: false, error: 'Cannot set inactive contact as primary' }, { status: 400 })
     }
 
     return NextResponse.json(

@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
+import { getPagination, parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/lounge - List lounge bookings
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const { page, limit, skip } = getPagination(searchParams)
+
     const bookings = await db.loungeBooking.findMany({
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
     })
 
-    return NextResponse.json({ data: bookings })
+    return NextResponse.json({ data: bookings, page, limit })
   } catch (error) {
     console.error('Error fetching lounge bookings:', error)
     return NextResponse.json(
@@ -21,7 +33,11 @@ export async function GET() {
 // POST /api/lounge - Create new lounge booking
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const authResult = await requireAuth(request)
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+    }
+    const body = await parseBody(request)
     const {
       passengerName,
       phone,
@@ -67,6 +83,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(booking, { status: 201 })
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    }
     console.error('Error creating lounge booking:', error)
     return NextResponse.json(
       { error: 'Failed to create lounge booking' },

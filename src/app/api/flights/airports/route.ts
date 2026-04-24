@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
 
 const FLIGHT_SERVICE_URL = 'http://localhost:3006'
 
@@ -114,6 +115,10 @@ function searchLocalAirports(query: string) {
 // GET /api/flights/airports?q=dakar
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request)
+    if (!user.success) {
+      return NextResponse.json({ success: false, error: user.error }, { status: user.status })
+    }
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get('q') || ''
 

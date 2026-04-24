@@ -1,25 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import {
   verifyPassword,
   generateToken,
   generateRefreshToken,
+  normalizeRole,
   type AuthUser,
 } from '@/lib/auth'
+
+// ─── Input Validation ───────────────────────────────────────────────
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .max(254, 'Email is too long')
+    .email('Invalid email format'),
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .max(128, 'Password is too long'),
+})
 
 // POST /api/auth/login — Authenticate admin and return tokens
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { email, password } = body
-
-    // Validate required fields
-    if (!email || !password) {
+    // Guard: JWT_SECRET must be configured
+    if (!process.env.JWT_SECRET) {
+      console.error('[AUTH] Login attempt failed: JWT_SECRET is not configured')
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Authentication service is not configured. Contact your administrator.' },
+        { status: 503 }
+      )
+    }
+
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid request body. Expected JSON.' },
         { status: 400 }
       )
     }
+
+    const parsed = loginSchema.safeParse(body)
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0]
+      return NextResponse.json(
+        { error: firstIssue?.message ?? 'Invalid input' },
+        { status: 400 }
+      )
+    }
+
+    const { email, password } = parsed.data
 
     // Look up admin by email
     const admin = await db.admin.findUnique({
@@ -63,7 +97,7 @@ export async function POST(request: NextRequest) {
       id: admin.id,
       email: admin.email,
       name: admin.name,
-      role: admin.role as AuthUser['role'],
+      role: normalizeRole(admin.role),
       airportCode: admin.airportCode ?? undefined,
     }
 

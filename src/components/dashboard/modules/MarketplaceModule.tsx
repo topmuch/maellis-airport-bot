@@ -368,7 +368,7 @@ export function MarketplaceModule() {
                   <TableHead>Nom</TableHead><TableHead>Categorie</TableHead><TableHead className="hidden md:table-cell">Terminal</TableHead>
                   <TableHead className="hidden sm:table-cell text-right">Commission</TableHead><TableHead>Note</TableHead><TableHead>Statut</TableHead><TableHead className="text-right">Actions</TableHead>
                 </TableRow></TableHeader><TableBody>
-                  {filtered.map((m) => (
+                  {(filtered as Merchant[]).map((m) => (
                     <TableRow key={m.id}>
                       <TableCell><p className="font-medium">{m.name}</p><p className="text-xs text-muted-foreground">{m.email}</p></TableCell>
                       <TableCell><Badge variant="outline">{CATEGORY_LABELS[m.category] || m.category}</Badge></TableCell>

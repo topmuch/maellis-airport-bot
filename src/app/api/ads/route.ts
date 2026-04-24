@@ -7,12 +7,19 @@ import {
   VALID_AD_STATUSES,
   VALID_BUDGET_TYPES,
 } from '@/lib/services/ad.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // GET /api/ads?airport=DSS&placement=home&type=banner&status=active&merchant=xxx
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const airportCode = searchParams.get('airport') || undefined;
     const placement = searchParams.get('placement') || undefined;
@@ -62,7 +69,12 @@ export async function GET(request: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = ['airportCode', 'title', 'type', 'placement', 'imageUrl', 'startDate', 'endDate', 'budget'];
@@ -118,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate budget
-    if (typeof body.budget !== 'number' || body.budget <= 0) {
+    if (!Number.isFinite(body.budget) || body.budget <= 0) {
       return NextResponse.json(
         { success: false, error: 'budget must be a positive number' },
         { status: 400 },
@@ -134,14 +146,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate CPM/CPC rates
-    if (body.cpmRate !== undefined && (typeof body.cpmRate !== 'number' || body.cpmRate < 0)) {
+    if (body.cpmRate !== undefined && (!Number.isFinite(body.cpmRate) || body.cpmRate < 0)) {
       return NextResponse.json(
         { success: false, error: 'cpmRate must be a non-negative number' },
         { status: 400 },
       );
     }
 
-    if (body.cpcRate !== undefined && (typeof body.cpcRate !== 'number' || body.cpcRate < 0)) {
+    if (body.cpcRate !== undefined && (!Number.isFinite(body.cpcRate) || body.cpcRate < 0)) {
       return NextResponse.json(
         { success: false, error: 'cpcRate must be a non-negative number' },
         { status: 400 },
@@ -179,6 +191,9 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
         return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });

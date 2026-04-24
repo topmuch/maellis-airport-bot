@@ -1,5 +1,6 @@
 'use server'
 
+import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { signIn, signOut } from '@/auth'
@@ -38,7 +39,7 @@ export async function loginUser(
     // Validate input
     const result = loginSchema.safeParse({ email, password })
     if (!result.success) {
-      return { success: false, error: result.error.errors[0].message }
+      return { success: false, error: result.error.issues[0].message }
     }
 
     // Check if user exists and is active
@@ -77,14 +78,15 @@ export async function loginUser(
     })
 
     return { success: true, message: 'Connexion réussie' }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
     // NextAuth redirects throw an error, that's expected
-    if (error?.message?.includes('NEXT_REDIRECT')) {
+    if (msg.includes('NEXT_REDIRECT')) {
       throw error
     }
 
     // Handle specific NextAuth errors
-    if (error?.type === 'CredentialsSignin') {
+    if (error && typeof error === 'object' && 'type' in error && (error as { type: string }).type === 'CredentialsSignin') {
       return { success: false, error: 'Email ou mot de passe incorrect' }
     }
 
@@ -134,7 +136,7 @@ export async function registerUser(
       confirmPassword,
     })
     if (!result.success) {
-      return { success: false, error: result.error.errors[0].message }
+      return { success: false, error: result.error.issues[0].message }
     }
 
     // Validate invitation token
@@ -204,7 +206,7 @@ export async function registerUser(
       success: true,
       message: 'Compte créé avec succès ! Vous pouvez maintenant vous connecter.',
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Register error:', error)
     return {
       success: false,
@@ -220,7 +222,7 @@ export async function registerUser(
 const invitationSchema = z.object({
   email: z.string().email('Email invalide'),
   role: z.enum(['SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT', 'VIEWER'], {
-    errorMap: () => ({ message: 'Rôle invalide' }),
+    message: 'Rôle invalide',
   }),
   airportCode: z.string().optional(),
 })
@@ -237,7 +239,7 @@ export async function createInvitation(
     // Validate input
     const result = invitationSchema.safeParse({ email, role, airportCode })
     if (!result.success) {
-      return { success: false, error: result.error.errors[0].message }
+      return { success: false, error: result.error.issues[0].message }
     }
 
     // Check if invitation already exists for this email
@@ -265,14 +267,14 @@ export async function createInvitation(
     }
 
     // Generate invitation token
-    const token = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+    const token = `inv_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`
 
     // Create invitation (expires in 7 days)
     await db.invitation.create({
       data: {
         email,
         token,
-        role: role as any,
+        role: role as 'SUPERADMIN' | 'AIRPORT_ADMIN' | 'AGENT' | 'VIEWER',
         airportCode,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
@@ -282,7 +284,7 @@ export async function createInvitation(
       success: true,
       message: `Invitation envoyée à ${email}`,
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Create invitation error:', error)
     return {
       success: false,
@@ -299,7 +301,7 @@ export async function logoutUser(): Promise<AuthActionResult> {
   try {
     await signOut({ redirectTo: '/' })
     return { success: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Logout error:', error)
     return { success: false, error: 'Erreur lors de la déconnexion' }
   }
@@ -339,7 +341,7 @@ export async function validateInvitationToken(
       role: invitation.role,
       airportCode: invitation.airportCode || undefined,
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Validate token error:', error)
     return { valid: false, error: 'Erreur lors de la validation du token' }
   }
@@ -365,7 +367,7 @@ export async function loginPartner(
     // Validate input
     const result = partnerLoginSchema.safeParse({ email, password })
     if (!result.success) {
-      return { success: false, error: result.error.errors[0].message }
+      return { success: false, error: result.error.issues[0].message }
     }
 
     // Find partner user by email
@@ -408,8 +410,9 @@ export async function loginPartner(
     })
 
     return { success: true, message: 'Connexion réussie' }
-  } catch (error: any) {
-    if (error?.message?.includes('NEXT_REDIRECT')) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    if (msg.includes('NEXT_REDIRECT')) {
       throw error
     }
     console.error('Partner login error:', error)

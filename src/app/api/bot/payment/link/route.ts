@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 /**
  * POST /api/bot/payment/link — Generate a payment link
@@ -13,7 +15,12 @@ import { db } from '@/lib/db';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
+    const body = await parseBody(request);
     const {
       amount,
       currency,
@@ -107,6 +114,13 @@ export async function POST(request: NextRequest) {
       _serviceAvailable: false,
     });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error in /api/bot/payment/link:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

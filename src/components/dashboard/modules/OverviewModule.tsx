@@ -245,6 +245,7 @@ export function OverviewModule() {
     // WebSocket is used for instant push notifications (see RealTimeNotificationToast)
   }, [])
 
+  // TODO: Replace with authenticated user's airport code from session
   const { isConnected: wsConnected } = useAirportSocket('DSS', {
     onStatsUpdate: handleStatsUpdate,
   })

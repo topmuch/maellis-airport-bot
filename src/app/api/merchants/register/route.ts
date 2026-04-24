@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createMerchant } from '@/lib/services/merchant.service';
+import { requireAuth } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ---------------------------------------------------------------------------
 // POST /api/merchants/register — Create merchant (no auth for bot)
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = ['airportCode', 'name', 'category', 'phone', 'email'];

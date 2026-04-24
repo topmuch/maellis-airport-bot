@@ -1,131 +1,58 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: maellis-db-prod
-    environment:
-      POSTGRES_USER: maellis
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-maellis_secret_2024}
-      POSTGRES_DB: maellis_db
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./scripts/backups:/backups
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U maellis -d maellis_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Redis (Cache & Sessions)
-  redis:
-    image: redis:7-alpine
-    container_name: maellis-redis-prod
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redisdata:/data
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
-
-  # Backend Bot Service (Bun)
-  bot-service:
-    build:
-      context: ./mini-services/bot-service
-      dockerfile: Dockerfile
-    container_name: maellis-bot-prod
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://maellis:${DB_PASSWORD:-maellis_secret_2024}@postgres:5432/maellis_db?sslmode=require
-      - REDIS_URL=redis://redis:6379
-      - RATE_LIMIT_WINDOW_MS=900000
-      - RATE_LIMIT_MAX_REQUESTS=100
-    ports:
-      - "3005:3005"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  # Frontend Dashboard (Next.js)
-  dashboard:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_URL=https://api.maellis.aero
-    container_name: maellis-dashboard-prod
-    env_file:
-      - .env
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://maellis:${DB_PASSWORD:-maellis_secret_2024}@postgres:5432/maellis_db?sslmode=require
-    ports:
-      - "3000:3000"
-    depends_on:
-      - bot-service
+      - DATABASE_URL=file:/app/data/custom.db
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set}
+      - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET must be set}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - CINETPAY_API_KEY=${CINETPAY_API_KEY}
+      - CINETPAY_SITE_ID=${CINETPAY_SITE_ID}
+      - CINETPAY_WEBHOOK_SECRET=${CINETPAY_WEBHOOK_SECRET}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+      - AVIATION_API_KEY=${AVIATION_API_KEY}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+    volumes:
+      - app-data:/app/data
     restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
-  # Caddy (Reverse Proxy + HTTPS)
   caddy:
     image: caddy:2-alpine
-    container_name: maellis-caddy
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
-      - dashboard
-      - bot-service
+      app:
+        condition: service_healthy
     restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
 
 volumes:
-  pgdata:
-    driver: local
-  redisdata:
-    driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
-    driver: local
+  app-data:
+  caddy-data:
+  caddy-config:

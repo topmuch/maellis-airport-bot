@@ -15,6 +15,7 @@ export interface EmailConfig {
   from: string;
   fromName: string;
   secure: boolean;
+  tls: { rejectUnauthorized: boolean };
 }
 
 export interface SendEmailPayload {
@@ -48,7 +49,14 @@ function readConfig(): EmailConfig {
   const fromName = process.env.EMAIL_FROM_NAME || "MAELLIS Airport Bot";
   const secure = port === 465;
 
-  return { transport, host, port, user, pass, from, fromName, secure };
+  // Explicit TLS configuration for security
+  const tlsRejectUnauthorized = process.env.EMAIL_TLS_REJECT_UNAUTHORIZED;
+  const tlsConfig = {
+    // In production, always reject unauthorized certs unless explicitly overridden
+    rejectUnauthorized: tlsRejectUnauthorized !== 'false',
+  };
+
+  return { transport, host, port, user, pass, from, fromName, secure, tls: tlsConfig };
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +82,7 @@ function getTransporter(): { transporter: Transporter | null; config: EmailConfi
       port: config.port,
       secure: config.secure,
       auth: { user: config.user, pass: config.pass },
+      tls: config.tls,
       connectionTimeout: 10_000,
       greetingTimeout: 5_000,
       socketTimeout: 15_000,
@@ -259,6 +268,25 @@ function isRetryableError(err: Error): boolean {
     msg.includes("450") ||
     msg.includes("452")
   );
+}
+
+// ---------------------------------------------------------------------------
+// Public: close the SMTP transporter pool (call during graceful shutdown)
+// ---------------------------------------------------------------------------
+
+export async function closeTransporter(): Promise<void> {
+  if (_transporter) {
+    try {
+      await _transporter.close();
+      log("info", "SMTP transporter pool closed");
+    } catch (err) {
+      log("warn", "Error closing SMTP transporter", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  _transporter = null;
+  _initialized = false;
 }
 
 // ---------------------------------------------------------------------------

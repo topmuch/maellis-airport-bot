@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
+import { requireAuth, requireRole } from '@/lib/auth'
 import {
   getProviderById,
   updateProvider,
   deleteProvider,
 } from '@/lib/services/transport.service'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -12,11 +13,21 @@ interface RouteParams {
 
 // GET /api/transport/providers/[id]
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+    }
+
     const provider = await getProviderById(id)
 
     if (!provider) {
@@ -42,17 +53,22 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin')(request)
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
 
     if (!authResult.success) {
       return NextResponse.json(
         { success: false, error: authResult.error },
-        { status: authResult.status }
+        { status: authResult.status || 401 }
       )
     }
 
     const { id } = await params
-    const body = await request.json()
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
+
+    const body = await parseBody(request)
 
     const existing = await getProviderById(id)
     if (!existing) {
@@ -88,6 +104,9 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: provider })
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('Error updating transport provider:', error)
 
     if (
@@ -115,16 +134,20 @@ export async function DELETE(
   { params }: RouteParams
 ) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin')(request)
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
 
     if (!authResult.success) {
       return NextResponse.json(
         { success: false, error: authResult.error },
-        { status: authResult.status }
+        { status: authResult.status || 401 }
       )
     }
 
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
 
     const existing = await getProviderById(id)
     if (!existing) {

@@ -7,6 +7,8 @@ import {
   VALID_PLACEMENTS,
   VALID_BUDGET_TYPES,
 } from '@/lib/services/ad.service';
+import { requireAuth, requireRole } from '@/lib/auth';
+import { validateId, parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // GET /api/ads/[id] — Get ad by ID
@@ -16,13 +18,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { id } = await params;
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Ad ID is required' },
-        { status: 400 },
-      );
+    try {
+      validateId(id);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode });
+      }
+      throw err;
     }
 
     const ad = await getAdById(id);
@@ -52,16 +61,23 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Ad ID is required' },
-        { status: 400 },
-      );
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
     }
 
-    const body = await request.json();
+    const { id } = await params;
+
+    try {
+      validateId(id);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode });
+      }
+      throw err;
+    }
+
+    const body = await parseBody(request);
 
     // Validate type if provided
     if (body.type && !VALID_AD_TYPES.includes(body.type)) {
@@ -92,7 +108,7 @@ export async function PUT(
     }
 
     // Validate budget if provided
-    if (body.budget !== undefined && (typeof body.budget !== 'number' || body.budget <= 0)) {
+    if (body.budget !== undefined && (!Number.isFinite(body.budget) || body.budget <= 0)) {
       return NextResponse.json(
         { success: false, error: 'budget must be a positive number' },
         { status: 400 },
@@ -127,6 +143,9 @@ export async function PUT(
       message: 'Advertisement updated successfully',
     });
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     console.error('[PUT /api/ads/:id] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -143,13 +162,20 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const { id } = await params;
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Ad ID is required' },
-        { status: 400 },
-      );
+    try {
+      validateId(id);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode });
+      }
+      throw err;
     }
 
     const result = await deleteAd(id);

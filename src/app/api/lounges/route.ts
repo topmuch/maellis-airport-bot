@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (!authResult.success || !authResult.user) {
       return NextResponse.json({ success: false, error: authResult.error || 'Unauthorized' }, { status: authResult.status || 401 });
     }
-    if (!['superadmin', 'airport_admin'].includes(authResult.user.role)) {
+    if (!['SUPERADMIN', 'AIRPORT_ADMIN'].includes(authResult.user.role)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
  }
 

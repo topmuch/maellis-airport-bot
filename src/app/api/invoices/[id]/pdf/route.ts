@@ -18,6 +18,10 @@ export async function GET(
 
     const { id } = await params
 
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
+
     const pdfResult = await generateInvoicePDF(id)
 
     if (!pdfResult) {
@@ -27,7 +31,7 @@ export async function GET(
       )
     }
 
-    return new NextResponse(pdfResult.buffer, {
+    return new NextResponse(new Uint8Array(pdfResult.buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

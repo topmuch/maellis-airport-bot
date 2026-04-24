@@ -5,6 +5,7 @@ import {
   generateActivityCSV,
 } from '@/lib/pdf/generator'
 import type { ActivityReportData } from '@/lib/pdf/templates'
+import { requireRole } from '@/lib/auth'
 
 const AIRPORT_NAMES: Record<string, string> = {
   DSS: 'Aéroport International Blaise Diagne',
@@ -55,6 +56,11 @@ function getLanguageLabel(code: string): string {
 
 // GET /api/reports/activity?airportCode=DSS&from=2025-01-01&to=2025-06-30&format=pdf
 export async function GET(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams
     const airportCode = searchParams.get('airportCode') || 'DSS'
@@ -159,8 +165,8 @@ export async function GET(request: NextRequest) {
     const reportData: ActivityReportData = {
       airportCode: airportCode.toUpperCase(),
       airportName: getAirportName(airportCode),
-      dateFrom,
-      dateTo,
+      dateFrom: dateFrom.toISOString(),
+      dateTo: dateTo.toISOString(),
       generatedAt: new Date().toISOString(),
       totalConversations,
       totalMessages,
@@ -185,7 +191,7 @@ export async function GET(request: NextRequest) {
 
     // Default: PDF
     const pdfBuffer = await generateActivityPDF(reportData)
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
@@ -198,7 +204,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Erreur lors de la génération du rapport d'activité.",
-        details: error instanceof Error ? error.message : 'Erreur inconnue',
+        details: 'Internal error',
       },
       { status: 500 }
     )

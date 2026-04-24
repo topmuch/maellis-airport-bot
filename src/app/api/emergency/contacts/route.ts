@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
+import { requireRole, requireAuth } from '@/lib/auth'
 import { getContacts, createContact } from '@/lib/services/emergency.service'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/emergency/contacts?airport=DSS&category=medical
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const airportCode = searchParams.get('airport')
@@ -20,6 +26,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: contacts })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error fetching emergency contacts:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch emergency contacts' },
@@ -31,15 +44,15 @@ export async function GET(request: NextRequest) {
 // POST /api/emergency/contacts — Create contact (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireRole('superadmin', 'airport_admin')(request)
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
     if (!authResult.success) {
       return NextResponse.json(
         { success: false, error: authResult.error },
-        { status: authResult.status }
+        { status: authResult.status || 401 }
       )
     }
 
-    const body = await request.json()
+    const body = await parseBody(request)
     const { airportCode, category, name, phoneNumber, whatsappNum, email, isPrimary, notes } = body
 
     if (!airportCode || !category || !name || !phoneNumber) {
@@ -62,12 +75,19 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: contact }, { status: 201 })
   } catch (error: unknown) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error creating emergency contact:', error)
 
-    const message = error instanceof Error ? error.message : 'Failed to create emergency contact'
+    const internalMessage = error instanceof Error ? error.message : ''
 
-    if (message.startsWith('Invalid category')) {
-      return NextResponse.json({ success: false, error: message }, { status: 400 })
+    if (internalMessage.startsWith('Invalid category')) {
+      return NextResponse.json({ success: false, error: 'Invalid category' }, { status: 400 })
     }
 
     return NextResponse.json(

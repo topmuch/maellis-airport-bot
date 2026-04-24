@@ -1,45 +1,45 @@
 {$DOMAIN:maellis.aero} {
-    # Dashboard (Frontend)
+    # All routes proxy to the single app service (Next.js standalone)
     handle / {
-        reverse_proxy dashboard:3000
+        reverse_proxy app:3000
     }
 
-    # Bot API
     handle /webhook* {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
     handle /chat {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
     handle /health {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
     handle /airports* {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
     handle /track/* {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
     handle /flight/* {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
     handle /baggage/* {
-        reverse_proxy bot-service:3005
+        reverse_proxy app:3000
     }
 
-    # API routes for dashboard
+    # API routes
     handle /api/* {
-        reverse_proxy dashboard:3000
+        reverse_proxy app:3000
     }
 
     # Security headers
     header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"

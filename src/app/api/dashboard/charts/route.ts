@@ -1,9 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
+import { SAFETY_TAKE } from '@/lib/validate'
 
 // ── GET /api/dashboard/charts ──────────────────────────────────────────────
 // Returns traffic (7 days), intent distribution, and language breakdown
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+  }
   try {
     // ── 1. Traffic: messages per day for the last 7 days ─────────────────
     const now = new Date()
@@ -17,6 +23,7 @@ export async function GET() {
     const recentMessages = await db.message.findMany({
       where: { createdAt: { gte: sevenDaysAgo } },
       select: { createdAt: true },
+      take: SAFETY_TAKE,
     })
 
     // Build traffic array
@@ -41,11 +48,11 @@ export async function GET() {
     }))
 
     // ── 2. Intent distribution from conversations ────────────────────────
-    const intentGroups = await db.conversation.groupBy({
+    const allIntentGroups = await db.conversation.groupBy({
       by: ['intent'],
-      where: { intent: { not: null, not: '' } },
       _count: { intent: true },
     })
+    const intentGroups = allIntentGroups.filter(g => g.intent != null && g.intent !== '')
 
     const totalIntents = intentGroups.reduce((sum, g) => sum + g._count.intent, 0)
 
@@ -78,17 +85,17 @@ export async function GET() {
             ? Math.round((g._count.intent / totalIntents) * 100)
             : 0,
         fill:
-          intentColorMap[g.intent.toLowerCase()] ||
+          intentColorMap[(g.intent ?? '').toLowerCase()] ||
           '#6b7280',
       }))
       .sort((a, b) => b.value - a.value)
 
     // ── 3. Language distribution ─────────────────────────────────────────
-    const langGroups = await db.conversation.groupBy({
+    const allLangGroups = await db.conversation.groupBy({
       by: ['language'],
-      where: { language: { not: null, not: '' } },
       _count: { language: true },
     })
+    const langGroups = allLangGroups.filter(g => g.language != null && g.language !== '')
 
     const totalLangs = langGroups.reduce(
       (sum, g) => sum + g._count.language,

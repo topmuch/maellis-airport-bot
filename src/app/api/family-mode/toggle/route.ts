@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
+import { parseBody, ValidationError } from '@/lib/validate';
 import {
   enableFamilyMode,
   disableFamilyMode,
@@ -9,8 +11,13 @@ import {
 // Body: { phone, action: "enable" | "disable", data?: { childCount?, childAges?, infantCount? } }
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await parseBody(request);
     const { phone, action, data } = body;
 
     if (!phone || typeof phone !== 'string') {
@@ -90,6 +97,13 @@ export async function POST(request: NextRequest) {
       data: { enabled: false, user: result.user },
     });
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[POST /api/family-mode/toggle] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },

@@ -271,13 +271,27 @@ const invoiceStyles = StyleSheet.create({
     color: COLORS.textLight,
     fontStyle: 'italic',
   },
-
-  // Column widths for items table
-  colDescription: '44%',
-  colQuantity: '12%',
-  colUnitPrice: '22%',
-  colTotal: '22%',
 })
+
+// Column widths for items table (not part of StyleSheet — raw width values)
+const COL = {
+  description: '44%',
+  quantity: '12%',
+  unitPrice: '22%',
+  total: '22%',
+} as const
+
+// ─── Defensive sanitization ────────────────────────────────────────────────
+
+/**
+ * Truncate a string to a safe length for PDF rendering.
+ * Prevents excessively long user-provided strings from causing layout issues.
+ */
+function safeStr(value: unknown, maxLength = 100): string {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  return str.length > maxLength ? str.slice(0, maxLength) + '…' : str
+}
 
 // ─── Helper: Invoice status style ─────────────────────────────────────────
 
@@ -339,9 +353,9 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
 
   return (
     <Document
-      title={`Facture ${data.invoiceNumber}`}
+      title={`Facture ${safeStr(data.invoiceNumber, 50)}`}
       author="MAELLIS Technologies"
-      subject={`Facture ${data.invoiceNumber} — ${data.clientName}`}
+      subject={`Facture — ${safeStr(data.clientName, 100)}`}
       creator="MAELLIS Billing Module"
     >
       <Page size="A4" style={sharedStyles.page}>
@@ -361,13 +375,13 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         <View style={invoiceStyles.infoBlock}>
           <View style={invoiceStyles.infoBox}>
             <Text style={invoiceStyles.infoLabel}>Numéro de facture</Text>
-            <Text style={invoiceStyles.infoValue}>{data.invoiceNumber}</Text>
+            <Text style={invoiceStyles.infoValue}>{safeStr(data.invoiceNumber, 50)}</Text>
             <Text style={invoiceStyles.infoLabel}>Date d&apos;émission</Text>
-            <Text style={invoiceStyles.infoValueSmall}>{formatDate(data.issueDate)}</Text>
+            <Text style={invoiceStyles.infoValueSmall}>{formatDate(safeStr(data.issueDate, 30))}</Text>
           </View>
           <View style={[invoiceStyles.infoBox, { alignItems: 'flex-end' }]}>
             <Text style={invoiceStyles.infoLabel}>Date d&apos;échéance</Text>
-            <Text style={invoiceStyles.infoValueSmall}>{formatDate(data.dueDate)}</Text>
+            <Text style={invoiceStyles.infoValueSmall}>{formatDate(safeStr(data.dueDate, 30))}</Text>
             <Text style={invoiceStyles.infoLabel}>Statut</Text>
             <View style={[invoiceStyles.statusBadge, { backgroundColor: statusStyle.bg }]}>
               <Text style={invoiceStyles.statusBadgeText}>
@@ -382,30 +396,30 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
           {/* Client block */}
           <View style={invoiceStyles.partyCard}>
             <Text style={invoiceStyles.partyTitle}>Client</Text>
-            <Text style={invoiceStyles.partyName}>{data.clientName}</Text>
+            <Text style={invoiceStyles.partyName}>{safeStr(data.clientName, 100)}</Text>
             {data.clientCompany && (
-              <Text style={invoiceStyles.partyDetail}>{data.clientCompany}</Text>
+              <Text style={invoiceStyles.partyDetail}>{safeStr(data.clientCompany, 100)}</Text>
             )}
-            <Text style={invoiceStyles.partyDetail}>{data.clientEmail}</Text>
-            <Text style={invoiceStyles.partyDetail}>{data.clientPhone}</Text>
+            <Text style={invoiceStyles.partyDetail}>{safeStr(data.clientEmail, 100)}</Text>
+            <Text style={invoiceStyles.partyDetail}>{safeStr(data.clientPhone, 30)}</Text>
             {data.clientAddress && (
-              <Text style={invoiceStyles.partyDetail}>{data.clientAddress}</Text>
+              <Text style={invoiceStyles.partyDetail}>{safeStr(data.clientAddress, 200)}</Text>
             )}
             {data.clientTaxId && (
-              <Text style={invoiceStyles.partyDetail}>NINEA: {data.clientTaxId}</Text>
+              <Text style={invoiceStyles.partyDetail}>NINEA: {safeStr(data.clientTaxId, 30)}</Text>
             )}
           </View>
 
           {/* Seller block */}
           <View style={invoiceStyles.partyCard}>
             <Text style={invoiceStyles.partyTitle}>Émetteur</Text>
-            <Text style={invoiceStyles.partyName}>{data.legalName}</Text>
-            <Text style={invoiceStyles.partyDetail}>{data.legalAddress}</Text>
+            <Text style={invoiceStyles.partyName}>{safeStr(data.legalName, 100)}</Text>
+            <Text style={invoiceStyles.partyDetail}>{safeStr(data.legalAddress, 200)}</Text>
             {data.legalTaxId && (
-              <Text style={invoiceStyles.partyDetail}>NINEA: {data.legalTaxId}</Text>
+              <Text style={invoiceStyles.partyDetail}>NINEA: {safeStr(data.legalTaxId, 30)}</Text>
             )}
             {data.legalRccm && (
-              <Text style={invoiceStyles.partyDetail}>RCCM: {data.legalRccm}</Text>
+              <Text style={invoiceStyles.partyDetail}>RCCM: {safeStr(data.legalRccm, 30)}</Text>
             )}
           </View>
         </View>
@@ -414,16 +428,16 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         <View style={invoiceStyles.itemsTable}>
           {/* Table header */}
           <View style={invoiceStyles.itemsHeaderRow}>
-            <Text style={[invoiceStyles.itemsHeaderCell, { width: invoiceStyles.colDescription }]}>
+            <Text style={[invoiceStyles.itemsHeaderCell, { width: COL.description }]}>
               Description
             </Text>
-            <Text style={[invoiceStyles.itemsHeaderCell, { width: invoiceStyles.colQuantity }]}>
+            <Text style={[invoiceStyles.itemsHeaderCell, { width: COL.quantity }]}>
               Qté
             </Text>
-            <Text style={[invoiceStyles.itemsHeaderCell, { width: invoiceStyles.colUnitPrice, textAlign: 'right' }]}>
+            <Text style={[invoiceStyles.itemsHeaderCell, { width: COL.unitPrice, textAlign: 'right' }]}>
               Prix Unitaire
             </Text>
-            <Text style={[invoiceStyles.itemsHeaderCell, { width: invoiceStyles.colTotal, textAlign: 'right' }]}>
+            <Text style={[invoiceStyles.itemsHeaderCell, { width: COL.total, textAlign: 'right' }]}>
               Total
             </Text>
           </View>
@@ -433,16 +447,16 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
             const rowStyle = idx % 2 === 0 ? invoiceStyles.itemsRow : invoiceStyles.itemsRowAlt
             return (
               <View key={`item-${idx}`} style={rowStyle}>
-                <Text style={[invoiceStyles.itemsCell, { width: invoiceStyles.colDescription }]}>
-                  {item.description}
+                <Text style={[invoiceStyles.itemsCell, { width: COL.description }]}>
+                  {safeStr(item.description, 200)}
                 </Text>
-                <Text style={[invoiceStyles.itemsCell, { width: invoiceStyles.colQuantity }]}>
+                <Text style={[invoiceStyles.itemsCell, { width: COL.quantity }]}>
                   {item.quantity}
                 </Text>
-                <Text style={[invoiceStyles.itemsCellRight, { width: invoiceStyles.colUnitPrice }]}>
+                <Text style={[invoiceStyles.itemsCellRight, { width: COL.unitPrice }]}>
                   {formatCurrency(item.unitPrice, data.currency)}
                 </Text>
-                <Text style={[invoiceStyles.itemsCellBold, { width: invoiceStyles.colTotal }]}>
+                <Text style={[invoiceStyles.itemsCellBold, { width: COL.total }]}>
                   {formatCurrency(item.total, data.currency)}
                 </Text>
               </View>
@@ -479,7 +493,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         {/* 7. Notes section */}
         {data.notes && (
           <View style={invoiceStyles.notesBlock}>
-            <Text style={invoiceStyles.notesText}>Notes: {data.notes}</Text>
+            <Text style={invoiceStyles.notesText}>Notes: {safeStr(data.notes, 500)}</Text>
           </View>
         )}
 
@@ -487,13 +501,13 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         <View style={invoiceStyles.legalBlock}>
           <Text style={invoiceStyles.legalTitle}>Mentions légales</Text>
           <Text style={invoiceStyles.legalText}>
-            {data.legalName} — {data.legalAddress}
+            {safeStr(data.legalName, 100)} — {safeStr(data.legalAddress, 200)}
           </Text>
           {data.legalTaxId && (
-            <Text style={invoiceStyles.legalText}>NINEA: {data.legalTaxId}</Text>
+            <Text style={invoiceStyles.legalText}>NINEA: {safeStr(data.legalTaxId, 30)}</Text>
           )}
           {data.legalRccm && (
-            <Text style={invoiceStyles.legalText}>RCCM: {data.legalRccm}</Text>
+            <Text style={invoiceStyles.legalText}>RCCM: {safeStr(data.legalRccm, 30)}</Text>
           )}
           <Text style={invoiceStyles.legalText}>
             Conformément aux dispositions du SYSCOHADA / OHADA
@@ -505,11 +519,11 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
           <View style={invoiceStyles.paymentBlock}>
             <Text style={invoiceStyles.paymentTitle}>Coordonnées bancaires</Text>
             {data.bankName && (
-              <Text style={invoiceStyles.paymentText}>Banque: {data.bankName}</Text>
+              <Text style={invoiceStyles.paymentText}>Banque: {safeStr(data.bankName, 100)}</Text>
             )}
             {data.bankAccount && (
               <Text style={invoiceStyles.paymentText}>
-                Compte: {data.bankAccount}
+                Compte: {safeStr(data.bankAccount, 50)}
               </Text>
             )}
           </View>
@@ -518,7 +532,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         {/* Footer */}
         <View style={sharedStyles.footer} fixed>
           <Text style={sharedStyles.footerText}>
-            Document sans valeur fiscale si non payé — {data.legalName}
+            Document sans valeur fiscale si non payé — {safeStr(data.legalName, 100)}
           </Text>
           <Text
             style={sharedStyles.footerText}

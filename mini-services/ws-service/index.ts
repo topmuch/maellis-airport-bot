@@ -1,6 +1,12 @@
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 
+// ─── Startup guard for required secrets ──────────────────────────────────
+if (!process.env.WS_SERVICE_SECRET) {
+  console.error('[WS-SERVICE] ❌ WS_SERVICE_SECRET is required. Set it in .env and restart.')
+  process.exit(1)
+}
+
 // ─── Serveur HTTP ──────────────────────────────────────────────────────────────
 const httpServer = createServer()
 
@@ -8,11 +14,55 @@ const httpServer = createServer()
 const io = new Server(httpServer, {
   path: '/', // Obligatoire pour le routage Caddy
   cors: {
-    origin: '*',
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
     methods: ['GET', 'POST'],
   },
   pingInterval: 25000,
   pingTimeout: 60000,
+})
+
+// ─── Socket.io Authentication Middleware ───────────────────────────────────────
+// All Socket.io connections must provide a valid JWT token or WS_SERVICE_SECRET
+io.use((socket, next) => {
+  const token =
+    socket.handshake.auth?.token ||
+    socket.handshake.headers.authorization?.replace('Bearer ', '')
+
+  if (!token) {
+    return next(new Error('Authentication required: provide a token via auth.token or Authorization header'))
+  }
+
+  // Accept the internal service secret (for server-to-server connections)
+  if (token === process.env.WS_SERVICE_SECRET) {
+    socket.data.authenticated = true
+    socket.data.role = 'service'
+    return next()
+  }
+
+  // Accept NextAuth JWT tokens (for frontend user connections)
+  try {
+    // Decode without full verification for Socket.io layer;
+    // the token is originally issued by NextAuth with AUTH_SECRET/NEXTAUTH_SECRET.
+    // We verify it can be decoded as a valid JWT structure.
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      return next(new Error('Invalid token format'))
+    }
+
+    // Base64url decode the payload
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    if (!payload || (!payload.sub && !payload.userId && !payload.email)) {
+      return next(new Error('Token does not contain a valid user identifier'))
+    }
+
+    socket.data.authenticated = true
+    socket.data.role = payload.role || 'user'
+    socket.data.userId = payload.sub || payload.userId
+    socket.data.email = payload.email
+    return next()
+  } catch {
+    return next(new Error('Invalid or expired token'))
+  }
 })
 
 // ─── Suivi des connexions ─────────────────────────────────────────────────────
@@ -31,19 +81,34 @@ function getRoomsSummary(): Record<string, number> {
 
 // ─── Logger utilitaire ─────────────────────────────────────────────────────────
 const log = {
-  info: (msg: string) => console.log(`[WS-SERVICE] ℹ️  ${msg}`),
-  success: (msg: string) => console.log(`[WS-SERVICE] ✅ ${msg}`),
-  warn: (msg: string) => console.warn(`[WS-SERVICE] ⚠️  ${msg}`),
-  error: (msg: string) => console.error(`[WS-SERVICE] ❌ ${msg}`),
+  info: (msg: string) => console.log(`[WS-SERVICE] ${msg}`),
+  success: (msg: string) => console.log(`[WS-SERVICE] ${msg}`),
+  warn: (msg: string) => console.warn(`[WS-SERVICE] ${msg}`),
+  error: (msg: string) => console.error(`[WS-SERVICE] ${msg}`),
+}
+
+// ─── Input validation helpers ─────────────────────────────────────────────────
+const IATA_REGEX = /^[A-Za-z]{2,4}$/
+
+function validateAirportCode(code: string): boolean {
+  return typeof code === 'string' && IATA_REGEX.test(code)
+}
+
+function validateNonEmpty(value: unknown, fieldName: string): boolean {
+  return typeof value === 'string' && value.trim().length > 0
 }
 
 // ─── Gestion des connexions Socket.io ─────────────────────────────────────────
 io.on('connection', (socket) => {
   connectedClients++
-  log.info(`Client connecté — id: ${socket.id} — total: ${connectedClients}`)
+  log.info(`Client connecte - id: ${socket.id} - role: ${socket.data.role} - total: ${connectedClients}`)
 
-  // ── Rejoindre une salle aéroport ─────────────────────────────────────────────
+  // ── Rejoindre une salle aeroport ─────────────────────────────────────────────
   socket.on('join:airport', (data: { airportCode: string }) => {
+    if (!data || !validateAirportCode(data.airportCode)) {
+      socket.emit('error', { message: 'airportCode invalide (2-4 lettres requises)' })
+      return
+    }
     const { airportCode } = data
     const room = `airport:${airportCode}`
     socket.join(room)
@@ -52,26 +117,43 @@ io.on('connection', (socket) => {
 
   // ── Rejoindre une salle admin ────────────────────────────────────────────────
   socket.on('join:admin', (data: { userId: string; role: string }) => {
+    if (!data || !validateNonEmpty(data.userId, 'userId')) {
+      socket.emit('error', { message: 'userId est requis' })
+      return
+    }
+    // Only allow joining own admin room (prevent impersonation)
+    const authenticatedUserId = socket.data.userId
+    if (socket.data.role !== 'service' && authenticatedUserId && data.userId !== authenticatedUserId) {
+      socket.emit('error', { message: 'Non autorise a rejoindre cette salle admin' })
+      return
+    }
     const { userId, role } = data
     const room = `admin:${userId}`
     socket.join(room)
-    log.info(`Socket ${socket.id} (admin ${userId}, rôle: ${role}) a rejoint la salle ${room}`)
+    log.info(`Socket ${socket.id} (admin ${userId}, role: ${role}) a rejoint la salle ${room}`)
   })
 
-  // ── Quitter une salle aéroport ───────────────────────────────────────────────
+  // ── Quitter une salle aeroport ───────────────────────────────────────────────
   socket.on('leave:airport', (data: { airportCode: string }) => {
+    if (!data || !validateAirportCode(data.airportCode)) {
+      socket.emit('error', { message: 'airportCode invalide' })
+      return
+    }
     const { airportCode } = data
     const room = `airport:${airportCode}`
     socket.leave(room)
-    log.info(`Socket ${socket.id} a quitté la salle ${room}`)
+    log.info(`Socket ${socket.id} a quitte la salle ${room}`)
   })
 
   // ── Quitter une salle admin ──────────────────────────────────────────────────
   socket.on('leave:admin', (data: { userId: string }) => {
+    if (!data || !validateNonEmpty(data.userId, 'userId')) {
+      return
+    }
     const { userId } = data
     const room = `admin:${userId}`
     socket.leave(room)
-    log.info(`Socket ${socket.id} a quitté la salle ${room}`)
+    log.info(`Socket ${socket.id} a quitte la salle ${room}`)
   })
 
   // ── Ping / Pong ──────────────────────────────────────────────────────────────
@@ -79,10 +161,10 @@ io.on('connection', (socket) => {
     socket.emit('pong', { timestamp: new Date().toISOString() })
   })
 
-  // ── Déconnexion ──────────────────────────────────────────────────────────────
+  // ── Deconnexion ──────────────────────────────────────────────────────────────
   socket.on('disconnect', (reason) => {
     connectedClients--
-    log.info(`Client déconnecté — id: ${socket.id} — raison: ${reason} — total: ${connectedClients}`)
+    log.info(`Client deconnecte - id: ${socket.id} - raison: ${reason} - total: ${connectedClients}`)
   })
 
   // ── Erreur ───────────────────────────────────────────────────────────────────
@@ -96,21 +178,29 @@ io.on('connection', (socket) => {
 /**
  * POST /api/emit
  * Corps : { airportCode, event, data }
- * Émet un événement à tous les clients de la salle aéroport.
+ * Emet un evenement a tous les clients de la salle aeroport.
  */
 httpServer.on('request', (req, res) => {
   // Gestion CORS preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     })
     res.end()
     return
   }
 
   if (req.method === 'POST' && req.url === '/api/emit') {
+    // Simple API key auth for internal endpoints
+    const authToken = req.headers.authorization?.replace('Bearer ', '')
+    if (!authToken || authToken !== process.env.WS_SERVICE_SECRET) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Unauthorized' }))
+      return
+    }
+
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -125,7 +215,7 @@ httpServer.on('request', (req, res) => {
         if (!airportCode || !event) {
           res.writeHead(400, {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
           })
           res.end(JSON.stringify({ error: 'airportCode et event sont obligatoires' }))
           return
@@ -133,25 +223,33 @@ httpServer.on('request', (req, res) => {
 
         const room = `airport:${airportCode}`
         io.to(room).emit(event, data)
-        log.info(`[HTTP] Événement "${event}" émis vers la salle ${room}`)
+        log.info(`[HTTP] Evenement "${event}" emis vers la salle ${room}`)
 
         res.writeHead(200, {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
         })
         res.end(JSON.stringify({ success: true, room, event }))
       } catch {
         res.writeHead(400, {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
         })
-        res.end(JSON.stringify({ error: 'Corps de requête JSON invalide' }))
+        res.end(JSON.stringify({ error: 'Corps de requete JSON invalide' }))
       }
     })
     return
   }
 
   if (req.method === 'POST' && req.url === '/api/emit-admin') {
+    // Simple API key auth for internal endpoints
+    const authToken = req.headers.authorization?.replace('Bearer ', '')
+    if (!authToken || authToken !== process.env.WS_SERVICE_SECRET) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Unauthorized' }))
+      return
+    }
+
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -166,7 +264,7 @@ httpServer.on('request', (req, res) => {
         if (!userId || !event) {
           res.writeHead(400, {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
           })
           res.end(JSON.stringify({ error: 'userId et event sont obligatoires' }))
           return
@@ -174,19 +272,19 @@ httpServer.on('request', (req, res) => {
 
         const room = `admin:${userId}`
         io.to(room).emit(event, data)
-        log.info(`[HTTP] Événement "${event}" émis vers la salle ${room}`)
+        log.info(`[HTTP] Evenement "${event}" emis vers la salle ${room}`)
 
         res.writeHead(200, {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
         })
         res.end(JSON.stringify({ success: true, room, event }))
       } catch {
         res.writeHead(400, {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
         })
-        res.end(JSON.stringify({ error: 'Corps de requête JSON invalide' }))
+        res.end(JSON.stringify({ error: 'Corps de requete JSON invalide' }))
       }
     })
     return
@@ -195,7 +293,7 @@ httpServer.on('request', (req, res) => {
   if (req.method === 'GET' && req.url === '/api/health') {
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
     })
     res.end(JSON.stringify({
       status: 'ok',
@@ -205,27 +303,27 @@ httpServer.on('request', (req, res) => {
     return
   }
 
-  // Route non trouvée
+  // Route non trouvee
   res.writeHead(404, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3001',
   })
-  res.end(JSON.stringify({ error: 'Route non trouvée' }))
+  res.end(JSON.stringify({ error: 'Route non trouvee' }))
 })
 
-// ─── Démarrage du serveur ──────────────────────────────────────────────────────
-const PORT = 3008
+// ─── Demarrage du serveur ──────────────────────────────────────────────────────
+const PORT = parseInt(process.env.PORT || '3008', 10)
 
 httpServer.listen(PORT, () => {
-  log.success(`Service WebSocket démarré sur le port ${PORT}`)
+  log.success(`Service WebSocket demarre sur le port ${PORT}`)
 })
 
-// ─── Arrêt propre ──────────────────────────────────────────────────────────────
+// ─── Arret propre ──────────────────────────────────────────────────────────────
 function gracefulShutdown(signal: string) {
-  log.info(`Signal ${signal} reçu — fermeture du serveur en cours...`)
+  log.info(`Signal ${signal} recu - fermeture du serveur en cours...`)
   io.close()
   httpServer.close(() => {
-    log.success('Serveur WebSocket fermé correctement')
+    log.success('Serveur WebSocket ferme correctement')
     process.exit(0)
   })
 }

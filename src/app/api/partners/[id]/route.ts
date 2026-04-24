@@ -14,6 +14,10 @@ export async function GET(
   try {
     const { id } = await params
 
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
+
     const partner = await getPartnerById(id)
 
     if (!partner) {
@@ -48,6 +52,10 @@ export async function PUT(
     }
 
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
 
     // Verify partner exists
     const existing = await getPartnerById(id)
@@ -101,6 +109,10 @@ export async function DELETE(
     }
 
     const { id } = await params
+
+    if (!id || typeof id !== 'string' || id.length > 200) {
+      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    }
 
     // Verify partner exists
     const existing = await getPartnerById(id)

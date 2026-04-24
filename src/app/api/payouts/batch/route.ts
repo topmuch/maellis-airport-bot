@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { batchProcessPayouts } from '@/lib/services/payout.service';
+import { requireRole } from '@/lib/auth';
 
 // ---------------------------------------------------------------------------
 // POST /api/payouts/batch — Process multiple payouts in a single transaction
 // Body: { merchantId, adminId, payoutIds[], reference? }
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
+  const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN');
+  const authResult = await checkRole(request);
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 });
+  }
+
   try {
     const body = await request.json();
 

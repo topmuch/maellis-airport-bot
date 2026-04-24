@@ -9,9 +9,16 @@ import {
   redeemReward,
   getGamificationStats,
 } from '@/lib/services/gamification.service'
+import { requireAuth } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/miles - Multiple actions via query param
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
@@ -51,7 +58,7 @@ export async function GET(request: NextRequest) {
 
       case 'leaderboard': {
         const limitParam = searchParams.get('limit')
-        const limit = limitParam ? parseInt(limitParam, 10) : 10
+        const limit = Math.min(100, Math.max(1, limitParam ? parseInt(limitParam, 10) : 10))
         const leaderboard = await getLeaderboard(limit)
         return NextResponse.json({ success: true, data: leaderboard })
       }
@@ -79,6 +86,13 @@ export async function GET(request: NextRequest) {
         )
     }
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error in miles GET handler:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to process miles request' },
@@ -89,8 +103,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/miles - Credit points or redeem a reward
 export async function POST(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
-    const body = await request.json()
+    const body = await parseBody(request)
     const { action, phone, reason, rewardId } = body
 
     if (!action) {
@@ -132,10 +151,16 @@ export async function POST(request: NextRequest) {
         )
     }
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error in miles POST handler:', error)
-    const message = error instanceof Error ? error.message : 'Failed to process miles request'
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: 'Failed to process miles request' },
       { status: 500 }
     )
   }

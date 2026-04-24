@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
 const BOT_SERVICE_URL = 'http://localhost:3005';
 
@@ -11,6 +12,11 @@ const BOT_SERVICE_URL = 'http://localhost:3005';
  */
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+    }
+
     const body = await request.json();
     const { passengerName, phone, flightNumber, pnr, destination } = body;
 
@@ -73,7 +79,7 @@ export async function POST(request: NextRequest) {
         const data = await response.json();
 
         // Store in database (non-blocking)
-        storeBaggageQR(data, passengerName, flightNumber, pnr, destination).catch(console.error);
+        storeBaggageQR(data, passengerName, flightNumber, pnr, destination, phone).catch(console.error);
 
         return NextResponse.json({
           ...data,
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Store in database (non-blocking)
-    storeBaggageQR(fallbackData, passengerName, flightNumber, pnr, destination).catch(console.error);
+    storeBaggageQR(fallbackData, passengerName, flightNumber, pnr, destination, phone).catch(console.error);
 
     return NextResponse.json({
       ...fallbackData,
@@ -165,11 +171,13 @@ async function storeBaggageQR(
   flightNumber: string,
   pnr: string,
   destination: string,
+  phone?: string,
 ) {
   try {
     await db.baggageQR.create({
       data: {
         passengerName,
+        phone: phone || (data.phone as string) || '',
         flightNumber: (data.flightNumber as string) || flightNumber,
         pnr: (data.pnr as string) || pnr,
         tagNumber: (data.tagNumber as string) || `TAG-${Date.now()}`,

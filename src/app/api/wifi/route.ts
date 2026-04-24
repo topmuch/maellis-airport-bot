@@ -5,9 +5,16 @@ import {
   getVoucherByPhone,
   getWifiStats,
 } from '@/lib/services/wifi.service'
+import { requireAuth, requireRole } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/wifi - Validate voucher, list vouchers by phone, or get stats
 export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
@@ -38,6 +45,13 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     )
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error in WiFi GET handler:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to process WiFi request' },
@@ -48,8 +62,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi - Generate a WiFi voucher
 export async function POST(request: NextRequest) {
+  const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT')(request)
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+  }
+
   try {
-    const body = await request.json()
+    const body = await parseBody(request)
     const { planType } = body
 
     if (!planType) {
@@ -74,6 +93,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: voucher }, { status: 201 })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('Error generating WiFi voucher:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to generate WiFi voucher' },

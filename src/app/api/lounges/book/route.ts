@@ -5,6 +5,7 @@ import {
   getLoungeBookings,
 } from '@/lib/services/lounge.service';
 import { sendLoungeConfirmation } from '@/lib/email';
+import { parseBody, ValidationError } from '@/lib/validate';
 
 // ---------------------------------------------------------------------------
 // GET /api/lounges/book?loungeId=xxx&status=xxx&date=YYYY-MM-DD — List bookings
@@ -49,11 +50,19 @@ export async function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/lounges/book — Create a lounge booking (no auth required for bot)
+// POST /api/lounges/book — Create a lounge booking
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || 'Authentication required' },
+        { status: authResult.status || 401 },
+      );
+    }
+
+    const body = await parseBody(request);
 
     // Validate required fields
     const requiredFields: string[] = [
@@ -157,6 +166,9 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode });
+    }
     if (error instanceof Error) {
       // Known business-logic errors
       const message = error.message;

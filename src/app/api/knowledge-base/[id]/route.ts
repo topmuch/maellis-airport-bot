@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { unlink } from 'fs/promises'
+import { requireRole } from '@/lib/auth'
+import { validateId, parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/knowledge-base/[id] — Get single document with its chunks
 export async function GET(
@@ -9,6 +11,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
 
     const document = await db.knowledgeBase.findUnique({
       where: { id },
@@ -49,8 +59,21 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
     const { id } = await params
-    const body = await req.json()
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
+    const body = await parseBody(req)
     const { title, isActive } = body
 
     // Check document exists
@@ -74,6 +97,9 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: document })
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: error.statusCode })
+    }
     console.error('KnowledgeBase PUT error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to update document' },
@@ -88,7 +114,20 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
+
     const { id } = await params
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
+    }
 
     // Check document exists
     const document = await db.knowledgeBase.findUnique({ where: { id } })

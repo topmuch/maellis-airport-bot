@@ -6,11 +6,15 @@ import { NextRequest } from 'next/server'
 // Types
 // ─────────────────────────────────────────────
 
+// Canonical (UPPERCASE) roles — matches NextAuth v5 and role-guard.ts
+export const VALID_ROLES = ['SUPERADMIN', 'AIRPORT_ADMIN', 'AGENT', 'VIEWER'] as const
+export type Role = (typeof VALID_ROLES)[number]
+
 export interface AuthUser {
   id: string
   email: string
   name: string
-  role: 'superadmin' | 'airport_admin' | 'agent' | 'viewer'
+  role: Role
   airportCode?: string
 }
 
@@ -25,9 +29,17 @@ export interface AuthResult {
 // JWT Configuration
 // ─────────────────────────────────────────────
 
-const JWT_SECRET = process.env.JWT_SECRET || 'maellis-dev-secret'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  console.warn('[AUTH] JWT_SECRET is not set. Legacy JWT endpoints will not work. Set it in .env')
+}
 const ACCESS_TOKEN_EXPIRES_IN = '24h'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
+
+function getJwtSecret(): string {
+  if (!JWT_SECRET) throw new Error('JWT_SECRET is not configured')
+  return JWT_SECRET
+}
 
 // ─────────────────────────────────────────────
 // Password Utilities
@@ -47,6 +59,20 @@ export function verifyPassword(password: string, hash: string): boolean {
 // Token Generation
 // ─────────────────────────────────────────────
 
+/**
+ * Normalize a role string to UPPERCASE.
+ * Handles legacy lowercase roles (superadmin, airport_admin, agent, viewer)
+ * by converting them to the canonical UPPERCASE form.
+ */
+export function normalizeRole(role: string): Role {
+  const upper = role.toUpperCase().replace(/-/g, '_')
+  if (VALID_ROLES.includes(upper as Role)) {
+    return upper as Role
+  }
+  // Fallback to VIEWER for unrecognised roles
+  return 'VIEWER'
+}
+
 export function generateToken(user: AuthUser): string {
   const payload = {
     id: user.id,
@@ -56,7 +82,7 @@ export function generateToken(user: AuthUser): string {
     airportCode: user.airportCode,
   }
 
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: ACCESS_TOKEN_EXPIRES_IN,
   })
 }
@@ -67,7 +93,7 @@ export function generateRefreshToken(userId: string): string {
     type: 'refresh',
   }
 
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: REFRESH_TOKEN_EXPIRES_IN,
   })
 }
@@ -78,7 +104,7 @@ export function generateRefreshToken(userId: string): string {
 
 export function verifyToken(token: string): AuthResult {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
       id: string
       email: string
       name: string
@@ -100,7 +126,7 @@ export function verifyToken(token: string): AuthResult {
       id: decoded.id,
       email: decoded.email,
       name: decoded.name,
-      role: decoded.role as AuthUser['role'],
+      role: normalizeRole(decoded.role),
       airportCode: decoded.airportCode,
     }
 
@@ -133,7 +159,7 @@ export function verifyToken(token: string): AuthResult {
 
 export function verifyRefreshToken(token: string): AuthResult {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
       id: string
       type: string
     }
@@ -153,7 +179,7 @@ export function verifyRefreshToken(token: string): AuthResult {
         id: decoded.id,
         email: '',
         name: '',
-        role: 'viewer',
+        role: 'VIEWER',
       },
     }
   } catch (error) {
@@ -236,7 +262,10 @@ export function requireRole(...roles: string[]) {
       }
     }
 
-    if (!roles.includes(authResult.user.role)) {
+    const userRoleUpper = authResult.user.role.toUpperCase()
+    const allowedRoles = roles.map(r => r.toUpperCase())
+
+    if (!allowedRoles.includes(userRoleUpper)) {
       return {
         success: false,
         error: `Insufficient permissions. Required role: ${roles.join(' or ')}`,
@@ -270,8 +299,8 @@ export async function requireAirportAccess(
     }
   }
 
-  // Superadmin has access to all airports
-  if (authResult.user.role === 'superadmin') {
+  // SUPERADMIN has access to all airports
+  if (authResult.user.role === 'SUPERADMIN') {
     return authResult
   }
 

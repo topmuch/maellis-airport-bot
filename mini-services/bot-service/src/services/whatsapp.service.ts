@@ -4,6 +4,11 @@
 
 import type { BotResponse, WhatsAppWebhookPayload } from "../types";
 
+if (!process.env.WHATSAPP_VERIFY_TOKEN) {
+  console.error('[SECURITY] WHATSAPP_VERIFY_TOKEN is required for webhook verification.')
+  process.exit(1)
+}
+
 const WHATSAPP_API_VERSION = "v18.0";
 
 /**
@@ -65,7 +70,7 @@ export function verifyWebhook(
   token: string | null,
   challenge: string | null,
 ): { verified: boolean; challenge: string } {
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || "maellis_test_token";
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
 
   if (mode === "subscribe" && token === verifyToken && challenge) {
     console.log("✅ Webhook verified with Meta");

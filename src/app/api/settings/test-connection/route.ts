@@ -1,11 +1,18 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRole } from '@/lib/auth'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // ── POST /api/settings/test-connection ──────────────────────────────────────
 // Tests connectivity for a specific service without saving anything.
 // Body: { type: 'aviation' | 'groq' | 'whatsapp' | 'email' | 'payment' | 'jwt' }
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const checkRole = requireRole('SUPERADMIN', 'AIRPORT_ADMIN')
+  const authResult = await checkRole(request)
+  if (!authResult.success || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Authentication required' }, { status: authResult.status || 401 })
+  }
   try {
-    const body = await request.json()
+    const body = await parseBody(request)
     const { type } = body
 
     if (!type) {
@@ -169,6 +176,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
+
+    if (error instanceof ValidationError) {
+
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
+    }
+
     console.error('[settings/test-connection] Error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to test connection' },

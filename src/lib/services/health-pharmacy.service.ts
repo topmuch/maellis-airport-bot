@@ -70,7 +70,9 @@ export async function searchProducts(query: string, airportCode: string = 'DSS')
 
     return allProducts;
   } catch (error) {
-    console.error('[health-pharmacy.service] searchProducts error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[health-pharmacy.service] searchProducts error:', error);
+    }
     throw error;
   }
 }
@@ -103,7 +105,9 @@ export async function getPharmacyMerchants(airportCode: string = 'DSS') {
 
     return merchants;
   } catch (error) {
-    console.error('[health-pharmacy.service] getPharmacyMerchants error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[health-pharmacy.service] getPharmacyMerchants error:', error);
+    }
     throw error;
   }
 }
@@ -175,7 +179,9 @@ export async function createPharmacyOrder(data: CreatePharmacyOrderInput) {
 
     return order;
   } catch (error) {
-    console.error('[health-pharmacy.service] createPharmacyOrder error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[health-pharmacy.service] createPharmacyOrder error:', error);
+    }
     throw error;
   }
 }
@@ -205,7 +211,9 @@ export async function getPharmacyOrders(phone?: string, status?: string) {
       items: JSON.parse(order.items),
     }));
   } catch (error) {
-    console.error('[health-pharmacy.service] getPharmacyOrders error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[health-pharmacy.service] getPharmacyOrders error:', error);
+    }
     throw error;
   }
 }
@@ -217,7 +225,9 @@ export async function updateOrderStatus(id: string, status: string) {
   try {
     const existing = await db.pharmacyOrder.findUnique({ where: { id } });
     if (!existing) {
-      console.error(`[health-pharmacy.service] Order not found: ${id}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[health-pharmacy.service] Order not found: ${id}`);
+      }
       return null;
     }
 
@@ -228,7 +238,9 @@ export async function updateOrderStatus(id: string, status: string) {
 
     return updated;
   } catch (error) {
-    console.error('[health-pharmacy.service] updateOrderStatus error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[health-pharmacy.service] updateOrderStatus error:', error);
+    }
     throw error;
   }
 }
@@ -256,7 +268,9 @@ export async function getHealthStats(airportCode: string = 'DSS') {
       totalRevenue: totalRevenue._sum.total || 0,
     };
   } catch (error) {
-    console.error('[health-pharmacy.service] getHealthStats error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[health-pharmacy.service] getHealthStats error:', error);
+    }
     throw error;
   }
 }
