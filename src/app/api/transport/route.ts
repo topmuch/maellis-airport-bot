@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
 
     const booking = await db.transportBooking.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         passengerName,
         phone,
         vehicleType,

@@ -233,6 +233,7 @@ export async function sendProactiveMessage(
 
     const log = await db.proactiveLog.create({
       data: {
+        id: crypto.randomUUID(),
         phone: data.phone,
         flightNumber: data.flightNumber || null,
         airportCode: 'DSS',

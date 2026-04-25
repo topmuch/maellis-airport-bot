@@ -116,6 +116,8 @@ export async function createCategory(data: CreateCategoryInput) {
   try {
     return await db.musicCategory.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         name: data.name,
         slug: data.slug,
         description: data.description ?? null,
@@ -188,6 +190,8 @@ export async function createTrack(data: CreateTrackInput) {
 
     return await db.musicTrack.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         categoryId: data.categoryId,
         title,
         artist: data.artist || '',

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cancelBooking } from '@/lib/services/hotels.service'
+import { updateOrderStatus } from '@/lib/services/health-pharmacy.service'
 import { requireRole } from '@/lib/auth'
-import { parseBody, ValidationError } from '@/lib/validate'
+import { validateId, ValidationError, parseBody } from '@/lib/validate'
 
-// DELETE /api/hotels/bookings/[id] - Cancel a booking (admin/partner only)
-export async function DELETE(
+// PATCH /api/pharmacy/orders/[id] — Update pharmacy order status
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -15,38 +15,46 @@ export async function DELETE(
 
   try {
     const { id } = await params
-
-    if (!id || typeof id !== 'string' || id.length > 200) {
-      return NextResponse.json({ success: false, error: 'Invalid ID format' }, { status: 400 })
+    try {
+      validateId(id)
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: err.statusCode })
+      }
+      throw err
     }
 
     const body = await parseBody(request)
-    const { reason } = body
+    const { status } = body
 
-    if (!reason) {
+    if (!status || typeof status !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'reason is required to cancel a booking' },
+        { success: false, error: 'status is required and must be a string' },
         { status: 400 }
       )
     }
 
-    const result = await cancelBooking(id, reason)
+    const result = await updateOrderStatus(id, status)
 
     if (!result) {
       return NextResponse.json(
-        { success: false, error: 'Booking not found' },
+        { success: false, error: 'Pharmacy order not found' },
         { status: 404 }
       )
     }
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
+
     if (error instanceof ValidationError) {
+
       return NextResponse.json({ error: error.message }, { status: error.statusCode })
+
     }
-    console.error('Error cancelling hotel booking:', error)
+
+    console.error('Error updating pharmacy order status:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to cancel hotel booking' },
+      { success: false, error: 'Failed to update pharmacy order status' },
       { status: 500 }
     )
   }

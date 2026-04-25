@@ -51,10 +51,10 @@ export async function GET(
     const order = await db.order.findFirst({
       where: whereClause,
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true, terminal: true },
         },
-        items: true,
+        OrderItem: true,
       },
     });
 

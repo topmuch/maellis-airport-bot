@@ -19,6 +19,10 @@ export const authConfig = {
       const publicRoutes = ['/auth/login', '/auth/register', '/auth/admin', '/auth/partner', '/api/auth']
       const isPublic = publicRoutes.some(r => pathname.startsWith(r))
 
+      // Public API routes (no auth needed — don't redirect these)
+      const publicApiRoutes = ['/api/bot/', '/api/public/', '/api/webhooks/', '/api/ads/public/', '/api/flights/airports']
+      const isPublicApi = publicApiRoutes.some(r => pathname.startsWith(r))
+
       // Static files & assets
       if (
         pathname.startsWith('/_next') ||
@@ -39,8 +43,10 @@ export const authConfig = {
         return Response.redirect(url)
       }
 
-      // Redirect unauthenticated users to login (protect everything except public + landing)
-      if (!isLoggedIn && !isPublic && pathname !== '/') {
+      // Redirect unauthenticated users to login (page routes only, not API)
+      // API routes return 401 JSON instead — handled below
+      const isApiRoute = pathname.startsWith('/api/')
+      if (!isLoggedIn && !isPublic && !isPublicApi && pathname !== '/' && !isApiRoute) {
         const loginUrl = nextUrl.clone()
         loginUrl.pathname = '/auth/login'
         loginUrl.searchParams.set('callbackUrl', pathname)

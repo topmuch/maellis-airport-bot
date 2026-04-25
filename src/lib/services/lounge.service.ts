@@ -249,6 +249,8 @@ export async function createLounge(data: CreateLoungeInput) {
 
     const lounge = await db.lounge.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: data.airportCode.toUpperCase(),
         name: data.name,
         description: data.description ?? null,
@@ -537,6 +539,8 @@ export async function createBooking(data: CreateBookingInput) {
     // 6. Create booking with all fields
     const booking = await db.loungeBooking.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         loungeId,
         loungeName: lounge.name,
         airportCode: lounge.airportCode,

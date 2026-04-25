@@ -62,9 +62,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   }
 }
 
-// POST /api/music/tracks/[id] — record a play (no body needed, just the track ID)
+// POST /api/music/tracks/[id] — record a play (requires auth)
 // This increments playCount for analytics
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authResult = await requireAuth(request);
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 });
+  }
+
   try {
     const { id } = await params;
 

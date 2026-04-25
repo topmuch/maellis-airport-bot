@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
 
     const document = await db.knowledgeBase.create({
       data: {
+        id: crypto.randomUUID(),
         airportCode,
         title,
         fileName: '',
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
         fileSize: 0,
         status: 'pending',
         uploadedBy: 'admin',
+        updatedAt: new Date(),
       },
     })
 

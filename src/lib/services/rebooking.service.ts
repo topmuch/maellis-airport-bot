@@ -270,6 +270,7 @@ export async function createRebookingAlert(
 
     const rebookingLog = await db.rebookingLog.create({
       data: {
+        id: crypto.randomUUID(),
         phone: safePhone,
         passengerName: validatedData.passengerName ?? null,
         originalFlight: validatedData.originalFlight,
@@ -282,6 +283,7 @@ export async function createRebookingAlert(
         suggestedPrice: safeSuggestedPrice,
         currency: 'XOF',
         status: 'detected',
+        updatedAt: new Date(),
       },
     });
 

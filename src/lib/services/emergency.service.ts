@@ -213,6 +213,8 @@ export async function createContact(data: {
 
     return db.emergencyContact.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: safeAirportCode,
         category,
         name: safeName,
@@ -435,6 +437,8 @@ export async function declareIncident(data: {
     // 1. Create the incident record
     const incident = await db.emergencyAlert.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: safeAirportCode,
         userPhone: safePhone,
         userEmail: safeEmail,

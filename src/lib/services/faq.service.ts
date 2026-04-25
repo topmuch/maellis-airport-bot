@@ -320,6 +320,7 @@ async function logAnalytics(
   try {
     await db.fAQAnalytics.create({
       data: {
+        id: crypto.randomUUID(),
         airportCode: 'DSS',
         faqId,
         userQuestion,
@@ -402,6 +403,8 @@ export async function createFAQ(data: {
 }) {
   return db.fAQ.create({
     data: {
+      id: crypto.randomUUID(),
+      updatedAt: new Date(),
       airportCode: data.airportCode || 'DSS',
       category: data.category,
       question: JSON.stringify(data.question),
@@ -503,6 +506,8 @@ export async function approveSuggestion(id: string) {
   // Create FAQ from suggestion
   await db.fAQ.create({
     data: {
+      id: crypto.randomUUID(),
+      updatedAt: new Date(),
       airportCode: suggestion.airportCode,
       category: suggestion.category || 'other',
       question: JSON.stringify({ fr: suggestion.question }),

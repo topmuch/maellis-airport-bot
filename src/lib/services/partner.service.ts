@@ -138,9 +138,9 @@ export async function getPartners(
       orderBy: { name: 'asc' },
       include: {
         _count: {
-          select: { users: true },
+          select: { PartnerUser: true },
         },
-        users: {
+        PartnerUser: {
           select: {
             id: true,
             email: true,
@@ -155,7 +155,7 @@ export async function getPartners(
     // Attach usersCount for convenience
     return partners.map((partner) => ({
       ...partner,
-      usersCount: partner._count.users,
+      usersCount: partner._count.PartnerUser,
     }))
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -178,9 +178,9 @@ export async function getPartnerById(id: string) {
       where: { id },
       include: {
         _count: {
-          select: { users: true },
+          select: { PartnerUser: true },
         },
-        users: {
+        PartnerUser: {
           select: {
             id: true,
             email: true,
@@ -199,7 +199,7 @@ export async function getPartnerById(id: string) {
 
     return {
       ...partner,
-      usersCount: partner._count.users,
+      usersCount: partner._count.PartnerUser,
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -251,6 +251,7 @@ export async function createPartner(data: CreatePartnerInput) {
 
     return db.partner.create({
       data: {
+        id: crypto.randomUUID(),
         airportCode,
         type,
         name,
@@ -264,6 +265,7 @@ export async function createPartner(data: CreatePartnerInput) {
         notes: notes || null,
         status: 'pending',
         isActive: false,
+        updatedAt: new Date(),
       },
     })
   } catch (error) {
@@ -404,6 +406,7 @@ export async function invitePartner(partnerData: InvitePartnerInput) {
     // Create partner in pending state
     const partner = await db.partner.create({
       data: {
+        id: crypto.randomUUID(),
         airportCode,
         type,
         name,
@@ -418,6 +421,7 @@ export async function invitePartner(partnerData: InvitePartnerInput) {
         status: 'pending',
         isActive: false,
         inviteToken: null, // Will be set below
+        updatedAt: new Date(),
       },
     })
 
@@ -525,6 +529,7 @@ export async function activatePartner(token: string, formData: ActivatePartnerFo
 
     const adminUser = await db.partnerUser.create({
       data: {
+        id: crypto.randomUUID(),
         partnerId: partner.id,
         email: partner.email,
         name,
@@ -532,6 +537,7 @@ export async function activatePartner(token: string, formData: ActivatePartnerFo
         phone: phone || '',
         role: 'admin',
         isActive: true,
+        updatedAt: new Date(),
       },
     })
 
@@ -661,6 +667,7 @@ export async function invitePartnerUser(
     // Create the partner user
     const user = await db.partnerUser.create({
       data: {
+        id: crypto.randomUUID(),
         partnerId,
         email,
         name,
@@ -668,6 +675,7 @@ export async function invitePartnerUser(
         phone: '',
         role: userRole,
         isActive: true,
+        updatedAt: new Date(),
       },
     })
 

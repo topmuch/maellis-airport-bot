@@ -49,6 +49,7 @@ export async function generateVoucher(data: GenerateVoucherInput) {
 
     const voucher = await db.wiFiVoucher.create({
       data: {
+        id: crypto.randomUUID(),
         voucherCode: generateVoucherCode(),
         phone: data.phone ?? null,
         planType: data.planType,
@@ -58,6 +59,7 @@ export async function generateVoucher(data: GenerateVoucherInput) {
         currency: 'XOF',
         paymentStatus: config.price === 0 ? 'none' : 'pending',
         isActive: true,
+        updatedAt: new Date(),
       },
     });
 

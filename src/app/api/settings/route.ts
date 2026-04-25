@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest) {
     const setting = await db.setting.upsert({
       where: { key },
       update: { value },
-      create: { key, value },
+      create: { id: crypto.randomUUID(), updatedAt: new Date(), key, value },
     })
 
     return NextResponse.json(setting)

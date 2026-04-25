@@ -84,6 +84,8 @@ export async function PUT(request: NextRequest) {
       where: { key: ruleId },
       update: { value: String(enabled) },
       create: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         key: ruleId,
         value: String(enabled),
         type: 'boolean',

@@ -384,7 +384,7 @@ export async function tfidfSearch(
       title: true,
       fileName: true,
       fileType: true,
-      chunks: {
+      DocumentChunk: {
         select: {
           id: true,
           content: true,
@@ -600,6 +600,7 @@ export async function ingestDocument(
 
     // Step 4: Store chunks in the database
     const createData = chunks.map((chunk) => ({
+      id: crypto.randomUUID(),
       kbId,
       content: chunk.content,
       chunkIndex: (chunk.metadata.chunkIndex as number) || 0,
@@ -708,6 +709,7 @@ export async function createKnowledgeBase(data: {
 }) {
   return db.knowledgeBase.create({
     data: {
+      id: crypto.randomUUID(),
       airportCode: data.airportCode || 'DSS',
       title: data.title,
       fileName: data.fileName,
@@ -717,6 +719,7 @@ export async function createKnowledgeBase(data: {
       content: data.content,
       uploadedBy: data.uploadedBy,
       status: 'pending',
+      updatedAt: new Date(),
     },
   })
 }

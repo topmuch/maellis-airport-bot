@@ -713,6 +713,7 @@ export async function analyzeImage(params: {
       // Not enough text extracted — might not be a boarding pass
       const scan = await db.ticketScan.create({
         data: {
+          id: crypto.randomUUID(),
           phone,
           rawText: ocrResult.text || '',
           confidence: 0,
@@ -720,6 +721,7 @@ export async function analyzeImage(params: {
           status: 'rejected',
           rejectedAt: new Date(),
           source,
+          updatedAt: new Date(),
         },
       })
 
@@ -758,6 +760,7 @@ export async function analyzeImage(params: {
     // Step 5: Persist to database
     const scan = await db.ticketScan.create({
       data: {
+        id: crypto.randomUUID(),
         phone,
         passengerName: extraction.passengerName || null,
         pnr: extraction.pnr || null,
@@ -779,6 +782,7 @@ export async function analyzeImage(params: {
         status: hasMinimum ? 'pending' : 'rejected',
         rejectedAt: hasMinimum ? null : new Date(),
         source,
+        updatedAt: new Date(),
       },
     })
 
@@ -804,6 +808,7 @@ export async function analyzeImage(params: {
     try {
       await db.ticketScan.create({
         data: {
+          id: crypto.randomUUID(),
           phone,
           rawText: '',
           confidence: 0,
@@ -812,6 +817,7 @@ export async function analyzeImage(params: {
           rejectedAt: new Date(),
           source,
           metadata: JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown' }),
+          updatedAt: new Date(),
         },
       })
     } catch {

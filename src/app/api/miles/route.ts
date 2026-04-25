@@ -9,16 +9,11 @@ import {
   redeemReward,
   getGamificationStats,
 } from '@/lib/services/gamification.service'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, requireRole } from '@/lib/auth'
 import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/miles - Multiple actions via query param
 export async function GET(request: NextRequest) {
-  const authResult = await requireAuth(request)
-  if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
-  }
-
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
@@ -30,6 +25,22 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'action query parameter is required (balance, history, leaderboard, rewards, stats)' },
         { status: 400 }
       )
+    }
+
+    // Admin-only actions
+    if (action === 'stats') {
+      const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
+      if (!authResult.success) {
+        return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+      }
+      const stats = await getGamificationStats()
+      return NextResponse.json({ success: true, data: stats })
+    }
+
+    // User-facing actions (require auth)
+    const authResult = await requireAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
     }
 
     switch (action) {
@@ -74,11 +85,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: true, data: rewards })
       }
 
-      case 'stats': {
-        const stats = await getGamificationStats()
-        return NextResponse.json({ success: true, data: stats })
-      }
-
       default:
         return NextResponse.json(
           { success: false, error: 'Invalid action. Must be one of: balance, history, leaderboard, rewards, stats' },
@@ -101,13 +107,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/miles - Credit points or redeem a reward
+// POST /api/miles - Credit points (admin) or redeem a reward (user)
 export async function POST(request: NextRequest) {
-  const authResult = await requireAuth(request)
-  if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
-  }
-
   try {
     const body = await parseBody(request)
     const { action, phone, reason, rewardId } = body
@@ -119,37 +120,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    switch (action) {
-      case 'credit': {
-        if (!phone || !reason) {
-          return NextResponse.json(
-            { success: false, error: 'phone and reason are required for credit action' },
-            { status: 400 }
-          )
-        }
-
-        const result = await creditPoints(phone, reason, body.referenceId)
-        return NextResponse.json({ success: true, data: result }, { status: 201 })
+    // Credit points requires admin role
+    if (action === 'credit') {
+      const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
+      if (!authResult.success) {
+        return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
       }
 
-      case 'redeem': {
-        if (!phone || !rewardId) {
-          return NextResponse.json(
-            { success: false, error: 'phone and rewardId are required for redeem action' },
-            { status: 400 }
-          )
-        }
-
-        const result = await redeemReward(phone, rewardId)
-        return NextResponse.json({ success: true, data: result }, { status: 201 })
-      }
-
-      default:
+      if (!phone || !reason) {
         return NextResponse.json(
-          { success: false, error: 'Invalid action. Must be one of: credit, redeem' },
+          { success: false, error: 'phone and reason are required for credit action' },
           { status: 400 }
         )
+      }
+
+      const result = await creditPoints(phone, reason, body.referenceId)
+      return NextResponse.json({ success: true, data: result }, { status: 201 })
     }
+
+    // Redeem reward requires auth
+    if (action === 'redeem') {
+      const authResult = await requireAuth(request)
+      if (!authResult.success) {
+        return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+      }
+
+      if (!phone || !rewardId) {
+        return NextResponse.json(
+          { success: false, error: 'phone and rewardId are required for redeem action' },
+          { status: 400 }
+        )
+      }
+
+      const result = await redeemReward(phone, rewardId)
+      return NextResponse.json({ success: true, data: result }, { status: 201 })
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Invalid action. Must be one of: credit, redeem' },
+      { status: 400 }
+    )
   } catch (error) {
 
     if (error instanceof ValidationError) {

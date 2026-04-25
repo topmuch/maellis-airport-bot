@@ -324,6 +324,8 @@ export async function createProvider(data: CreateProviderData) {
 
     return db.transportProvider.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: data.airportCode,
         name: data.name,
         type: data.type,
@@ -558,6 +560,8 @@ export async function createBooking(data: CreateBookingData) {
     // 4. Create booking in database
     const booking = await db.transportBooking.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         providerId: provider.id,
         passengerName: safePassengerName,
         phone: safePhone,

@@ -21,14 +21,14 @@ export async function GET(
     const invoice = await db.invoice.findUnique({
       where: { id },
       include: {
-        items: {
+        InvoiceItem: {
           orderBy: { id: 'asc' },
         },
-        client: true,
-        invoicePayments: {
+        BillingClient: true,
+        InvoicePayment: {
           orderBy: { paidAt: 'desc' },
         },
-        reminders: {
+        InvoiceReminder: {
           orderBy: { sentAt: 'desc' },
         },
       },
@@ -42,7 +42,7 @@ export async function GET(
     }
 
     // Compute total paid from payments
-    const totalPaid = invoice.invoicePayments
+    const totalPaid = invoice.InvoicePayment
       .filter((p) => p.status === 'completed')
       .reduce((sum, p) => sum + p.amount, 0)
 

@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
     })
 
     // Send confirmation email to passenger (fire-and-forget)
-    if (email && booking.provider) {
+    if (email && booking.TransportProvider) {
       sendTransportConfirmation(email, {
-        providerName: booking.provider.name,
+        providerName: booking.TransportProvider.name,
         pickupLocation: booking.pickupLocation,
         dropoffLocation: booking.dropoffLocation,
         pickupTime: `${booking.pickupDate} ${booking.pickupTime}`,
@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Notify driver/dispatch via provider contactEmail (fire-and-forget)
-    if (booking.provider) {
-      const notifyEmail = booking.provider.contactEmail || ''
+    if (booking.TransportProvider) {
+      const notifyEmail = booking.TransportProvider.contactEmail || ''
       if (notifyEmail) {
         sendDriverNotification(notifyEmail, {
           passengerName,

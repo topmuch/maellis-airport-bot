@@ -43,6 +43,7 @@ export async function logAudit(options: AuditOptions): Promise<void> {
 
     await db.activityLog.create({
       data: {
+        id: crypto.randomUUID(),
         adminId: options.adminId ?? null,
         action: options.action,
         module: options.module,

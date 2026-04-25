@@ -39,7 +39,7 @@ function isValidId(id: unknown): id is string {
 export interface PayoutListResult {
   payouts: Prisma.MerchantPayoutGetPayload<{
     include: {
-      merchant: {
+      Merchant: {
         select: { id: true; name: true; airportCode: true };
       };
     };
@@ -123,7 +123,7 @@ export async function createPayoutForOrder(orderId: string) {
     const order = await db.order.findUnique({
       where: { id: orderId },
       include: {
-        merchant: {
+        Merchant: {
           select: {
             id: true,
             name: true,
@@ -138,7 +138,7 @@ export async function createPayoutForOrder(orderId: string) {
       throw new Error('Order not found');
     }
 
-    if (!order.merchant) {
+    if (!order.Merchant) {
       throw new Error('Order has no associated merchant');
     }
 
@@ -166,8 +166,8 @@ export async function createPayoutForOrder(orderId: string) {
 
     // Calculate commission amount (validate inputs to prevent NaN/negative)
     const orderTotal = typeof order.total === 'number' && Number.isFinite(order.total) ? order.total : 0;
-    const rate = typeof order.merchant.commissionRate === 'number' && Number.isFinite(order.merchant.commissionRate)
-      ? order.merchant.commissionRate
+    const rate = typeof order.Merchant.commissionRate === 'number' && Number.isFinite(order.Merchant.commissionRate)
+      ? order.Merchant.commissionRate
       : 0;
     const commissionAmount =
       Math.round(orderTotal * Math.min(1, Math.max(0, rate)) * 100) / 100;
@@ -175,16 +175,18 @@ export async function createPayoutForOrder(orderId: string) {
     // Create the payout record
     const payout = await db.merchantPayout.create({
       data: {
+        id: crypto.randomUUID(),
         merchantId: order.merchantId,
         orderId: order.id,
         orderTotal: order.total,
-        commissionRate: order.merchant.commissionRate,
+        commissionRate: order.Merchant.commissionRate,
         commissionAmount,
         currency: order.currency || 'XOF',
         status: 'pending',
+        updatedAt: new Date(),
       },
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, airportCode: true },
         },
       },
@@ -250,7 +252,7 @@ export async function getPayouts(
     const payouts = await db.merchantPayout.findMany({
       where,
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, airportCode: true },
         },
       },
@@ -435,7 +437,7 @@ export async function processPayout(
         notes: safeNotes ?? null,
       },
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, airportCode: true },
         },
       },

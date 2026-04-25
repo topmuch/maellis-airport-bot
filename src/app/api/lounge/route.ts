@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
 
     const booking = await db.loungeBooking.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         passengerName,
         phone,
         email: email || null,

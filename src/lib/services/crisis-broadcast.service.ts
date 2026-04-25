@@ -69,6 +69,8 @@ export async function createCrisisAlert(data: {
 
     return db.crisisAlert.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: airportCode || 'DSS',
         title,
         description,

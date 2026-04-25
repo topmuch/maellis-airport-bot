@@ -244,7 +244,7 @@ export function HealthPharmacyModule() {
   const fetchOrders = useCallback(async () => {
     setLoadingOrders(true)
     try {
-      const res = await fetch('/api/pharmacy')
+      const res = await fetch('/api/pharmacy?action=orders')
       if (res.ok) {
         const json = await res.json()
         const items = Array.isArray(json) ? json : (json.data ?? json.items ?? [])

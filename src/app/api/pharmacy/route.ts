@@ -6,16 +6,11 @@ import {
   getPharmacyOrders,
   getHealthStats,
 } from '@/lib/services/health-pharmacy.service'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, requireRole } from '@/lib/auth'
 import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/pharmacy - Search products, list merchants, list orders, or stats
 export async function GET(request: NextRequest) {
-  const authResult = await requireAuth(request)
-  if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
-  }
-
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
@@ -29,6 +24,10 @@ export async function GET(request: NextRequest) {
 
     switch (action) {
       case 'search': {
+        const authResult = await requireAuth(request)
+        if (!authResult.success) {
+          return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+        }
         const q = searchParams.get('q')
         const airportCode = searchParams.get('airportCode')
 
@@ -44,12 +43,20 @@ export async function GET(request: NextRequest) {
       }
 
       case 'merchants': {
+        const authResult = await requireAuth(request)
+        if (!authResult.success) {
+          return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+        }
         const airportCode = searchParams.get('airportCode')
         const merchants = await getPharmacyMerchants(airportCode || 'DSS')
         return NextResponse.json({ success: true, data: merchants })
       }
 
       case 'orders': {
+        const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN', 'PARTNER')(request)
+        if (!authResult.success) {
+          return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+        }
         const phone = searchParams.get('phone')
         const status = searchParams.get('status')
         const orders = await getPharmacyOrders(phone || undefined, status || undefined)
@@ -57,6 +64,10 @@ export async function GET(request: NextRequest) {
       }
 
       case 'stats': {
+        const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
+        if (!authResult.success) {
+          return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+        }
         const airportCode = searchParams.get('airportCode')
         const stats = await getHealthStats(airportCode || 'DSS')
         return NextResponse.json({ success: true, data: stats })
@@ -69,13 +80,9 @@ export async function GET(request: NextRequest) {
         )
     }
   } catch (error) {
-
     if (error instanceof ValidationError) {
-
       return NextResponse.json({ error: error.message }, { status: error.statusCode })
-
     }
-
     console.error('Error in pharmacy GET handler:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to process pharmacy request' },
@@ -121,13 +128,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: order }, { status: 201 })
   } catch (error) {
-
     if (error instanceof ValidationError) {
-
       return NextResponse.json({ error: error.message }, { status: error.statusCode })
-
     }
-
     console.error('Error creating pharmacy order:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create pharmacy order' },

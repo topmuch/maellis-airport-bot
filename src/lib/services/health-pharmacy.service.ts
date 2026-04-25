@@ -158,6 +158,8 @@ export async function createPharmacyOrder(data: CreatePharmacyOrderInput) {
 
     const order = await db.pharmacyOrder.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: airportCode.toUpperCase(),
         customerName,
         customerPhone,
@@ -252,12 +254,12 @@ export async function getHealthStats(airportCode: string = 'DSS') {
   try {
     const [totalOrders, statusBreakdown, urgencyBreakdown, totalRevenue] =
       await Promise.all([
-        db.pharmacyOrder.count({}),
-        db.pharmacyOrder.groupBy({ by: ['status'], _count: true }),
-        db.pharmacyOrder.groupBy({ by: ['urgency'], _count: true }),
+        db.pharmacyOrder.count({ where: { airportCode } }),
+        db.pharmacyOrder.groupBy({ by: ['status'], _count: true, where: { airportCode } }),
+        db.pharmacyOrder.groupBy({ by: ['urgency'], _count: true, where: { airportCode } }),
         db.pharmacyOrder.aggregate({
           _sum: { total: true },
-          where: { paymentStatus: 'paid' },
+          where: { paymentStatus: 'paid', airportCode },
         }),
       ]);
 

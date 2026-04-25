@@ -41,7 +41,7 @@ export async function POST(
     // 1. Find the order
     const order = await db.order.findUnique({
       where: { id },
-      include: { items: true },
+      include: { OrderItem: true },
     });
 
     if (!order) {

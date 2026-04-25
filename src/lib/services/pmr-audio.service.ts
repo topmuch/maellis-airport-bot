@@ -35,6 +35,7 @@ export async function generateAudio(data: GenerateAudioInput) {
 
     const generation = await db.audioGeneration.create({
       data: {
+        id: crypto.randomUUID(),
         phone: phone ?? null,
         userId: userId ?? null,
         type,
@@ -44,6 +45,7 @@ export async function generateAudio(data: GenerateAudioInput) {
         provider: 'mock',
         durationSec,
         status: 'generated',
+        updatedAt: new Date(),
       },
     });
 

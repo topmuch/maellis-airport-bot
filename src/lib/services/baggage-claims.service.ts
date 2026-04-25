@@ -64,6 +64,8 @@ export async function fileClaim(data: {
 
     return db.baggageClaim.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         baggageId: baggageId || null,
         phone,
         passengerName,

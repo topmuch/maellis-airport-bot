@@ -233,7 +233,7 @@ export async function getClients(params: GetClientsParams) {
         take: limit,
         include: {
           _count: {
-            select: { invoices: true },
+            select: { Invoice: true },
           },
         },
       }),
@@ -265,6 +265,8 @@ export async function createClient(params: CreateClientParams) {
 
     return await db.billingClient.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         name,
         email,
         phone,
@@ -317,7 +319,7 @@ export async function getInvoices(params: GetInvoicesParams) {
         skip,
         take: limit,
         include: {
-          client: {
+          BillingClient: {
             select: {
               id: true,
               name: true,
@@ -327,8 +329,8 @@ export async function getInvoices(params: GetInvoicesParams) {
           },
           _count: {
             select: {
-              invoicePayments: true,
-              reminders: true,
+              InvoicePayment: true,
+              Reminder: true,
             },
           },
         },
@@ -418,6 +420,8 @@ export async function createInvoice(params: CreateInvoiceParams) {
       // Create the invoice
       const newInvoice = await tx.invoice.create({
         data: {
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
           invoiceNumber,
           clientId,
           type,
@@ -436,6 +440,7 @@ export async function createInvoice(params: CreateInvoiceParams) {
       // Create invoice items
       await tx.invoiceItem.createMany({
         data: items.map((item) => ({
+          id: crypto.randomUUID(),
           invoiceId: newInvoice.id,
           description: item.description.trim().slice(0, 500),
           quantity: Math.round(validatePositive(item.quantity, 'quantity') * 100) / 100,
@@ -452,7 +457,7 @@ export async function createInvoice(params: CreateInvoiceParams) {
         })
       } else {
         await tx.billingSettings.create({
-          data: { id: 'global', nextInvoiceNum: nextNum + 1 },
+          data: { id: 'global', updatedAt: new Date(), nextInvoiceNum: nextNum + 1 },
         })
       }
 
@@ -460,8 +465,8 @@ export async function createInvoice(params: CreateInvoiceParams) {
       return tx.invoice.findUnique({
         where: { id: newInvoice.id },
         include: {
-          items: true,
-          client: {
+          InvoiceItem: true,
+          BillingClient: {
             select: {
               id: true,
               name: true,
@@ -501,16 +506,16 @@ export async function markAsSent(invoiceId: string) {
       where: { id: invoiceId },
       data: { status: 'sent' },
       include: {
-        client: true,
-        items: true,
+        BillingClient: true,
+        InvoiceItem: true,
       },
     })
 
     // Fire-and-forget email notification
-    if (updated.client?.email) {
+    if (updated.BillingClient?.email) {
       import('@/lib/services/email.service').then(({ sendInvoiceEmail }) => {
-        sendInvoiceEmail(updated.client.email, {
-          clientName: updated.client.name,
+        sendInvoiceEmail(updated.BillingClient.email, {
+          clientName: updated.BillingClient.name,
           invoiceNumber: updated.invoiceNumber,
           amount: updated.total,
           currency: updated.currency,
@@ -544,7 +549,7 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
     const invoice = await db.invoice.findUnique({
       where: { id: invoiceId },
       include: {
-        invoicePayments: {
+        InvoicePayment: {
           where: { status: 'completed' },
         },
       },
@@ -564,7 +569,7 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
     }
 
     // Calculate remaining amount
-    const totalPaid = invoice.invoicePayments.reduce((sum, p) => sum + p.amount, 0)
+    const totalPaid = invoice.InvoicePayment.reduce((sum, p) => sum + p.amount, 0)
     const remaining = invoice.total - totalPaid
 
     if (safeAmount > remaining + 0.01) {
@@ -578,6 +583,7 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
       // Create InvoicePayment
       const payment = await tx.invoicePayment.create({
         data: {
+          id: crypto.randomUUID(),
           invoiceId,
           amount: safeAmount,
           method: params.method,
@@ -611,9 +617,9 @@ export async function recordPayment(invoiceId: string, params: RecordPaymentPara
           paidAt,
         },
         include: {
-          client: true,
-          items: true,
-          invoicePayments: {
+          BillingClient: true,
+          InvoiceItem: true,
+          InvoicePayment: {
             orderBy: { paidAt: 'desc' },
           },
         },
@@ -640,9 +646,9 @@ export async function generateInvoicePDF(invoiceId: string): Promise<PDFResult |
     const invoice = await db.invoice.findUnique({
       where: { id: invoiceId },
       include: {
-        items: { orderBy: { id: 'asc' } },
-        client: true,
-        invoicePayments: { orderBy: { paidAt: 'desc' } },
+        InvoiceItem: { orderBy: { id: 'asc' } },
+        BillingClient: true,
+        InvoicePayment: { orderBy: { paidAt: 'desc' } },
       },
     })
 
@@ -655,11 +661,11 @@ export async function generateInvoicePDF(invoiceId: string): Promise<PDFResult |
     // Parse client address from JSON
     let clientAddress = ''
     try {
-      const addr = JSON.parse(invoice.client.address || '{}')
+      const addr = JSON.parse(invoice.BillingClient.address || '{}')
       const parts = [addr.street, addr.city, addr.country].filter(Boolean)
       clientAddress = parts.join(', ')
     } catch {
-      clientAddress = invoice.client.address || ''
+      clientAddress = invoice.BillingClient.address || ''
     }
 
     // Build PDF data for @react-pdf/renderer template
@@ -671,16 +677,16 @@ export async function generateInvoicePDF(invoiceId: string): Promise<PDFResult |
       dueDate: invoice.dueDate instanceof Date
         ? invoice.dueDate.toISOString().slice(0, 10)
         : String(invoice.dueDate),
-      clientName: invoice.client.name,
-      clientEmail: invoice.client.email,
-      clientPhone: invoice.client.phone,
-      clientCompany: invoice.client.company || undefined,
+      clientName: invoice.BillingClient.name,
+      clientEmail: invoice.BillingClient.email,
+      clientPhone: invoice.BillingClient.phone,
+      clientCompany: invoice.BillingClient.company || undefined,
       clientAddress: clientAddress || undefined,
-      clientTaxId: invoice.client.taxId || undefined,
+      clientTaxId: invoice.BillingClient.taxId || undefined,
       type: invoice.type,
       currency: invoice.currency,
       status: invoice.status,
-      items: invoice.items.map((item) => ({
+      items: invoice.InvoiceItem.map((item) => ({
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -719,7 +725,7 @@ export async function generateInvoicePDF(invoiceId: string): Promise<PDFResult |
 export function generateInvoiceCSV(invoices: unknown[]): string {
   const header = 'Numéro,Client,Société,Type,Statut,Date émission,Date échéance,Sous-total,TVA,Total,Devise'
   const rows = (invoices as Record<string, unknown>[]).map((inv) => {
-    const client = inv.client as Record<string, unknown> | undefined
+    const client = inv.BillingClient as Record<string, unknown> | undefined
     const clientName = escapeCSV(client?.name || '')
     const company = escapeCSV(client?.company || '')
     const invoiceNumber = escapeCSV(inv.invoiceNumber || '')
@@ -813,7 +819,7 @@ export async function getBillingStats() {
         orderBy: { createdAt: 'desc' },
         take: 5,
         include: {
-          client: {
+          BillingClient: {
             select: { name: true, company: true },
           },
         },
@@ -867,7 +873,7 @@ export async function getBillingSettings() {
 
     if (!settings) {
       // Create default settings
-      settings = await db.billingSettings.create({ data: { id: 'global' } })
+      settings = await db.billingSettings.create({ data: { id: 'global', updatedAt: new Date() } })
     }
 
     return settings
@@ -927,7 +933,7 @@ export async function handleInvoicePaymentWebhook(
     // Find the invoice payment by transaction ID
     const payment = await db.invoicePayment.findUnique({
       where: { transactionId: cpm_trans_id },
-      include: { invoice: true },
+      include: { Invoice: true },
     })
 
     if (!payment) {
@@ -956,7 +962,7 @@ export async function handleInvoicePaymentWebhook(
 
       const totalPaid = allPayments.reduce((sum, p) => sum + p.amount, 0)
 
-      if (totalPaid >= payment.invoice.total - 0.01) {
+      if (totalPaid >= payment.Invoice.total - 0.01) {
         await db.invoice.update({
           where: { id: payment.invoiceId },
           data: { status: 'paid', paidAt: new Date() },
@@ -970,8 +976,8 @@ export async function handleInvoicePaymentWebhook(
 
       return {
         success: true,
-        message: `Payment confirmed for invoice ${payment.invoice.invoiceNumber}`,
-        invoiceNumber: payment.invoice.invoiceNumber,
+        message: `Payment confirmed for invoice ${payment.Invoice.invoiceNumber}`,
+        invoiceNumber: payment.Invoice.invoiceNumber,
         status: 'paid',
       }
     } else {
@@ -982,8 +988,8 @@ export async function handleInvoicePaymentWebhook(
 
       return {
         success: false,
-        message: `Payment failed (${cpm_trans_status}) for invoice ${payment.invoice.invoiceNumber}`,
-        invoiceNumber: payment.invoice.invoiceNumber,
+        message: `Payment failed (${cpm_trans_status}) for invoice ${payment.Invoice.invoiceNumber}`,
+        invoiceNumber: payment.Invoice.invoiceNumber,
         status: 'failed',
       }
     }
@@ -1045,8 +1051,8 @@ export async function processReminders(): Promise<ReminderResult> {
         status: 'overdue',
       },
       include: {
-        client: true,
-        reminders: {
+        BillingClient: true,
+        InvoiceReminder: {
           orderBy: { sentAt: 'desc' },
         },
       },
@@ -1063,7 +1069,7 @@ export async function processReminders(): Promise<ReminderResult> {
       )
 
       // Check if we should send a reminder based on configured days
-      const existingDays = invoice.reminders.map((r) => r.daysOverdue)
+      const existingDays = invoice.InvoiceReminder.map((r) => r.daysOverdue)
       const shouldSend = reminderDays.some(
         (days) => daysOverdue >= days && !existingDays.includes(days)
       )
@@ -1076,8 +1082,9 @@ export async function processReminders(): Promise<ReminderResult> {
         // Create reminder record
         const reminder = await db.invoiceReminder.create({
           data: {
+            id: crypto.randomUUID(),
             invoiceId: invoice.id,
-            type: invoice.client.email ? 'email' : 'whatsapp',
+            type: invoice.BillingClient.email ? 'email' : 'whatsapp',
             daysOverdue,
             status: 'sent',
             metadata: JSON.stringify({ method: 'auto' }),
@@ -1085,10 +1092,10 @@ export async function processReminders(): Promise<ReminderResult> {
         })
 
         // Fire-and-forget email/whatsapp notification
-        if (invoice.client.email) {
+        if (invoice.BillingClient.email) {
           import('@/lib/services/email.service').then(({ sendOverdueReminder }) => {
-            sendOverdueReminder(invoice.client.email, {
-              clientName: invoice.client.name,
+            sendOverdueReminder(invoice.BillingClient.email, {
+              clientName: invoice.BillingClient.name,
               invoiceNumber: invoice.invoiceNumber,
               total: invoice.total,
               currency: invoice.currency,

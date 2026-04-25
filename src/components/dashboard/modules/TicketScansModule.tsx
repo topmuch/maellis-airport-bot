@@ -620,7 +620,7 @@ export function TicketScansModule() {
       const res = await fetch('/api/ticket-scans', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedScan.id, action: 'confirm' }),
+        body: JSON.stringify({ scanId: selectedScan.id, action: 'confirm' }),
       })
       if (res.ok) {
         toast.success('Scan confirmé avec succès')
@@ -652,7 +652,7 @@ export function TicketScansModule() {
       const res = await fetch('/api/ticket-scans', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedScan.id, action: 'reject' }),
+        body: JSON.stringify({ scanId: selectedScan.id, action: 'reject' }),
       })
       if (res.ok) {
         toast.success('Scan rejeté avec succès')
@@ -712,7 +712,7 @@ export function TicketScansModule() {
         await fetch('/api/ticket-scans', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, action: 'confirm' }),
+          body: JSON.stringify({ scanId: id, action: 'confirm' }),
         })
       } catch {
         // continue
@@ -742,7 +742,7 @@ export function TicketScansModule() {
         await fetch('/api/ticket-scans', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, action: 'reject' }),
+          body: JSON.stringify({ scanId: id, action: 'reject' }),
         })
       } catch {
         // continue

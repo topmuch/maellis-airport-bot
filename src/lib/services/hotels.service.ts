@@ -98,7 +98,7 @@ export async function getAvailableHotels(
       },
       select: {
         ...PUBLIC_HOTEL_FIELDS,
-        rooms: {
+        HotelRoom: {
           where: {
             isActive: true,
             availableRooms: { gt: 0 },
@@ -128,7 +128,7 @@ export async function getAvailableHotels(
 
     // Filter out hotels with no available rooms matching the criteria
     const hotelsWithRooms = hotels.filter(
-      (hotel) => hotel.rooms.length > 0,
+      (hotel) => hotel.HotelRoom.length > 0,
     );
 
     return hotelsWithRooms;
@@ -154,7 +154,7 @@ export async function searchDayUse(params: SearchDayUseParams) {
     const where: Prisma.HotelWhereInput = {
       airportCode: airportCode.toUpperCase(),
       isActive: true,
-      rooms: {
+      HotelRoom: {
         some: {
           isActive: true,
           availableRooms: { gt: 0 },
@@ -172,7 +172,7 @@ export async function searchDayUse(params: SearchDayUseParams) {
       where,
       select: {
         ...PUBLIC_HOTEL_FIELDS,
-        rooms: {
+        HotelRoom: {
           where: {
             isActive: true,
             availableRooms: { gt: 0 },
@@ -209,7 +209,7 @@ export async function searchDayUse(params: SearchDayUseParams) {
         if (!date) return hotel;
 
         const roomsWithAvail = await Promise.all(
-          hotel.rooms.map(async (room) => {
+          hotel.HotelRoom.map(async (room) => {
             // Count active bookings for this room on the given date
             const bookedCount = await db.dayUseBooking.count({
               where: {
@@ -243,7 +243,7 @@ export async function searchDayUse(params: SearchDayUseParams) {
 
     // Filter out hotels with no available rooms
     const results = hotelsWithAvailability.filter(
-      (hotel) => hotel.rooms.length > 0,
+      (hotel) => hotel.HotelRoom.length > 0,
     );
 
     return results;
@@ -340,38 +340,57 @@ export async function createDayUseBooking(data: CreateDayUseBookingInput) {
       throw new Error('Hotel not found');
     }
 
-    // 10. Create the booking
-    const booking = await db.dayUseBooking.create({
-      data: {
-        hotelId,
-        roomId,
-        roomType: room.roomType,
-        passengerName,
-        phone,
-        email: email ?? null,
-        flightNumber: flightNumber ?? null,
-        bookingDate,
-        startTime,
-        durationHours: hours,
-        guests: guestCount,
-        unitPrice: room.hourPrice,
-        totalPrice,
-        currency: room.currency,
-        paymentMethod: paymentMethod ?? null,
-        paymentStatus: 'pending',
-        bookingRef,
-        status: 'confirmed',
-      },
-    });
-
-    // 11. Decrement available rooms
-    await db.hotelRoom.update({
-      where: { id: roomId },
-      data: {
-        availableRooms: {
-          decrement: 1,
+    // 10. Create the booking and decrement available rooms atomically
+    const booking = await db.$transaction(async (tx) => {
+      // Double-check availability inside transaction
+      const currentBooked = await tx.dayUseBooking.count({
+        where: {
+          roomId,
+          bookingDate,
+          status: { in: ['confirmed', 'checked_in'] },
         },
-      },
+      });
+
+      if (currentBooked >= room.availableRooms) {
+        throw new Error(
+          `No rooms available for ${bookingDate}. All ${room.availableRooms} rooms are booked.`,
+        );
+      }
+
+      const newBooking = await tx.dayUseBooking.create({
+        data: {
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
+          hotelId,
+          roomId,
+          roomType: room.roomType,
+          passengerName,
+          phone,
+          email: email ?? null,
+          flightNumber: flightNumber ?? null,
+          bookingDate,
+          startTime,
+          durationHours: hours,
+          guests: guestCount,
+          unitPrice: room.hourPrice,
+          totalPrice,
+          currency: room.currency,
+          paymentMethod: paymentMethod ?? null,
+          paymentStatus: 'pending',
+          bookingRef,
+          status: 'confirmed',
+        },
+      });
+
+      // Decrement available rooms atomically
+      await tx.hotelRoom.update({
+        where: { id: roomId },
+        data: {
+          availableRooms: { decrement: 1 },
+        },
+      });
+
+      return newBooking;
     });
 
     return booking;
@@ -514,7 +533,7 @@ export async function getHotelStats(airportCode: string) {
 
     const totalBookings = await db.dayUseBooking.count({
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
       },
@@ -522,7 +541,7 @@ export async function getHotelStats(airportCode: string) {
 
     const activeBookings = await db.dayUseBooking.count({
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
         status: {
@@ -533,7 +552,7 @@ export async function getHotelStats(airportCode: string) {
 
     const cancelledBookings = await db.dayUseBooking.count({
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
         status: 'cancelled',
@@ -544,7 +563,7 @@ export async function getHotelStats(airportCode: string) {
     const revenueResult = await db.dayUseBooking.aggregate({
       _sum: { totalPrice: true },
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
         paymentStatus: 'paid',
@@ -557,7 +576,7 @@ export async function getHotelStats(airportCode: string) {
     const avgPriceResult = await db.dayUseBooking.aggregate({
       _avg: { totalPrice: true },
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
         paymentStatus: 'paid',
@@ -570,7 +589,7 @@ export async function getHotelStats(airportCode: string) {
     const popularHotels = await db.dayUseBooking.groupBy({
       by: ['hotelId'],
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
       },
@@ -609,7 +628,7 @@ export async function getHotelStats(airportCode: string) {
     const statusBreakdown = await db.dayUseBooking.groupBy({
       by: ['status'],
       where: {
-        hotel: {
+        Hotel: {
           airportCode: airportCode.toUpperCase(),
         },
       },

@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
     // ========================
     const admin = await db.admin.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         name: 'Admin MAELLIS',
         email: 'admin@maellis.aero',
         role: 'superadmin',
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
       { key: 'emergency_notification_emails', value: 'ops@maellis.sn,security@maellis.sn', type: 'string', group: 'emergency', description: 'Emergency alert email recipients' },
       { key: 'maintenance_mode', value: 'false', type: 'boolean', group: 'general', description: 'Enable maintenance mode' },
     ]
-    await db.setting.createMany({ data: settingsData })
+    await db.setting.createMany({ data: settingsData.map(s => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...s })) })
 
     // ========================
     // 3. USERS & CONVERSATIONS (linked)
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     const createdUsers: Awaited<ReturnType<typeof db.user.create>>[] = []
     for (const u of usersData) {
-      createdUsers.push(await db.user.create({ data: u }))
+      createdUsers.push(await db.user.create({ data: { id: crypto.randomUUID(), updatedAt: new Date(), ...u } }))
     }
 
     // Message templates for conversations (stored as JSON)
@@ -170,6 +172,8 @@ export async function POST(request: NextRequest) {
 
       await db.conversation.create({
         data: {
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
           userId: user.id,
           messages: JSON.stringify(messages),
           intent: templateSet[0]?.intent ?? null,
@@ -207,7 +211,7 @@ export async function POST(request: NextRequest) {
       { departureCode: 'BKO', arrivalCode: 'ABJ', departureCity: 'Bamako', arrivalCity: 'Abidjan', travelDate: '2025-07-26', passengers: 1, results: '2 flights found', cheapestPrice: 195000, airline: 'ASKY', status: 'completed' },
     ]
 
-    await db.flightSearch.createMany({ data: flightSearchesData })
+    await db.flightSearch.createMany({ data: flightSearchesData.map(s => ({ id: crypto.randomUUID(), ...s })) })
 
     // ========================
     // 5. FLIGHT STATUSES
@@ -227,7 +231,7 @@ export async function POST(request: NextRequest) {
       { flightNumber: 'DL 215', airline: 'Delta', departureCode: 'DSS', arrivalCode: 'JFK', scheduledDep: '21:00', scheduledArr: '05:30', actualDep: null, actualArr: null, gate: 'C01', terminal: 'C', status: 'scheduled', delayMinutes: 0 },
     ]
 
-    await db.flightStatus.createMany({ data: flightStatusesData })
+    await db.flightStatus.createMany({ data: flightStatusesData.map(s => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...s })) })
 
     // ========================
     // 6. BAGGAGE QR CODES
@@ -247,7 +251,7 @@ export async function POST(request: NextRequest) {
       { passengerName: 'Adaobi Nwosu', phone: '+2348098765432', flightNumber: 'DL 215', pnr: 'LOS7K5', tagNumber: 'DSS-2025-78443', weight: 22.3, destination: 'JFK', qrToken: 'bq_dk_adaobi_012', status: 'claimed', expiresAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000), lastScan: new Date(Date.now() - 1 * 60 * 60 * 1000) },
     ]
 
-    await db.baggageQR.createMany({ data: baggageData })
+    await db.baggageQR.createMany({ data: baggageData.map(b => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...b })) })
 
     // ========================
     // 7. LOUNGE BOOKINGS
@@ -265,7 +269,7 @@ export async function POST(request: NextRequest) {
       { passengerName: 'Koffi Aka', phone: '+225070555666', email: 'koffi.aka@email.ci', loungeName: 'Abidjan Sky Lounge', airportCode: 'ABJ', guests: 1, bookingDate: '2025-07-28', startTime: '15:00', durationHours: 2, totalPrice: 30000, paymentMethod: 'wave', paymentStatus: 'completed', bookingRef: 'LNG-AS-010', status: 'confirmed' },
     ]
 
-    await db.loungeBooking.createMany({ data: loungeBookingsData })
+    await db.loungeBooking.createMany({ data: loungeBookingsData.map(b => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...b })) })
 
     // ========================
     // 8. TRANSPORT BOOKINGS
@@ -285,7 +289,7 @@ export async function POST(request: NextRequest) {
       { passengerName: 'Adama Coulibaly', phone: '+22364567890', vehicleType: 'sedan', pickupLocation: 'Aéroport Modibo Keïta', dropoffLocation: 'Kalaban-Coura, Bamako', pickupDate: '2025-07-29', pickupTime: '11:00', passengers: 1, totalPrice: 15000, paymentMethod: 'orange_money', paymentStatus: 'completed', bookingRef: 'TRN-012', driverName: 'Sissoko Bakary', driverPhone: '+223770334455', vehiclePlate: 'ML-6789-BK', status: 'pending' },
     ]
 
-    await db.transportBooking.createMany({ data: transportBookingsData })
+    await db.transportBooking.createMany({ data: transportBookingsData.map(b => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...b })) })
 
     // ========================
     // 9. PAYMENTS
@@ -315,7 +319,7 @@ export async function POST(request: NextRequest) {
       { bookingId: 'LNG-AS-010', bookingType: 'lounge', phone: '+225070555666', provider: 'wave', country: 'CI', currency: 'XOF', amount: 30000, status: 'completed', externalRef: 'WAV-CI-20250727-016' },
     ]
 
-    await db.payment.createMany({ data: paymentsData })
+    await db.payment.createMany({ data: paymentsData.map(p => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...p })) })
 
     // ========================
     // 10. EMERGENCY ALERTS
@@ -330,7 +334,7 @@ export async function POST(request: NextRequest) {
       { userPhone: '+233201112233', userName: 'Esi Boateng', alertType: 'accessibility', location: 'Kotoka International Airport - Arrivées', description: 'Passager à mobilité réduite sans assistance disponible à l\'arrivée', severity: 'medium', status: 'open' },
     ]
 
-    await db.emergencyAlert.createMany({ data: emergencyAlertsData })
+    await db.emergencyAlert.createMany({ data: emergencyAlertsData.map(a => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...a })) })
 
     // ========================
     // 11. ACTIVITY LOGS
@@ -345,7 +349,7 @@ export async function POST(request: NextRequest) {
       { adminId: admin.id, action: 'export', module: 'payments', details: 'Exported payment report for July 2025' },
     ]
 
-    await db.activityLog.createMany({ data: activityLogsData })
+    await db.activityLog.createMany({ data: activityLogsData.map(a => ({ id: crypto.randomUUID(), ...a })) })
 
     // ========================
     // 12. LOUNGES (Catalog)
@@ -358,7 +362,7 @@ export async function POST(request: NextRequest) {
       { airportCode: 'LOS', name: 'Lagos Premium Lounge', description: 'Lounge VIP international de Murtala Muhammed', location: 'Terminal International, Etag 1', priceStandard: 30000, maxCapacity: 60, currentOccupancy: 0, isOpen: true, openingHours: JSON.stringify({ mon: '05:00-23:00', tue: '05:00-23:00', wed: '05:00-23:00', thu: '05:00-23:00', fri: '05:00-23:00', sat: '05:00-23:00', sun: '06:00-22:00' }), accessLevel: 'business' },
       { airportCode: 'ACC', name: 'Accra VIP Lounge', description: 'Salon VIP de Kotoka International Airport', location: 'Terminal Arrivées, Niveau 2', priceStandard: 15000, maxCapacity: 35, currentOccupancy: 7, isOpen: true, openingHours: JSON.stringify({ mon: '05:00-22:00', tue: '05:00-22:00', wed: '05:00-22:00', thu: '05:00-22:00', fri: '05:00-22:00', sat: '05:00-22:00', sun: '06:00-20:00' }), accessLevel: 'all' },
     ]
-    await db.lounge.createMany({ data: loungesData })
+    await db.lounge.createMany({ data: loungesData.map(l => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...l })) })
 
     // ========================
     // 13. TRANSPORT PROVIDERS
@@ -373,7 +377,7 @@ export async function POST(request: NextRequest) {
       { airportCode: 'LOS', name: 'Airport Taxi Lagos', type: 'taxi', baseFare: 2000, perKmRate: 500, minFare: 3000, contacts: JSON.stringify({ phone: '+234801112233' }), isActive: true },
       { airportCode: 'ACC', name: 'Airport Cab Accra', type: 'taxi', baseFare: 1000, perKmRate: 350, minFare: 1500, contacts: JSON.stringify({ phone: '+233201112233' }), isActive: true },
     ]
-    await db.transportProvider.createMany({ data: transportProvidersData })
+    await db.transportProvider.createMany({ data: transportProvidersData.map(p => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...p })) })
 
     // ========================
     // 14. EMERGENCY CONTACTS
@@ -394,7 +398,7 @@ export async function POST(request: NextRequest) {
       { airportCode: 'ACC', category: 'medical', name: 'Airport Clinic Accra', phoneNumber: '+233201112200', isPrimary: true },
       { airportCode: 'ACC', category: 'security', name: 'Aviation Security Ghana', phoneNumber: '+233201112211', isPrimary: true },
     ]
-    await db.emergencyContact.createMany({ data: emergencyContactsData })
+    await db.emergencyContact.createMany({ data: emergencyContactsData.map(c => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...c })) })
 
     // ========================
     // 15. PARTNERS (Agences & Compagnies)
@@ -408,7 +412,7 @@ export async function POST(request: NextRequest) {
       { airportCode: 'ABJ', type: 'travel_agency', name: 'Agence Ivoire Voyage', email: 'contact@ivoirevoyage.ci', phone: '+225070012700', contactPerson: 'Koffi Yao', commissionRate: 0.10, contractStart: new Date('2025-02-01'), isActive: true },
       { airportCode: 'LOS', type: 'travel_agency', name: 'Wakati Travels Lagos', email: 'bookings@wakati.ng', phone: '+2348011122700', contactPerson: 'Chidi Eze', commissionRate: 0.08, contractStart: new Date('2025-01-15'), isActive: true },
     ]
-    await db.partner.createMany({ data: partnersData })
+    await db.partner.createMany({ data: partnersData.map(p => ({ id: crypto.randomUUID(), updatedAt: new Date(), ...p })) })
 
     // Count results
     const counts = {

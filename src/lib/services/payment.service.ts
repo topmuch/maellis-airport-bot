@@ -348,6 +348,7 @@ export async function generateCinetPayPayment(
       // Store pending Payment record even for mock payments
       await db.payment.create({
         data: {
+          id: crypto.randomUUID(),
           bookingId: safeOrderNumber,
           bookingType: 'order',
           phone: safeCustomerPhone,
@@ -357,6 +358,7 @@ export async function generateCinetPayPayment(
           amount: safeAmount,
           status: 'pending',
           externalRef: mockResult.paymentToken,
+          updatedAt: new Date(),
         },
       })
 
@@ -399,6 +401,7 @@ export async function generateCinetPayPayment(
     // Store pending Payment record
     await db.payment.create({
       data: {
+        id: crypto.randomUUID(),
         bookingId: params.orderNumber,
         bookingType: 'order',
         phone: params.customerPhone,
@@ -408,6 +411,7 @@ export async function generateCinetPayPayment(
         amount: safeAmount,
         status: 'pending',
         externalRef: result.data.trans_id ?? result.data.payment_token,
+        updatedAt: new Date(),
       },
     })
 
@@ -544,6 +548,7 @@ export async function handleCinetPayWebhook(
         // Create Payment record if none exists (defensive)
         await db.payment.create({
           data: {
+            id: crypto.randomUUID(),
             bookingId: orderNumber,
             bookingType: 'order',
             phone: fullPhone,
@@ -553,6 +558,7 @@ export async function handleCinetPayWebhook(
             amount: safeAmount,
             status: 'paid',
             externalRef: transactionId,
+            updatedAt: new Date(),
           },
         })
       }
@@ -593,6 +599,7 @@ export async function handleCinetPayWebhook(
         // Create Payment record if none exists (defensive)
         await db.payment.create({
           data: {
+            id: crypto.randomUUID(),
             bookingId: orderNumber,
             bookingType: 'order',
             phone: fullPhone,
@@ -603,6 +610,7 @@ export async function handleCinetPayWebhook(
             status: 'failed',
             externalRef: transactionId,
             errorMessage: errorMessage ?? `Payment ${cinetStatus}`,
+            updatedAt: new Date(),
           },
         })
       }
@@ -773,6 +781,7 @@ export async function createPaymentRecord(
 
     return await db.payment.create({
       data: {
+        id: crypto.randomUUID(),
         bookingId: safeBookingId,
         bookingType: safeBookingType,
         phone: safePhone,
@@ -782,6 +791,7 @@ export async function createPaymentRecord(
         amount: safeAmount,
         status: 'pending',
         externalRef: data.externalRef ?? null,
+        updatedAt: new Date(),
       },
     })
   } catch (error) {

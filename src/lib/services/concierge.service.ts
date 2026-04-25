@@ -152,6 +152,8 @@ export async function createTicket(data: {
 
     return db.ticket.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         phone: safePhone,
         passengerName: safeName,
         type,

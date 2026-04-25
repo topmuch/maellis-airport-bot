@@ -7,7 +7,7 @@ import type { Cart, CartItem } from '@prisma/client';
 // ---------------------------------------------------------------------------
 
 export interface CartWithTotals {
-  cart: Cart & { items: CartItem[] };
+  cart: Cart & { CartItem: CartItem[] };
   subtotal: number;
   tax: number;
   deliveryFee: number;
@@ -70,12 +70,12 @@ export function computeCartTotals(
 async function loadCart(customerPhone: string): Promise<CartWithTotals | null> {
   const cart = await db.cart.findUnique({
     where: { customerPhone },
-    include: { items: true },
+    include: { CartItem: true },
   });
 
   if (!cart) return null;
 
-  const totals = computeCartTotals(cart.items);
+  const totals = computeCartTotals(cart.CartItem);
   return { cart, ...totals };
 }
 
@@ -102,11 +102,11 @@ export async function getOrCreateCart(customerPhone: string): Promise<CartWithTo
     if (existing) return existing;
 
     const cart = await db.cart.create({
-      data: { customerPhone },
-      include: { items: true },
+      data: { id: crypto.randomUUID(), updatedAt: new Date(), customerPhone },
+      include: { CartItem: true },
     });
 
-    const totals = computeCartTotals(cart.items);
+    const totals = computeCartTotals(cart.CartItem);
     return { cart, ...totals };
   } catch (error) {
     console.error('[cart.service] getOrCreateCart error:', error);
@@ -126,7 +126,7 @@ export async function addToCart(
     // --- Validate product ---
     const product = await db.product.findUnique({
       where: { id: input.productId },
-      include: { merchant: { select: { id: true, name: true, isActive: true } } },
+      include: { Merchant: { select: { id: true, name: true, isActive: true } } },
     });
 
     if (!product) {
@@ -143,8 +143,8 @@ export async function addToCart(
       );
     }
 
-    if (!product.merchant.isActive) {
-      throw new Error(`Merchant "${product.merchant.name}" is not active`);
+    if (!product.Merchant.isActive) {
+      throw new Error(`Merchant "${product.Merchant.name}" is not active`);
     }
 
     // --- Get or create cart ---
@@ -163,7 +163,7 @@ export async function addToCart(
     }
 
     // --- Check if item already in cart ---
-    const existingItem = cartResult.cart.items.find(
+    const existingItem = cartResult.cart.CartItem.find(
       (item) => item.productId === input.productId,
     );
 
@@ -184,12 +184,13 @@ export async function addToCart(
     } else {
       await db.cartItem.create({
         data: {
+          id: crypto.randomUUID(),
           cartId,
           productId: product.id,
           productName: product.name,
           productImage,
           merchantId: product.merchantId,
-          merchantName: product.merchant.name,
+          merchantName: product.Merchant.name,
           quantity: input.quantity,
           unitPrice: product.price,
           discountPercent: product.discountPercent,
@@ -222,14 +223,14 @@ export async function updateCartItem(
   try {
     const cart = await db.cart.findUnique({
       where: { customerPhone },
-      include: { items: true },
+      include: { CartItem: true },
     });
 
     if (!cart) {
       throw new Error('Cart not found');
     }
 
-    const cartItem = cart.items.find((item) => item.id === cartItemId);
+    const cartItem = cart.CartItem.find((item) => item.id === cartItemId);
     if (!cartItem) {
       throw new Error(`Cart item not found: ${cartItemId}`);
     }
@@ -282,14 +283,14 @@ export async function removeFromCart(
   try {
     const cart = await db.cart.findUnique({
       where: { customerPhone },
-      include: { items: true },
+      include: { CartItem: true },
     });
 
     if (!cart) {
       throw new Error('Cart not found');
     }
 
-    const cartItem = cart.items.find((item) => item.id === cartItemId);
+    const cartItem = cart.CartItem.find((item) => item.id === cartItemId);
     if (!cartItem) {
       throw new Error(`Cart item not found: ${cartItemId}`);
     }
@@ -334,26 +335,26 @@ export async function checkoutCart(customerPhone: string, data: CheckoutInput) {
     // --- Validate cart exists and has items ---
     const cart = await db.cart.findUnique({
       where: { customerPhone },
-      include: { items: true },
+      include: { CartItem: true },
     });
 
     if (!cart) {
       throw new Error('Cart not found');
     }
 
-    if (cart.items.length === 0) {
+    if (cart.CartItem.length === 0) {
       throw new Error('Cart is empty');
     }
 
     // --- Validate all products are still available with sufficient stock ---
-    const productIds = cart.items.map((item) => item.productId);
+    const productIds = cart.CartItem.map((item) => item.productId);
     const products = await db.product.findMany({
       where: { id: { in: productIds } },
     });
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    for (const cartItem of cart.items) {
+    for (const cartItem of cart.CartItem) {
       const product = productMap.get(cartItem.productId);
       if (!product) {
         throw new Error(`Product no longer exists: ${cartItem.productName}`);
@@ -382,7 +383,7 @@ export async function checkoutCart(customerPhone: string, data: CheckoutInput) {
       CartItem[]
     >();
 
-    for (const item of cart.items) {
+    for (const item of cart.CartItem) {
       const merchantId = item.merchantId;
       if (!itemsByMerchant.has(merchantId)) {
         itemsByMerchant.set(merchantId, []);

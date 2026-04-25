@@ -93,6 +93,7 @@ async function getOrCreateSystemWallet() {
     user = await db.user.create({
       data: {
         id: userId,
+        updatedAt: new Date(),
         phone: SYSTEM_REWARDS_PHONE,
         name: 'System Rewards',
         language: 'fr',
@@ -103,6 +104,8 @@ async function getOrCreateSystemWallet() {
 
   wallet = await db.userWallet.create({
     data: {
+      id: crypto.randomUUID(),
+      updatedAt: new Date(),
       userId: user.id,
       phone: user.phone,
       balance: 0,
@@ -155,13 +158,15 @@ export async function getOrCreateWallet(
 
     if (!user) {
       user = await db.user.create({
-        data: { phone, name: null, language: 'fr', isActive: true },
+        data: { id: crypto.randomUUID(), updatedAt: new Date(), phone, name: null, language: 'fr', isActive: true },
       });
     }
 
     // Create wallet
     wallet = await db.userWallet.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         userId: user.id,
         phone: user.phone,
         balance: 0,
@@ -197,43 +202,49 @@ export async function creditPoints(
     const previousTier = wallet.tier;
     const previousBalance = wallet.balance;
 
-    // Create the transaction
-    const transaction = await db.milesTransaction.create({
-      data: {
-        walletId: wallet.id,
-        type: 'credit',
-        amount: points,
-        reason,
-        description: `+${points} points: ${reason}`,
-        referenceId: referenceId ?? null,
-      },
-    });
+    // Use transaction to atomically create transaction record and update wallet
+    const result = await db.$transaction(async (tx) => {
+      // Create the transaction record
+      const transaction = await tx.milesTransaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          walletId: wallet.id,
+          type: 'credit',
+          amount: points,
+          reason,
+          description: `+${points} points: ${reason}`,
+          referenceId: referenceId ?? null,
+        },
+      });
 
-    // Update wallet balance and totals
-    const newTotalEarned = wallet.totalEarned + points;
-    const newTier = determineTier(newTotalEarned);
+      // Update wallet balance and totals
+      const newTotalEarned = wallet.totalEarned + points;
+      const newTier = determineTier(newTotalEarned);
 
-    const updatedWallet = await db.userWallet.update({
-      where: { id: wallet.id },
-      data: {
-        balance: { increment: points },
-        totalEarned: newTotalEarned,
-        tier: newTier,
-        lastActivityAt: new Date(),
-        tierUpdatedAt: newTier !== previousTier ? new Date() : wallet.tierUpdatedAt,
-      },
-      include: { User: true },
+      const updatedWallet = await tx.userWallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: { increment: points },
+          totalEarned: newTotalEarned,
+          tier: newTier,
+          lastActivityAt: new Date(),
+          tierUpdatedAt: newTier !== previousTier ? new Date() : wallet.tierUpdatedAt,
+        },
+        include: { User: true },
+      });
+
+      return { transaction, wallet: updatedWallet };
     });
 
     const tierUpgradeResult: TierUpgradeResult = {
-      upgraded: newTier !== previousTier,
+      upgraded: result.wallet.tier !== previousTier,
       previousTier,
-      newTier,
+      newTier: result.wallet.tier,
       previousBalance,
-      newBalance: updatedWallet.balance,
+      newBalance: result.wallet.balance,
     };
 
-    return { transaction, wallet: updatedWallet, tierUpgrade: tierUpgradeResult };
+    return { ...result, tierUpgrade: tierUpgradeResult };
   } catch (error) {
     console.error('[gamification.service] creditPoints error:', error);
     throw error;
@@ -245,41 +256,47 @@ export async function creditPoints(
 // ---------------------------------------------------------------------------
 export async function debitPoints(phone: string, amount: number, reason: string) {
   try {
-    const wallet = await db.userWallet.findUnique({ where: { phone } });
+    // Use transaction to atomically check balance, create record, and update wallet
+    const result = await db.$transaction(async (tx) => {
+      const wallet = await tx.userWallet.findUnique({ where: { phone } });
 
-    if (!wallet) {
-      throw new Error('Wallet not found for this phone number');
-    }
+      if (!wallet) {
+        throw new Error('Wallet not found for this phone number');
+      }
 
-    if (wallet.balance < amount) {
-      throw new Error(
-        `Insufficient balance. Current: ${wallet.balance}, Required: ${amount}`,
-      );
-    }
+      if (wallet.balance < amount) {
+        throw new Error(
+          `Insufficient balance. Current: ${wallet.balance}, Required: ${amount}`,
+        );
+      }
 
-    // Create the transaction
-    const transaction = await db.milesTransaction.create({
-      data: {
-        walletId: wallet.id,
-        type: 'debit',
-        amount,
-        reason,
-        description: `-${amount} points: ${reason}`,
-      },
+      // Create the transaction record
+      const transaction = await tx.milesTransaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          walletId: wallet.id,
+          type: 'debit',
+          amount,
+          reason,
+          description: `-${amount} points: ${reason}`,
+        },
+      });
+
+      // Update wallet
+      const updatedWallet = await tx.userWallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: { decrement: amount },
+          totalSpent: { increment: amount },
+          lastActivityAt: new Date(),
+        },
+        include: { User: true },
+      });
+
+      return { transaction, wallet: updatedWallet };
     });
 
-    // Update wallet
-    const updatedWallet = await db.userWallet.update({
-      where: { id: wallet.id },
-      data: {
-        balance: { decrement: amount },
-        totalSpent: { increment: amount },
-        lastActivityAt: new Date(),
-      },
-      include: { User: true },
-    });
-
-    return { transaction, wallet: updatedWallet };
+    return result;
   } catch (error) {
     console.error('[gamification.service] debitPoints error:', error);
     throw error;
@@ -342,6 +359,9 @@ export async function getTransactionHistory(phone: string) {
 export async function getLeaderboard(limit: number = 10) {
   try {
     const leaders = await db.userWallet.findMany({
+      where: {
+        phone: { not: SYSTEM_REWARDS_PHONE },
+      },
       orderBy: { balance: 'desc' },
       take: limit,
       include: {
@@ -496,6 +516,8 @@ export async function seedDefaultRewards() {
 
     const results = await db.reward.createMany({
       data: toCreate.map((r) => ({
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         walletId: systemWallet.id,
         name: r.name,
         description: r.description,
@@ -582,10 +604,6 @@ export async function redeemReward(phone: string, rewardId: string) {
 
     if (!wallet) {
       throw new Error('Wallet not found');
-    }
-
-    if (wallet.id !== reward.walletId) {
-      throw new Error('Reward does not belong to this wallet');
     }
 
     if (wallet.balance < reward.costPoints) {
@@ -691,6 +709,8 @@ export async function createReward(data: CreateRewardInput) {
   try {
     const reward = await db.reward.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         walletId: data.walletId,
         name: data.name,
         description: data.description ?? null,

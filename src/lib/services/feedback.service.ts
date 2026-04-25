@@ -122,6 +122,8 @@ export async function submitFeedback(data: SubmitFeedbackInput) {
 
     const feedback = await db.feedback.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         phone: data.phone,
         userName: data.userName || null,
         flightNumber: data.flightNumber || null,

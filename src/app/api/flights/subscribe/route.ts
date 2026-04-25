@@ -50,10 +50,12 @@ export async function POST(request: NextRequest) {
     // Create new subscription
     const subscription = await db.flightSubscription.create({
       data: {
+        id: crypto.randomUUID(),
         flightNumber: normalizedFlight,
         phone: normalizedPhone,
         events: eventsString,
         isActive: true,
+        updatedAt: new Date(),
       },
     })
 

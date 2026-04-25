@@ -218,6 +218,8 @@ export async function seedCheckinAirlines(): Promise<void> {
           isActive: true,
         },
         create: {
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
           iataCode: entry.iataCode,
           airlineName: entry.airlineName,
           checkinUrl: entry.checkinUrl,
@@ -353,6 +355,8 @@ export async function createCheckInSession(data: CreateCheckInSessionInput) {
 
     const session = await db.checkInSession.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         phone: data.phone,
         passengerName: data.passengerName ?? null,
         flightNumber: data.flightNumber,
@@ -379,10 +383,10 @@ export async function createCheckInSession(data: CreateCheckInSessionInput) {
 // ---------------------------------------------------------------------------
 // 4. getCheckInSessions — Get sessions for a user
 // ---------------------------------------------------------------------------
-export async function getCheckInSessions(phone: string) {
+export async function getCheckInSessions(phone?: string) {
   try {
     const sessions = await db.checkInSession.findMany({
-      where: { phone },
+      where: phone ? { phone } : undefined,
       orderBy: { createdAt: 'desc' },
     });
 

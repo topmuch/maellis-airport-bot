@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
 
     const document = await db.knowledgeBase.create({
       data: {
+        id: crypto.randomUUID(),
         airportCode,
         title: documentTitle,
         fileName: originalName,
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
         fileSize: file.size,
         status: 'processing',
         uploadedBy: 'admin',
+        updatedAt: new Date(),
       },
     })
 
@@ -182,6 +184,7 @@ export async function POST(req: NextRequest) {
       // ── Store chunks in DB ──
       await db.documentChunk.createMany({
         data: chunks.map((chunk) => ({
+          id: crypto.randomUUID(),
           kbId: document.id,
           content: chunk.content,
           chunkIndex: chunk.index,

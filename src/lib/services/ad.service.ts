@@ -223,7 +223,7 @@ export async function getCampaigns(airportCode?: string, status?: string) {
       where,
       include: {
         _count: {
-          select: { advertisements: true },
+          select: { Advertisement: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -246,7 +246,7 @@ export async function getCampaignById(id: string) {
     const campaign = await db.adCampaign.findUnique({
       where: { id },
       include: {
-        advertisements: {
+        Advertisement: {
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -279,6 +279,8 @@ export async function createCampaign(data: CreateCampaignInput) {
 
     const campaign = await db.adCampaign.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: data.airportCode.toUpperCase(),
         name: data.name,
         description: data.description ?? null,
@@ -361,7 +363,7 @@ export async function getCampaignStats(id: string) {
     const campaign = await db.adCampaign.findUnique({
       where: { id },
       include: {
-        advertisements: {
+        Advertisement: {
           select: {
             status: true,
             impressions: true,
@@ -378,7 +380,7 @@ export async function getCampaignStats(id: string) {
       return null;
     }
 
-    const ads = campaign.advertisements;
+    const ads = campaign.Advertisement;
     const totalAds = ads.length;
     const activeAds = ads.filter((ad) => ad.status === 'active').length;
     const totalImpressions = ads.reduce((sum, ad) => sum + ad.impressions, 0);
@@ -495,7 +497,7 @@ export async function getAds(
     const ads = await db.advertisement.findMany({
       where,
       include: {
-        campaign: {
+        AdCampaign: {
           select: {
             id: true,
             name: true,
@@ -531,7 +533,7 @@ export async function getAdById(id: string) {
     const ad = await db.advertisement.findUnique({
       where: { id },
       include: {
-        campaign: {
+        AdCampaign: {
           select: {
             id: true,
             name: true,
@@ -585,6 +587,7 @@ export async function createAd(data: CreateAdInput) {
 
     const ad = await db.advertisement.create({
       data: {
+        id: crypto.randomUUID(),
         airportCode: data.airportCode.toUpperCase(),
         campaignId: data.campaignId ?? null,
         merchantId: data.merchantId ?? null,
@@ -604,6 +607,7 @@ export async function createAd(data: CreateAdInput) {
         cpmRate: safeCpmRate,
         cpcRate: safeCpcRate,
         status: 'draft',
+        updatedAt: new Date(),
       },
     });
 
@@ -644,8 +648,8 @@ export async function updateAd(id: string, data: UpdateAdInput) {
     if (data.budgetType !== undefined) updateData.budgetType = validateEnum(data.budgetType, 'budgetType', VALID_BUDGET_TYPES);
     if (data.cpmRate !== undefined) updateData.cpmRate = data.cpmRate !== null ? validateNonNegative(data.cpmRate, 'cpmRate') : null;
     if (data.cpcRate !== undefined) updateData.cpcRate = data.cpcRate !== null ? validateNonNegative(data.cpcRate, 'cpcRate') : null;
-    if (data.merchantId !== undefined) updateData.merchant = data.merchantId ? { connect: { id: data.merchantId } } : { disconnect: true };
-    if (data.campaignId !== undefined) updateData.campaign = data.campaignId ? { connect: { id: data.campaignId } } : { disconnect: true };
+    if (data.merchantId !== undefined) updateData.Merchant = data.merchantId ? { connect: { id: data.merchantId } } : { disconnect: true };
+    if (data.campaignId !== undefined) updateData.AdCampaign = data.campaignId ? { connect: { id: data.campaignId } } : { disconnect: true };
 
     const ad = await db.advertisement.update({
       where: { id },
@@ -878,11 +882,13 @@ export async function trackImpression(data: TrackImpressionInput) {
       // Create impression record
       const impression = await tx.adImpression.create({
         data: {
+          id: crypto.randomUUID(),
           advertisementId: validatedData.advertisementId,
           sessionId: validatedData.sessionId ?? null,
           placement: validatedData.placement,
           deviceInfo: validatedData.deviceInfo ?? null,
           location: validatedData.location ?? null,
+          timestamp: new Date(),
         },
       });
 
@@ -940,7 +946,7 @@ export async function trackClick(impressionId: string, data?: TrackClickInput) {
       // Verify impression exists
       const impression = await tx.adImpression.findUnique({
         where: { id: impressionId },
-        include: { advertisement: true },
+        include: { Advertisement: true },
       });
 
       if (!impression) {
@@ -950,8 +956,10 @@ export async function trackClick(impressionId: string, data?: TrackClickInput) {
       // Create click record
       const click = await tx.adClick.create({
         data: {
+          id: crypto.randomUUID(),
           impressionId,
           conversionValue: data?.conversionValue ?? 0,
+          timestamp: new Date(),
         },
       });
 
@@ -965,7 +973,7 @@ export async function trackClick(impressionId: string, data?: TrackClickInput) {
 
       // Calculate revenue based on budget type
       let revenueIncrement = 0;
-      const ad = impression.advertisement;
+      const ad = impression.Advertisement;
       if (ad.budgetType === 'cpc' && ad.cpcRate) {
         revenueIncrement = ad.cpcRate;
       }
@@ -1010,7 +1018,7 @@ export async function trackConversion(impressionId: string, conversionValue: num
       // Verify impression exists
       const impression = await tx.adImpression.findUnique({
         where: { id: impressionId },
-        include: { advertisement: true },
+        include: { Advertisement: true },
       });
 
       if (!impression) {
@@ -1049,7 +1057,7 @@ export async function trackConversion(impressionId: string, conversionValue: num
       });
 
       // Update campaign spent budget if ad has a campaign
-      const ad = impression.advertisement;
+      const ad = impression.Advertisement;
       if (ad.campaignId) {
         await tx.adCampaign.update({
           where: { id: ad.campaignId },

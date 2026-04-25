@@ -4,46 +4,47 @@ import {
   createCheckInSession,
   getCheckInStats,
 } from '@/lib/services/checkin.service'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, requireRole } from '@/lib/auth'
 import { parseBody, ValidationError } from '@/lib/validate'
 
 // GET /api/checkin - List check-in sessions and stats
 export async function GET(request: NextRequest) {
-  const authResult = await requireAuth(request)
-  if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
-  }
-
   try {
     const { searchParams } = new URL(request.url)
     const phone = searchParams.get('phone')
     const stats = searchParams.get('stats')
 
-    // If stats requested, return check-in stats
+    // Stats endpoint requires admin role
     if (stats === 'true') {
+      const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
+      if (!authResult.success) {
+        return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+      }
       const checkinStats = await getCheckInStats()
       return NextResponse.json({ success: true, data: checkinStats })
     }
 
-    // Otherwise, return check-in sessions for a phone
+    // Listing all sessions (no phone filter) requires admin role
     if (!phone) {
-      return NextResponse.json(
-        { success: false, error: 'phone query parameter is required' },
-        { status: 400 }
-      )
+      const authResult = await requireRole('SUPERADMIN', 'AIRPORT_ADMIN')(request)
+      if (!authResult.success) {
+        return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+      }
+      const sessions = await getCheckInSessions()
+      return NextResponse.json({ success: true, data: sessions })
     }
 
+    // User can view their own sessions with phone
+    const authResult = await requireAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status || 401 })
+    }
     const sessions = await getCheckInSessions(phone)
-
     return NextResponse.json({ success: true, data: sessions })
   } catch (error) {
-
     if (error instanceof ValidationError) {
-
       return NextResponse.json({ error: error.message }, { status: error.statusCode })
-
     }
-
     console.error('Error fetching check-in data:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch check-in data' },
@@ -87,13 +88,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: session }, { status: 201 })
   } catch (error) {
-
     if (error instanceof ValidationError) {
-
       return NextResponse.json({ error: error.message }, { status: error.statusCode })
-
     }
-
     console.error('Error creating check-in session:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to create check-in session' },

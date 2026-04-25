@@ -23,7 +23,7 @@ export async function GET(
     const document = await db.knowledgeBase.findUnique({
       where: { id },
       include: {
-        chunks: {
+        DocumentChunk: {
           select: {
             id: true,
             content: true,

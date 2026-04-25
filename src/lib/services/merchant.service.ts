@@ -161,7 +161,7 @@ export async function getMerchants(
       where,
       include: {
         _count: {
-          select: { products: true },
+          select: { Product: true },
         },
       },
       orderBy: { name: 'asc' },
@@ -214,6 +214,8 @@ export async function createMerchant(data: CreateMerchantInput) {
 
     const merchant = await db.merchant.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         airportCode: data.airportCode.toUpperCase(),
         name: data.name,
         description: data.description ?? null,
@@ -322,17 +324,17 @@ export async function getMerchantDashboardStats(merchantId: string) {
     const merchant = await db.merchant.findUnique({
       where: { id: merchantId },
       include: {
-        products: {
+        Product: {
           select: { id: true, name: true, price: true, stock: true },
           orderBy: { name: 'asc' },
           take: 5,
         },
         _count: {
           select: {
-            orders: {
+            Order: {
               where: { status: 'pending' },
             },
-            products: true,
+            Product: true,
           },
         },
       },
@@ -359,7 +361,7 @@ export async function getMerchantDashboardStats(merchantId: string) {
       totalSales: merchant.totalSales,
       totalOrders: merchant.totalOrders,
       pendingOrders,
-      productCount: merchant._count.products,
+      productCount: merchant._count.Product,
       averageRating: merchant.averageRating,
       reviewsCount: merchant.reviewsCount,
       topProducts,
@@ -529,6 +531,8 @@ export async function createProduct(merchantId: string, data: CreateProductInput
 
     const product = await db.product.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         merchantId,
         name: data.name,
         description: data.description ?? null,
@@ -724,6 +728,7 @@ export async function createOrder(data: CreateOrderInput) {
 
     // 3. Validate each item and calculate totals
     const orderItems: {
+      id: string;
       productId: string;
       productName: string;
       productImage: string | null;
@@ -765,6 +770,7 @@ export async function createOrder(data: CreateOrderInput) {
       const itemTotal = unitPrice * item.quantity - discount;
 
       orderItems.push({
+        id: crypto.randomUUID(),
         productId: item.productId,
         productName: item.productName,
         productImage: item.productImage ?? null,
@@ -791,6 +797,8 @@ export async function createOrder(data: CreateOrderInput) {
       // Create order
       const newOrder = await tx.order.create({
         data: {
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
           orderNumber,
           merchantId,
           airportCode: merchant.airportCode,
@@ -919,7 +927,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
 
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { OrderItem: true },
     });
 
     if (!order) {
@@ -953,7 +961,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
       if (status === 'cancelled') {
         updateData.cancelledAt = new Date();
         // Restore stock
-        for (const item of order.items) {
+        for (const item of order.OrderItem) {
           await tx.product.update({
             where: { id: item.productId },
             data: { stock: { increment: item.quantity } },
@@ -964,7 +972,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
       const result = await tx.order.update({
         where: { id: orderId },
         data: updateData,
-        include: { items: true, merchant: { select: { id: true, name: true } } },
+        include: { OrderItem: true, merchant: { select: { id: true, name: true } } },
       });
 
       return result;
@@ -991,7 +999,7 @@ export async function cancelOrder(orderId: string, reason?: string) {
   try {
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { OrderItem: true },
     });
 
     if (!order) {
@@ -1014,11 +1022,11 @@ export async function cancelOrder(orderId: string, reason?: string) {
           cancelledAt: new Date(),
           cancellationReason: reason ?? null,
         },
-        include: { items: true, merchant: { select: { id: true, name: true } } },
+        include: { OrderItem: true, merchant: { select: { id: true, name: true } } },
       });
 
       // Restore stock for each item
-      for (const item of order.items) {
+      for (const item of order.OrderItem) {
         await tx.product.update({
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } },
@@ -1092,6 +1100,8 @@ export async function createReview(data: CreateReviewInput) {
 
     const review = await db.review.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         merchantId: data.merchantId,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
@@ -1220,7 +1230,7 @@ export async function addToWishlist(customerPhone: string, productId: string) {
     }
 
     const wishlist = await db.wishlist.create({
-      data: { customerPhone, productId },
+      data: { id: crypto.randomUUID(), customerPhone, productId },
     });
 
     return wishlist;
