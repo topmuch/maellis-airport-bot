@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
+import { getFlightProvider } from '@/lib/flight-providers'
 
 const FLIGHT_SERVICE_URL = 'http://localhost:3006'
 
@@ -127,6 +128,30 @@ export async function GET(request: NextRequest) {
         success: false,
         error: 'Query parameter "q" is required',
       }, { status: 400 })
+    }
+
+    // Step 0.5: Try configurable flight provider (API-agnostic)
+    try {
+      const provider = await getFlightProvider()
+      const providerAirports = await provider.searchAirports(query)
+
+      if (providerAirports && providerAirports.length > 0) {
+        return NextResponse.json({
+          success: true,
+          data: providerAirports.map((a) => ({
+            code: a.iataCode,
+            name: a.name,
+            city: a.city || '',
+            country: a.country || '',
+            display: a.city ? `${a.city} (${a.iataCode})` : a.name,
+          })),
+        })
+      }
+    } catch (providerErr) {
+      // Provider failed, log and continue to flight-service fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[flights/airports] Configurable provider failed, falling back:', providerErr)
+      }
     }
 
     // Step 1: Try flight-service proxy

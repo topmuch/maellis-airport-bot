@@ -11,6 +11,7 @@ import {
   canonicalUrl,
 } from "@/lib/seo";
 import { JsonLdScript } from "@/components/JsonLdScript";
+import CookieBanner from "@/components/consent/CookieBanner";
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ export default function RootLayout({
         >
           <Providers>
             {children}
+            <CookieBanner />
             <SonnerToaster duration={4000} richColors position="top-right" />
             <ShadcnToaster />
           </Providers>

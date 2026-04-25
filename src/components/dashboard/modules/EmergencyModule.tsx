@@ -29,6 +29,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { useAuth } from '@/components/auth/AuthGuard'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ function TypeCell({ category }: { category: string }) {
 // ════════════════════════════════════════════════════════════════
 
 export function EmergencyModule() {
+  const { airportCode } = useAuth()
   // ── Incident state ─────────────────────────────────────────────
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loadingIncidents, setLoadingIncidents] = useState(true)
@@ -223,8 +225,8 @@ export function EmergencyModule() {
   const fetchContacts = useCallback(async () => {
     setLoadingContacts(true)
     try {
-      // TODO: Replace with authenticated user's airport code from session
-      const res = await fetch('/api/emergency/contacts?airport=DSS')
+      // Authenticated user's airport code from session
+      const res = await fetch(`/api/emergency/contacts?airport=${airportCode || 'DSS'}`)
       if (res.ok) {
         const json = await res.json()
         const data = json.data ?? json ?? []
@@ -280,8 +282,8 @@ export function EmergencyModule() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // TODO: Replace with authenticated user's airport code from session
-          airportCode: 'DSS',
+          // Authenticated user's airport code from session
+          airportCode: airportCode || 'DSS',
           category: formCategory,
           userName: formUserName || undefined,
           userPhone: formUserPhone,
@@ -393,8 +395,8 @@ export function EmergencyModule() {
     setContactSubmitting(true)
     try {
       const payload = {
-        // TODO: Replace with authenticated user's airport code from session
-        airportCode: 'DSS',
+        // Authenticated user's airport code from session
+        airportCode: airportCode || 'DSS',
         category: cfCategory,
         name: cfName,
         phoneNumber: cfPhone,
@@ -909,7 +911,7 @@ export function EmergencyModule() {
               {editingContact ? 'Modifier le contact' : 'Ajouter un contact'}
             </DialogTitle>
             <DialogDescription>
-              {/* TODO: Replace with authenticated user's airport code from session */}
+              {/* Authenticated user's airport code from session */}
               Contact d&apos;urgence pour cet aéroport.
             </DialogDescription>
           </DialogHeader>

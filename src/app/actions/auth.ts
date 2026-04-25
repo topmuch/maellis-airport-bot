@@ -3,7 +3,7 @@
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
-import { signIn, signOut } from '@/auth'
+import { signIn, signOut, auth } from '@/auth'
 import { z } from 'zod'
 
 const SALT_ROUNDS = 12
@@ -238,6 +238,16 @@ export async function createInvitation(
   formData: FormData
 ): Promise<AuthActionResult> {
   try {
+    // ─── AUTH CHECK — Only SUPERADMIN or AIRPORT_ADMIN can invite ───
+    const session = await auth()
+    if (!session?.user) {
+      return { success: false, error: 'Vous devez être connecté pour créer une invitation.' }
+    }
+    const userRole = (session.user as any)?.role as string | undefined
+    if (userRole !== 'SUPERADMIN' && userRole !== 'AIRPORT_ADMIN') {
+      return { success: false, error: 'Seuls les administrateurs peuvent créer des invitations.' }
+    }
+
     const email = (formData.get('email') as string)?.toLowerCase()
     const role = formData.get('role') as string
     const airportCode = (formData.get('airportCode') as string) || null
@@ -246,6 +256,11 @@ export async function createInvitation(
     const result = invitationSchema.safeParse({ email, role, airportCode })
     if (!result.success) {
       return { success: false, error: result.error.issues[0].message }
+    }
+
+    // Non-SUPERADMIN cannot create SUPERADMIN invitations
+    if (role === 'SUPERADMIN' && userRole !== 'SUPERADMIN') {
+      return { success: false, error: 'Seul le SUPERADMIN peut créer des comptes SUPERADMIN.' }
     }
 
     // Check if invitation already exists for this email

@@ -1182,6 +1182,24 @@ model Session {
   AuthUser     AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model SystemConfig {
+  id          String @id @default("global")
+
+  // Type de fournisseur de vols
+  flightProvider String @default("AVIATION_STACK") // AVIATION_STACK | CUSTOM_FIDS | MOCK
+
+  // Credentials AviationStack
+  aviationStackKey String?
+
+  // Configuration FIDS personnalisé (API Interne Aéroport)
+  customFidsUrl      String?
+  customFidsHeaders  String?  // JSON string: { "Authorization": "Bearer xxx" }
+  customFidsDataPath String?  // Chemin JSON pour extraire les vols, ex: "data.flights"
+  customFidsMapping  String?  // JSON string: { "flightNumber": "flight_no", "status": "state" }
+
+  updatedAt DateTime @updatedAt
+}
+
 model Setting {
   id          String   @id
   key         String   @unique
@@ -1338,6 +1356,98 @@ model UserWallet {
 
   @@index([balance])
   @@index([tier])
+}
+
+// ─────────────────────────────────────────────
+// BROADCAST ALERT SYSTEM — Diffusion multi-canaux
+// ─────────────────────────────────────────────
+
+// Niveaux d'alerte (String enum for SQLite compat)
+// Valid: INFO | WARNING | CRITICAL | EVACUATION
+
+// Périmètre de diffusion
+// Valid: ALL | TERMINAL_1 | TERMINAL_2 | FLIGHT | STAFF_ONLY | PASSENGERS
+
+model BroadcastAlert {
+  id          String   @id @default(uuid())
+  title       String
+  message     String
+  level       String   @default("INFO")       // INFO | WARNING | CRITICAL | EVACUATION
+  scope       String   @default("ALL")         // ALL | TERMINAL_1 | TERMINAL_2 | FLIGHT | STAFF_ONLY | PASSENGERS
+  scopeFilter Json?                            // { "terminal": "T1", "flightNumber": "AF123" }
+
+  channels    String   @default("[\"dashboard\"]") // ["whatsapp","dashboard","sms"]
+
+  status      String   @default("draft")       // draft | scheduled | sending | sent | expired | cancelled
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  expiresAt   DateTime?
+
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deliveries      BroadcastDelivery[]
+  acknowledgements BroadcastAcknowledgement[]
+  auditLogs       BroadcastAuditLog[]
+
+  @@index([status, createdAt])
+  @@index([scope, level])
+}
+
+model BroadcastDelivery {
+  id           String   @id @default(uuid())
+  alertId      String
+  alert        BroadcastAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  userId       String?
+  userPhone    String
+  userName     String?
+  channel      String                       // whatsapp | sms | dashboard
+  status       String   @default("pending") // pending | sent | delivered | failed | read
+  errorMessage String?
+
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+
+  createdAt    DateTime @default(now())
+
+  @@index([alertId, status])
+  @@index([userPhone, createdAt])
+}
+
+model BroadcastAcknowledgement {
+  id              String   @id @default(uuid())
+  alertId         String
+  alert           BroadcastAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  userId          String?
+  userPhone       String
+  userName        String?
+
+  response        String?  // received | need_help | evacuated
+  location        Json?    // { "terminal": "T1", "gate": "B12", "zone": "B" }
+
+  acknowledgedAt  DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+
+  @@index([alertId, userId])
+  @@index([userPhone, acknowledgedAt])
+}
+
+model BroadcastAuditLog {
+  id          String   @id @default(uuid())
+  alertId     String
+  alert       BroadcastAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  action      String   // created | scheduled | sending_started | sending_completed | cancelled | expired | updated
+  performedBy String
+  performedAt DateTime @default(now())
+  metadata    Json?
+
+  @@index([alertId, performedAt])
 }
 
 model VerificationToken {

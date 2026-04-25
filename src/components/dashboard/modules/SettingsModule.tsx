@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { FlightProviderConfig } from './FlightProviderConfig'
 
 // ─── Types ───────────────────────────────────────────────────────
 interface SettingItem {
@@ -930,6 +931,11 @@ function ApiIntegrationsTab({
             <div className="relative"><Input type={showAviation ? 'text' : 'password'} value={aviationKey} onChange={(e) => setAviationKey(e.target.value)} placeholder="AVIATION_STACK_KEY" /><button type="button" onClick={() => setShowAviation(!showAviation)} className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2">{showAviation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
             <p className="text-xs text-muted-foreground">Pour le suivi des vols en temps réel (portes, retards).</p>
           </div>
+
+          <Separator />
+
+          {/* ── Sources de Données Vols (API-Agnostic) ── */}
+          <FlightProviderConfig />
 
           <Separator />
 

@@ -31,6 +31,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { RealTimeIndicator } from '@/components/dashboard/RealTimeIndicator'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { EmergencyBanner } from '@/components/emergency/EmergencyBanner'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -369,6 +370,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Page Content */}
         <main className="flex-1 p-4 md:p-6">
+          {/* Emergency Alert Banner — shown on all pages when active alerts exist */}
+          <EmergencyBanner />
           {children}
         </main>
       </SidebarInset>

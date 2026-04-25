@@ -17,6 +17,10 @@ import {
   Copy,
   ExternalLink,
   Search,
+  ScanLine,
+  UserPlus,
+  UserMinus,
+  ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,7 +62,7 @@ interface CheckInSession {
   gate: string | null
   terminal: string | null
   boardingPassUrl: string | null
-  status: 'detected' | 'link_generated' | 'checkin_initiated' | 'completed' | 'failed'
+  status: 'detected' | 'link_generated' | 'checkin_initiated' | 'completed' | 'failed' | 'pending' | 'expired'
   errorMessage: string | null
   createdAt: string
 }
@@ -74,6 +78,26 @@ interface CheckInTestForm {
   airline: string
   pnr: string
   phone: string
+  passengers: Passenger[]
+}
+
+interface Passenger {
+  id: string
+  nom: string
+  prenom: string
+  siege: string
+}
+
+interface DetectedFlight {
+  id: string
+  airlineName: string
+  airlineCode: string
+  flightNumber: string
+  departureDate: string
+  departureCode: string
+  arrivalCode: string
+  pnr?: string
+  passengerName?: string
 }
 
 // ─── Supported Airlines (18 West African & international carriers) ────────────
@@ -152,6 +176,13 @@ function getAirlineBadgeStyle(airline: string): string {
 
 function getStatusBadge(status: CheckInSession['status']) {
   switch (status) {
+    case 'pending':
+      return (
+        <Badge className="bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900/30 dark:text-gray-400 dark:border-gray-800 flex items-center gap-1">
+          <Clock className="size-3" />
+          En attente
+        </Badge>
+      )
     case 'detected':
       return (
         <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800 flex items-center gap-1">
@@ -177,7 +208,7 @@ function getStatusBadge(status: CheckInSession['status']) {
       return (
         <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800 flex items-center gap-1">
           <CheckCircle2 className="size-3" />
-          Complété
+          Terminé
         </Badge>
       )
     case 'failed':
@@ -187,6 +218,13 @@ function getStatusBadge(status: CheckInSession['status']) {
           Échoué
         </Badge>
       )
+    case 'expired':
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800 flex items-center gap-1">
+          <AlertTriangle className="size-3" />
+          Expiré
+        </Badge>
+      )
     default:
       return <Badge variant="secondary">{status}</Badge>
   }
@@ -194,36 +232,43 @@ function getStatusBadge(status: CheckInSession['status']) {
 
 function getStatusLabel(status: string): string {
   switch (status) {
+    case 'pending': return 'En attente'
     case 'detected': return 'Détecté'
     case 'link_generated': return 'Lien Généré'
     case 'checkin_initiated': return 'Check-in Lancé'
-    case 'completed': return 'Complété'
+    case 'completed': return 'Terminé'
     case 'failed': return 'Échoué'
+    case 'expired': return 'Expiré'
     default: return status
   }
 }
 
 function getStatusColor(status: string): string {
   switch (status) {
+    case 'pending': return 'bg-gray-500'
     case 'detected': return 'bg-yellow-500'
     case 'link_generated': return 'bg-blue-500'
     case 'checkin_initiated': return 'bg-orange-500'
     case 'completed': return 'bg-green-500'
     case 'failed': return 'bg-red-500'
+    case 'expired': return 'bg-yellow-500'
     default: return 'bg-gray-500'
   }
 }
 
 function getStatusBarColor(status: string): string {
   switch (status) {
+    case 'pending': return 'bg-gray-400'
     case 'detected': return 'bg-yellow-400'
     case 'link_generated': return 'bg-blue-400'
     case 'checkin_initiated': return 'bg-orange-400'
     case 'completed': return 'bg-green-400'
     case 'failed': return 'bg-red-400'
+    case 'expired': return 'bg-yellow-400'
     default: return 'bg-gray-400'
   }
 }
+
 
 function formatDateTime(dateStr: string): string {
   if (!dateStr) return '—'
@@ -238,6 +283,90 @@ function formatDateTime(dateStr: string): string {
   } catch {
     return dateStr
   }
+}
+
+function formatFlightDateTime(dateStr: string): string {
+  if (!dateStr) return '—'
+  try {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return dateStr
+  }
+}
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9)
+}
+
+// ─── Status Timeline Component ────────────────────────────────────────────────
+
+const STATUS_FLOW = ['pending', 'detected', 'link_generated', 'checkin_initiated', 'completed'] as const
+
+function StatusTimeline({ status }: { status: string }) {
+  // Map current status to an index in the flow
+  const statusIndexMap: Record<string, number> = {
+    pending: 0,
+    detected: 1,
+    link_generated: 2,
+    checkin_initiated: 3,
+    completed: 4,
+    failed: -1,
+    expired: -1,
+  }
+
+  const currentIndex = statusIndexMap[status] ?? 0
+  const isFailed = status === 'failed'
+  const isExpired = status === 'expired'
+
+  return (
+    <div className="flex items-center gap-1">
+      {STATUS_FLOW.map((step, idx) => {
+        const isActive = idx <= currentIndex
+        const isCurrent = step === status || (isFailed && idx === currentIndex) || (isExpired && idx === currentIndex)
+        const dotColor = isFailed
+          ? 'bg-red-500'
+          : isExpired
+            ? 'bg-yellow-500'
+            : isActive
+              ? 'bg-green-500'
+              : 'bg-gray-300 dark:bg-gray-600'
+
+        return (
+          <React.Fragment key={step}>
+            <div className="flex flex-col items-center gap-0.5">
+              <div
+                className={`size-2.5 rounded-full transition-all duration-300 ${dotColor} ${isCurrent ? 'ring-2 ring-offset-1 ring-offset-background ring-orange-400' : ''}`}
+                title={getStatusLabel(step)}
+              />
+              {idx === STATUS_FLOW.length - 1 && (
+                <span className="text-[8px] text-muted-foreground hidden lg:block w-6 text-center">
+                  {isFailed ? 'Échoué' : isExpired ? 'Expiré' : 'Terminé'}
+                </span>
+              )}
+            </div>
+            {idx < STATUS_FLOW.length - 1 && (
+              <div
+                className={`h-0.5 w-4 transition-colors duration-300 ${
+                  isActive && idx < currentIndex
+                    ? 'bg-green-400'
+                    : isFailed
+                      ? 'bg-red-300 dark:bg-red-800'
+                      : isExpired
+                        ? 'bg-yellow-300 dark:bg-yellow-800'
+                        : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              />
+            )}
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Stats Card ──────────────────────────────────────────────────────────────
@@ -289,6 +418,7 @@ export function CheckinModule() {
     airline: '',
     pnr: '',
     phone: '',
+    passengers: [{ id: generateId(), nom: '', prenom: '', siege: '' }],
   })
   const [testResult, setTestResult] = useState<{
     url: string
@@ -296,6 +426,11 @@ export function CheckinModule() {
     pnr: string
   } | null>(null)
   const [isTesting, setIsTesting] = useState(false)
+
+  // Detected flights state
+  const [detectedFlights, setDetectedFlights] = useState<DetectedFlight[]>([])
+  const [isDetecting, setIsDetecting] = useState(false)
+  const [showDetected, setShowDetected] = useState(false)
 
   // ── Data Fetching ───────────────────────────────────────────────────────
 
@@ -357,9 +492,107 @@ export function CheckinModule() {
     fetchData(false)
   }
 
+  const handleDetectFlights = async () => {
+    setIsDetecting(true)
+    setShowDetected(true)
+    try {
+      const res = await fetch('/api/ticket-scans?limit=5')
+      if (res.ok) {
+        const raw = await res.json()
+        const items = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw.data)
+            ? raw.data
+            : Array.isArray(raw.items)
+              ? raw.items
+              : []
+
+        // Filter for flights within 48 hours
+        const now = new Date()
+        const fortyEightHoursLater = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+
+        const upcomingFlights = items
+          .filter((item: Record<string, unknown>) => {
+            const depDate = item.departureDate || item.flightDate || item.date
+            if (!depDate) return false
+            try {
+              const date = new Date(depDate as string)
+              return date >= now && date <= fortyEightHoursLater
+            } catch {
+              return false
+            }
+          })
+          .map((item: Record<string, unknown>, idx: number) => ({
+            id: (item.id as string) || `detected-${idx}`,
+            airlineName: (item.airlineName || item.airline || '') as string,
+            airlineCode: (item.airlineCode || item.carrierCode || '') as string,
+            flightNumber: (item.flightNumber || '') as string,
+            departureDate: (item.departureDate || item.flightDate || item.date || '') as string,
+            departureCode: (item.departureCode || item.origin || '') as string,
+            arrivalCode: (item.arrivalCode || item.destination || '') as string,
+            pnr: (item.pnr || item.bookingReference || '') as string,
+            passengerName: (item.passengerName || item.name || '') as string,
+          })) as DetectedFlight[]
+
+        setDetectedFlights(upcomingFlights)
+        if (upcomingFlights.length === 0) {
+          toast.info('Aucun vol à venir détecté dans les 48 prochaines heures')
+        } else {
+          toast.success(`${upcomingFlights.length} vol(s) à venir détecté(s)`)
+        }
+      } else {
+        toast.error('Impossible de récupérer les scans de billets')
+        setDetectedFlights([])
+      }
+    } catch {
+      toast.error('Erreur lors de la détection des vols')
+      setDetectedFlights([])
+    }
+    setIsDetecting(false)
+  }
+
+  const handlePrefillFromDetected = (flight: DetectedFlight) => {
+    setTestForm({
+      airline: flight.airlineName,
+      pnr: flight.pnr || '',
+      phone: testForm.phone,
+      passengers: flight.passengerName
+        ? [{ id: generateId(), nom: '', prenom: flight.passengerName, siege: '' }]
+        : testForm.passengers,
+    })
+    setActiveTestTab('manual')
+    toast.success('Formulaire pré-rempli avec les données du vol détecté')
+  }
+
+  const [activeTestTab, setActiveTestTab] = useState<string>('detect')
+
+  // Passenger management
+  const addPassenger = () => {
+    setTestForm((prev) => ({
+      ...prev,
+      passengers: [...prev.passengers, { id: generateId(), nom: '', prenom: '', siege: '' }],
+    }))
+  }
+
+  const removePassenger = (id: string) => {
+    setTestForm((prev) => ({
+      ...prev,
+      passengers: prev.passengers.filter((p) => p.id !== id),
+    }))
+  }
+
+  const updatePassenger = (id: string, field: keyof Passenger, value: string) => {
+    setTestForm((prev) => ({
+      ...prev,
+      passengers: prev.passengers.map((p) =>
+        p.id === id ? { ...p, [field]: value } : p,
+      ),
+    }))
+  }
+
   const handleTestCheckIn = async () => {
     if (!testForm.airline || !testForm.pnr || !testForm.phone) {
-      toast.error('Veuillez remplir tous les champs')
+      toast.error('Veuillez remplir tous les champs obligatoires')
       return
     }
 
@@ -375,6 +608,7 @@ export function CheckinModule() {
           flightNumber: 'TEST',
           airline: testForm.airline,
           pnr: testForm.pnr,
+          passengers: testForm.passengers.filter((p) => p.nom || p.prenom),
         }),
       })
 
@@ -675,15 +909,19 @@ export function CheckinModule() {
             {stats.statusBreakdown.map((item) => (
               <Badge
                 key={item.status}
-                className={`${item.status === 'detected'
-                    ? 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400'
-                    : item.status === 'link_generated'
-                      ? 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400'
-                      : item.status === 'checkin_initiated'
-                        ? 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400'
-                        : item.status === 'completed'
-                          ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400'
+                className={`${item.status === 'pending'
+                    ? 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900/30 dark:text-gray-400'
+                    : item.status === 'detected'
+                      ? 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400'
+                      : item.status === 'link_generated'
+                        ? 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400'
+                        : item.status === 'checkin_initiated'
+                          ? 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400'
+                          : item.status === 'completed'
+                            ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400'
+                            : item.status === 'expired'
+                              ? 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              : 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400'
                   } border px-3 py-1`}
               >
                 {getStatusLabel(item.status)} ({item.count})
@@ -712,13 +950,14 @@ export function CheckinModule() {
                         <TableHead>Porte</TableHead>
                         <TableHead>Siège</TableHead>
                         <TableHead>Statut</TableHead>
+                        <TableHead className="hidden lg:table-cell">Timeline</TableHead>
                         <TableHead>Date</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredSessions.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                          <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                             Aucune session trouvée.
                           </TableCell>
                         </TableRow>
@@ -763,6 +1002,9 @@ export function CheckinModule() {
                             <TableCell>
                               {getStatusBadge(session.status)}
                             </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              <StatusTimeline status={session.status} />
+                            </TableCell>
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                               {formatDateTime(session.createdAt)}
                             </TableCell>
@@ -779,182 +1021,430 @@ export function CheckinModule() {
 
         {/* ── Tab: Tester ────────────────────────────────────────────────── */}
         <TabsContent value="tester" className="space-y-6 mt-4">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {/* Test Form */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Link2 className="size-4 text-orange-500" />
-                  Simuler un Check-in
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="test-airline">Compagnie Aérienne *</Label>
-                  <Select
-                    value={testForm.airline}
-                    onValueChange={(value) =>
-                      setTestForm((prev) => ({ ...prev, airline: value }))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Sélectionner une compagnie" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SUPPORTED_AIRLINES.map((airline) => (
-                        <SelectItem key={airline.code} value={airline.name}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {airline.code}
-                            </span>
-                            <span>{airline.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          {/* Sub-tabs for Detect / Manual */}
+          <div className="flex gap-2">
+            <Button
+              variant={activeTestTab === 'detect' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTestTab('detect')}
+              className={activeTestTab === 'detect' ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}
+            >
+              <ScanLine className="mr-1.5 size-4" />
+              Détecter mes vols
+            </Button>
+            <Button
+              variant={activeTestTab === 'manual' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTestTab('manual')}
+              className={activeTestTab === 'manual' ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}
+            >
+              <Ticket className="mr-1.5 size-4" />
+              Check-in manuel
+            </Button>
+          </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="test-pnr">Numéro PNR *</Label>
-                  <Input
-                    id="test-pnr"
-                    placeholder="Ex: XYZ123AB"
-                    value={testForm.pnr}
-                    onChange={(e) =>
-                      setTestForm((prev) => ({ ...prev, pnr: e.target.value.toUpperCase() }))
-                    }
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Numéro de réservation de 6 caractères (ex: XYZ123AB)
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="test-phone">Numéro de Téléphone *</Label>
-                  <Input
-                    id="test-phone"
-                    placeholder="Ex: +221 77 123 45 67"
-                    value={testForm.phone}
-                    onChange={(e) =>
-                      setTestForm((prev) => ({ ...prev, phone: e.target.value }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Numéro de téléphone du passager pour la notification
-                  </p>
-                </div>
-
-                <Button
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={handleTestCheckIn}
-                  disabled={isTesting || !testForm.airline || !testForm.pnr || !testForm.phone}
-                >
-                  {isTesting ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Génération en cours...
-                    </>
-                  ) : (
-                    <>
-                      <Link2 className="size-4" />
-                      Générer le Lien de Check-in
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Result Display */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ExternalLink className="size-4 text-orange-500" />
-                  Résultat de la Génération
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {testResult ? (
-                  <div className="space-y-4">
-                    {/* Success Banner */}
-                    <div className="flex items-center gap-3 rounded-lg bg-green-50 border border-green-200 p-4 dark:bg-green-950/30 dark:border-green-800">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
-                        <CheckCircle2 className="size-5 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-green-700 dark:text-green-400">
-                          Lien généré avec succès
-                        </p>
-                        <p className="text-xs text-green-600 dark:text-green-500">
-                          Le lien de check-in a été créé pour {testResult.airline}
-                        </p>
-                      </div>
+          {/* Detect Flights Section */}
+          {activeTestTab === 'detect' && (
+            <div className="space-y-4">
+              {/* Detect Button */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex flex-col items-center text-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-100 dark:bg-orange-900/30">
+                      <ScanLine className="size-8 text-orange-500" />
                     </div>
-
-                    {/* Link Details */}
-                    <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                          <span className="text-xs text-muted-foreground">Compagnie</span>
-                          <p className="text-sm font-medium">{testResult.airline}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground">PNR</span>
-                          <p className="text-sm font-mono font-medium">{testResult.pnr}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">Lien de Check-in</span>
-                        <div className="mt-1 flex items-center gap-2">
-                          <div className="flex-1 rounded-md border bg-background px-3 py-2 text-xs font-mono break-all text-blue-600 dark:text-blue-400">
-                            {testResult.url}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleCopyLink(testResult.url)}
-                        >
-                          <Copy className="size-3.5" />
-                          Copier le Lien
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                          onClick={() => window.open(testResult.url, '_blank')}
-                        >
-                          <ExternalLink className="size-3.5" />
-                          Ouvrir le Lien
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Info Note */}
-                    <div className="flex items-start gap-2 rounded-lg border border-dashed border-orange-200 bg-orange-50/50 p-3 dark:bg-orange-950/20">
-                      <AlertTriangle className="size-4 text-orange-500 shrink-0 mt-0.5" />
-                      <p className="text-xs text-muted-foreground">
-                        Ce lien redirige vers la page de check-in officielle de la compagnie. Le passager
-                        devra saisir son PNR et ses informations personnelles pour finaliser le check-in.
+                    <div>
+                      <h3 className="text-base font-semibold">Détection automatique des vols</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                        Scannez vos billets d&apos;avion via l&apos;OCR pour détecter automatiquement vos vols à venir dans les 48 prochaines heures.
                       </p>
                     </div>
+                    <Button
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={handleDetectFlights}
+                      disabled={isDetecting}
+                    >
+                      {isDetecting ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          Détection en cours...
+                        </>
+                      ) : (
+                        <>
+                          <ScanLine className="size-4" />
+                          Détecter mes vols
+                        </>
+                      )}
+                    </Button>
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
-                      <Ticket className="size-8 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground max-w-xs">
-                      Remplissez le formulaire pour simuler la génération d&apos;un lien de check-in automatique
+                </CardContent>
+              </Card>
+
+              {/* Detected Flights List */}
+              {showDetected && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Plane className="size-4 text-orange-500" />
+                      Vols détectés
+                      {detectedFlights.length > 0 && (
+                        <Badge className="ml-2 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                          {detectedFlights.length}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {detectedFlights.length === 0 && !isDetecting ? (
+                      <div className="flex flex-col items-center py-8 text-center">
+                        <Plane className="size-10 text-muted-foreground/30 mb-3" />
+                        <p className="text-sm text-muted-foreground">
+                          Aucun vol à venir détecté dans les 48 prochaines heures.
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Scannez vos billets pour permettre la détection.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {detectedFlights.map((flight) => (
+                          <div
+                            key={flight.id}
+                            className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/30"
+                          >
+                            {/* Airline Color Indicator */}
+                            <div
+                              className={`size-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${getAirlineColor(flight.airlineName)}`}
+                            >
+                              {flight.airlineCode ? flight.airlineCode.substring(0, 2) : '?'}
+                            </div>
+
+                            {/* Flight Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm">{flight.airlineName}</span>
+                                <span className="font-mono text-sm text-muted-foreground">
+                                  {flight.flightNumber}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-muted-foreground">
+                                  {formatFlightDateTime(flight.departureDate)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-sm">
+                                <span className="font-mono font-medium">{flight.departureCode}</span>
+                                <ChevronRight className="size-3 text-muted-foreground" />
+                                <span className="font-mono font-medium">{flight.arrivalCode}</span>
+                              </div>
+                              {flight.passengerName && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Passager : {flight.passengerName}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Action Button */}
+                            <Button
+                              size="sm"
+                              className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                              onClick={() => handlePrefillFromDetected(flight)}
+                            >
+                              <CheckCircle2 className="size-3.5 mr-1" />
+                              Faire le check-in
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Manual Check-in Section */}
+          {activeTestTab === 'manual' && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {/* Test Form */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Link2 className="size-4 text-orange-500" />
+                    Simuler un Check-in
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="test-airline">Compagnie Aérienne *</Label>
+                    <Select
+                      value={testForm.airline}
+                      onValueChange={(value) =>
+                        setTestForm((prev) => ({ ...prev, airline: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Sélectionner une compagnie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUPPORTED_AIRLINES.map((airline) => (
+                          <SelectItem key={airline.code} value={airline.name}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {airline.code}
+                              </span>
+                              <span>{airline.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="test-pnr">Numéro PNR *</Label>
+                    <Input
+                      id="test-pnr"
+                      placeholder="Ex: XYZ123AB"
+                      value={testForm.pnr}
+                      onChange={(e) =>
+                        setTestForm((prev) => ({ ...prev, pnr: e.target.value.toUpperCase() }))
+                      }
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Numéro de réservation de 6 caractères (ex: XYZ123AB)
                     </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="test-phone">Numéro de Téléphone *</Label>
+                    <Input
+                      id="test-phone"
+                      placeholder="Ex: +221 77 123 45 67"
+                      value={testForm.phone}
+                      onChange={(e) =>
+                        setTestForm((prev) => ({ ...prev, phone: e.target.value }))
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Numéro de téléphone du passager pour la notification
+                    </p>
+                  </div>
+
+                  {/* Multi-passenger Support */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">
+                        Passagers
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">
+                          <Users className="mr-1 size-2.5" />
+                          {testForm.passengers.length} passager(s)
+                        </Badge>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={addPassenger}
+                        >
+                          <UserPlus className="size-3 mr-1" />
+                          Ajouter
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {testForm.passengers.map((passenger, index) => (
+                        <div key={passenger.id} className="flex items-start gap-2">
+                          <div className="grid grid-cols-3 gap-2 flex-1">
+                            <div>
+                              {index === 0 && (
+                                <span className="text-[10px] text-muted-foreground">Nom</span>
+                              )}
+                              <Input
+                                placeholder="Nom"
+                                value={passenger.nom}
+                                onChange={(e) => updatePassenger(passenger.id, 'nom', e.target.value)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              {index === 0 && (
+                                <span className="text-[10px] text-muted-foreground">Prénom</span>
+                              )}
+                              <Input
+                                placeholder="Prénom"
+                                value={passenger.prenom}
+                                onChange={(e) => updatePassenger(passenger.id, 'prenom', e.target.value)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            <div>
+                              {index === 0 && (
+                                <span className="text-[10px] text-muted-foreground">Siège (opt.)</span>
+                              )}
+                              <Input
+                                placeholder="Ex: 12A"
+                                value={passenger.siege}
+                                onChange={(e) => updatePassenger(passenger.id, 'siege', e.target.value.toUpperCase())}
+                                className="h-8 text-sm font-mono"
+                              />
+                            </div>
+                          </div>
+                          {testForm.passengers.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive shrink-0 mt-3"
+                              onClick={() => removePassenger(passenger.id)}
+                            >
+                              <UserMinus className="size-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={handleTestCheckIn}
+                    disabled={isTesting || !testForm.airline || !testForm.pnr || !testForm.phone}
+                  >
+                    {isTesting ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Génération en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Link2 className="size-4" />
+                        Générer le Lien de Check-in
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Result Display */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ExternalLink className="size-4 text-orange-500" />
+                    Résultat de la Génération
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {testResult ? (
+                    <div className="space-y-4">
+                      {/* Success Banner */}
+                      <div className="flex items-center gap-3 rounded-lg bg-green-50 border border-green-200 p-4 dark:bg-green-950/30 dark:border-green-800">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
+                          <CheckCircle2 className="size-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-green-700 dark:text-green-400">
+                            Lien généré avec succès
+                          </p>
+                          <p className="text-xs text-green-600 dark:text-green-500">
+                            Le lien de check-in a été créé pour {testResult.airline}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Link Details */}
+                      <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div>
+                            <span className="text-xs text-muted-foreground">Compagnie</span>
+                            <p className="text-sm font-medium">{testResult.airline}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground">PNR</span>
+                            <p className="text-sm font-mono font-medium">{testResult.pnr}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">Lien de Check-in</span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <div className="flex-1 rounded-md border bg-background px-3 py-2 text-xs font-mono break-all text-blue-600 dark:text-blue-400">
+                              {testResult.url}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleCopyLink(testResult.url)}
+                          >
+                            <Copy className="size-3.5" />
+                            Copier le Lien
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                            onClick={() => window.open(testResult.url, '_blank')}
+                          >
+                            <ExternalLink className="size-3.5" />
+                            Ouvrir le Lien
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Passengers Summary */}
+                      {testForm.passengers.some((p) => p.nom || p.prenom) && (
+                        <div className="rounded-lg border bg-muted/30 p-3">
+                          <span className="text-xs text-muted-foreground font-medium">
+                            Passagers ({testForm.passengers.filter((p) => p.nom || p.prenom).length})
+                          </span>
+                          <div className="mt-2 space-y-1">
+                            {testForm.passengers
+                              .filter((p) => p.nom || p.prenom)
+                              .map((p) => (
+                                <div key={p.id} className="flex items-center justify-between text-sm">
+                                  <span>
+                                    {p.prenom} {p.nom}
+                                  </span>
+                                  {p.siege && (
+                                    <span className="font-mono text-xs text-muted-foreground">
+                                      Siège {p.siege}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Info Note */}
+                      <div className="flex items-start gap-2 rounded-lg border border-dashed border-orange-200 bg-orange-50/50 p-3 dark:bg-orange-950/20">
+                        <AlertTriangle className="size-4 text-orange-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-muted-foreground">
+                          Ce lien redirige vers la page de check-in officielle de la compagnie. Le passager
+                          devra saisir son PNR et ses informations personnelles pour finaliser le check-in.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
+                        <Ticket className="size-8 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm text-muted-foreground max-w-xs">
+                        Remplissez le formulaire pour simuler la génération d&apos;un lien de check-in automatique
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

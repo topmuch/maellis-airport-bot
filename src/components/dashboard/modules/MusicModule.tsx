@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Slider } from '@/components/ui/slider'
 import {
   Select,
   SelectContent,
@@ -23,9 +24,6 @@ import {
   Trash2,
   Edit3,
   BarChart3,
-  Eye,
-  EyeOff,
-  ExternalLink,
   Youtube,
   Loader2,
   X,
@@ -34,6 +32,18 @@ import {
   Layers,
   Headphones,
   TrendingUp,
+  Heart,
+  ListMusic,
+  SkipForward,
+  SkipBack,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Volume2,
+  VolumeX,
+  ChevronUp,
+  ChevronDown,
+  ListPlus,
 } from 'lucide-react'
 import {
   getYouTubeEmbedUrl,
@@ -104,6 +114,8 @@ interface TrackFormData {
   sortOrder: number
 }
 
+type RepeatMode = 'off' | 'all' | 'one'
+
 const emptyCategoryForm: CategoryFormData = {
   name: '',
   slug: '',
@@ -122,6 +134,71 @@ const emptyTrackForm: TrackFormData = {
   sortOrder: 0,
 }
 
+// ─── localStorage helpers ───────────────────────────────
+
+const STORAGE_KEYS = {
+  queue: 'smartly_music_queue',
+  favorites: 'smartly_music_favorites',
+  volume: 'smartly_music_volume',
+} as const
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function saveToStorage(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // storage full or unavailable
+  }
+}
+
+// ─── Equalizer Animation Component ──────────────────────
+
+function EqualizerBars() {
+  return (
+    <div className="flex items-end gap-0.5 size-4">
+      <div className="w-[3px] bg-orange-500 rounded-full animate-equalizer-bar-1" style={{ height: '60%', animationDelay: '0s' }} />
+      <div className="w-[3px] bg-orange-400 rounded-full animate-equalizer-bar-2" style={{ height: '100%', animationDelay: '0.15s' }} />
+      <div className="w-[3px] bg-orange-500 rounded-full animate-equalizer-bar-3" style={{ height: '40%', animationDelay: '0.3s' }} />
+      <div className="w-[3px] bg-orange-400 rounded-full animate-equalizer-bar-4" style={{ height: '80%', animationDelay: '0.45s' }} />
+    </div>
+  )
+}
+
+// ─── Parse duration string to seconds ───────────────────
+
+function parseDurationToSeconds(duration: string | null): number {
+  if (!duration) return 210 // default 3:30
+  const parts = duration.split(':')
+  if (parts.length === 2) {
+    const mins = parseInt(parts[0], 10)
+    const secs = parseInt(parts[1], 10)
+    if (!isNaN(mins) && !isNaN(secs)) return mins * 60 + secs
+  }
+  if (parts.length === 3) {
+    const hrs = parseInt(parts[0], 10)
+    const mins = parseInt(parts[1], 10)
+    const secs = parseInt(parts[2], 10)
+    if (!isNaN(hrs) && !isNaN(mins) && !isNaN(secs)) return hrs * 3600 + mins * 60 + secs
+  }
+  return 210
+}
+
+function formatSeconds(totalSeconds: number): string {
+  const mins = Math.floor(totalSeconds / 60)
+  const secs = Math.floor(totalSeconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 // ─── Module Component ───────────────────────────────────
 
 export function MusicModule() {
@@ -135,11 +212,31 @@ export function MusicModule() {
 
   // UI state
   const [activeTab, setActiveTab] = useState<
-    'lecteur' | 'categories' | 'tracks' | 'stats'
+    'lecteur' | 'categories' | 'tracks' | 'stats' | 'queue'
   >('lecteur')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null)
   const [thumbErrors, setThumbErrors] = useState<Set<string>>(new Set())
+
+  // Favorites state
+  const [favorites, setFavorites] = useState<string[]>(() =>
+    loadFromStorage<string[]>(STORAGE_KEYS.favorites, [])
+  )
+
+  // Queue state
+  const [queue, setQueue] = useState<string[]>(() =>
+    loadFromStorage<string[]>(STORAGE_KEYS.queue, [])
+  )
+
+  // Playback controls
+  const [shuffleOn, setShuffleOn] = useState(false)
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off')
+  const [volume, setVolume] = useState(() => loadFromStorage<number>(STORAGE_KEYS.volume, 80))
+  const [progress, setProgress] = useState(0) // 0-100 simulated
+  const [currentTime, setCurrentTime] = useState(0) // seconds simulated
+
+  // Track favorites filter
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 
   // Admin form state — categories
   const [showCategoryForm, setShowCategoryForm] = useState(false)
@@ -153,6 +250,58 @@ export function MusicModule() {
   const [trackForm, setTrackForm] = useState<TrackFormData>(emptyTrackForm)
   const [savingTrack, setSavingTrack] = useState(false)
   const [adminCategoryFilter, setAdminCategoryFilter] = useState<string>('all')
+
+  // Simulated playback timer ref
+  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ─── Persist state to localStorage ────────────────────
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.favorites, favorites)
+  }, [favorites])
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.queue, queue)
+  }, [queue])
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.volume, volume)
+  }, [volume])
+
+  // ─── Simulated Playback Progress ─────────────────────
+
+  const playingTrack = publicTracks.find((t) => t.id === playingTrackId) || null
+  const totalDuration = playingTrack ? parseDurationToSeconds(playingTrack.duration) : 210
+
+  useEffect(() => {
+    if (playbackTimerRef.current) {
+      clearInterval(playbackTimerRef.current)
+      playbackTimerRef.current = null
+    }
+
+    if (playingTrackId) {
+      playbackTimerRef.current = setInterval(() => {
+        setCurrentTime((prev) => {
+          const next = prev + 1
+          if (next >= totalDuration) {
+            // Track ended — handle next
+            handleTrackEnd()
+            return 0
+          }
+          setProgress((next / totalDuration) * 100)
+          return next
+        })
+      }, 1000)
+    } else {
+      setProgress(0)
+      setCurrentTime(0)
+    }
+
+    return () => {
+      if (playbackTimerRef.current) clearInterval(playbackTimerRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playingTrackId, totalDuration])
 
   // ─── Data Loading ────────────────────────────────────
 
@@ -196,12 +345,18 @@ export function MusicModule() {
       ? publicTracks
       : publicTracks.filter((t) => t.categoryId === selectedCategory)
 
+  const displayTracks = showFavoritesOnly
+    ? filteredPublicTracks.filter((t) => favorites.includes(t.id))
+    : filteredPublicTracks
+
   const handlePlayTrack = async (track: Track) => {
     if (playingTrackId === track.id) {
       setPlayingTrackId(null)
       return
     }
     setPlayingTrackId(track.id)
+    setProgress(0)
+    setCurrentTime(0)
     try {
       await fetch(`/api/music/tracks/${track.id}`, { method: 'POST' })
     } catch (error) {
@@ -209,8 +364,137 @@ export function MusicModule() {
     }
   }
 
+  const handlePlayFromQueue = async (trackId: string) => {
+    setPlayingTrackId(trackId)
+    setProgress(0)
+    setCurrentTime(0)
+    const track = publicTracks.find((t) => t.id === trackId)
+    if (track) {
+      try {
+        await fetch(`/api/music/tracks/${track.id}`, { method: 'POST' })
+      } catch (error) {
+        console.error('Failed to record play:', error)
+      }
+    }
+  }
+
+  const handleTrackEnd = useCallback(() => {
+    if (queue.length === 0) {
+      setPlayingTrackId(null)
+      setProgress(0)
+      setCurrentTime(0)
+      return
+    }
+
+    const currentIdx = queue.indexOf(playingTrackId || '')
+    let nextIdx: number
+
+    if (shuffleOn) {
+      nextIdx = Math.floor(Math.random() * queue.length)
+    } else {
+      nextIdx = currentIdx + 1
+    }
+
+    if (nextIdx >= queue.length) {
+      if (repeatMode === 'all') {
+        nextIdx = 0
+      } else if (repeatMode === 'one') {
+        nextIdx = currentIdx >= 0 ? currentIdx : 0
+      } else {
+        setPlayingTrackId(null)
+        setProgress(0)
+        setCurrentTime(0)
+        return
+      }
+    }
+
+    const nextTrackId = queue[nextIdx]
+    if (nextTrackId) {
+      setPlayingTrackId(nextTrackId)
+      setProgress(0)
+      setCurrentTime(0)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue, playingTrackId, shuffleOn, repeatMode])
+
+  const handleNext = () => {
+    if (queue.length === 0) return
+    const currentIdx = queue.indexOf(playingTrackId || '')
+    let nextIdx: number
+    if (shuffleOn) {
+      nextIdx = Math.floor(Math.random() * queue.length)
+    } else {
+      nextIdx = currentIdx + 1
+      if (nextIdx >= queue.length) nextIdx = 0
+    }
+    const nextTrackId = queue[nextIdx]
+    if (nextTrackId) {
+      setPlayingTrackId(nextTrackId)
+      setProgress(0)
+      setCurrentTime(0)
+    }
+  }
+
+  const handlePrevious = () => {
+    if (queue.length === 0) return
+    const currentIdx = queue.indexOf(playingTrackId || '')
+    let prevIdx = currentIdx - 1
+    if (prevIdx < 0) prevIdx = queue.length - 1
+    const prevTrackId = queue[prevIdx]
+    if (prevTrackId) {
+      setPlayingTrackId(prevTrackId)
+      setProgress(0)
+      setCurrentTime(0)
+    }
+  }
+
+  const handleSeek = (value: number[]) => {
+    const pct = value[0]
+    setProgress(pct)
+    setCurrentTime((pct / 100) * totalDuration)
+  }
+
   const handleThumbError = (trackId: string) => {
     setThumbErrors((prev) => new Set(prev).add(trackId))
+  }
+
+  // ─── Queue Management ────────────────────────────────
+
+  const addToQueue = (trackId: string) => {
+    setQueue((prev) => {
+      if (prev.includes(trackId)) return prev
+      return [...prev, trackId]
+    })
+  }
+
+  const removeFromQueue = (trackId: string) => {
+    setQueue((prev) => prev.filter((id) => id !== trackId))
+  }
+
+  const clearQueue = () => {
+    setQueue([])
+  }
+
+  const moveInQueue = (fromIdx: number, direction: 'up' | 'down') => {
+    const toIdx = direction === 'up' ? fromIdx - 1 : fromIdx + 1
+    if (toIdx < 0 || toIdx >= queue.length) return
+    setQueue((prev) => {
+      const newQueue = [...prev]
+      const temp = newQueue[fromIdx]
+      newQueue[fromIdx] = newQueue[toIdx]
+      newQueue[toIdx] = temp
+      return newQueue
+    })
+  }
+
+  // ─── Favorites Management ────────────────────────────
+
+  const toggleFavorite = (trackId: string) => {
+    setFavorites((prev) =>
+      prev.includes(trackId)
+        ? prev.filter((id) => id !== trackId)
+        : [...prev, trackId]
+    )
   }
 
   // ─── Category CRUD ──────────────────────────────────
@@ -392,6 +676,14 @@ export function MusicModule() {
         )
       : null
 
+  // ─── Queue Tab Count Helper ─────────────────────────
+
+  const queueTabLabel = queue.length > 0 ? `📋 File (${queue.length})` : '📋 File'
+
+  const favoritesTabLabel = favorites.length > 0
+    ? `❤️ Mes favoris (${favorites.length})`
+    : '❤️ Mes favoris'
+
   // ─── Render ─────────────────────────────────────────
 
   return (
@@ -413,6 +705,7 @@ export function MusicModule() {
         {(
           [
             { key: 'lecteur', label: '🎧 Lecteur', icon: Headphones },
+            { key: 'queue', label: queueTabLabel, icon: ListMusic },
             { key: 'categories', label: '🏷️ Catégories', icon: Layers },
             { key: 'tracks', label: '🎵 Tracks', icon: Disc3 },
             { key: 'stats', label: '📊 Statistiques', icon: BarChart3 },
@@ -434,7 +727,274 @@ export function MusicModule() {
       </div>
 
       {/* ═══════════════════════════════════════════════ */}
-      {/* TAB 1: Lecteur (Player View)                   */}
+      {/* TAB: File d&apos;attente (Queue)               */}
+      {/* ═══════════════════════════════════════════════ */}
+      {activeTab === 'queue' && (
+        <div className="space-y-4">
+          {/* Now Playing Bar */}
+          {playingTrack && (
+            <Card className="border-orange-500/30 bg-gradient-to-r from-orange-50/50 to-amber-50/50 dark:from-orange-950/20 dark:to-amber-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative aspect-video overflow-hidden rounded-lg size-16 shrink-0">
+                    <iframe
+                      src={getYouTubeEmbedUrl(playingTrack.youtubeId, true)}
+                      title={playingTrack.title}
+                      className="absolute inset-0 size-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <EqualizerBars />
+                      <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">En lecture</span>
+                    </div>
+                    <p className="text-sm font-semibold truncate mt-1">{playingTrack.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">{playingTrack.artist || 'Artiste inconnu'}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setPlayingTrackId(null)}
+                  >
+                    <Pause className="size-4" />
+                  </Button>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mt-3 space-y-1">
+                  <Slider
+                    value={[progress]}
+                    onValueChange={handleSeek}
+                    max={100}
+                    step={0.5}
+                    className="cursor-pointer"
+                  />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{formatSeconds(currentTime)}</span>
+                    <span>{playingTrack.duration || '3:30'}</span>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="mt-3 flex items-center justify-between">
+                  {/* Shuffle + Repeat */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`h-8 w-8 p-0 ${shuffleOn ? 'text-orange-500' : 'text-muted-foreground'}`}
+                      onClick={() => setShuffleOn(!shuffleOn)}
+                      title={shuffleOn ? 'Mélange activé' : 'Mélange désactivé'}
+                    >
+                      <Shuffle className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`h-8 w-8 p-0 ${repeatMode !== 'off' ? 'text-orange-500' : 'text-muted-foreground'}`}
+                      onClick={() => {
+                        if (repeatMode === 'off') setRepeatMode('all')
+                        else if (repeatMode === 'all') setRepeatMode('one')
+                        else setRepeatMode('off')
+                      }}
+                      title={repeatMode === 'off' ? 'Répétition désactivée' : repeatMode === 'all' ? 'Répéter tout' : 'Répéter un seul'}
+                    >
+                      {repeatMode === 'one' ? <Repeat1 className="size-4" /> : <Repeat className="size-4" />}
+                    </Button>
+                  </div>
+
+                  {/* Prev / Next */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={handlePrevious}
+                      disabled={queue.length === 0}
+                    >
+                      <SkipBack className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={handleNext}
+                      disabled={queue.length === 0}
+                    >
+                      <SkipForward className="size-4" />
+                    </Button>
+                  </div>
+
+                  {/* Volume */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setVolume(volume === 0 ? 80 : 0)}
+                    >
+                      {volume === 0 ? (
+                        <VolumeX className="size-4 text-muted-foreground" />
+                      ) : (
+                        <Volume2 className="size-4" />
+                      )}
+                    </Button>
+                    <div className="w-20">
+                      <Slider
+                        value={[volume]}
+                        onValueChange={(v) => setVolume(v[0])}
+                        max={100}
+                        step={1}
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Queue Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <ListMusic className="size-4 text-orange-500" />
+              File d&apos;attente
+              {queue.length > 0 && (
+                <Badge variant="secondary">{queue.length}</Badge>
+              )}
+            </h3>
+            {queue.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={clearQueue}
+              >
+                <Trash2 className="size-3.5 mr-1" />
+                Vider la file
+              </Button>
+            )}
+          </div>
+
+          {/* Queue List */}
+          <Card>
+            <CardContent className="p-0">
+              {queue.length === 0 ? (
+                <div className="flex flex-col items-center py-12 text-center">
+                  <ListMusic className="size-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    La file d&apos;attente est vide
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ajoutez des pistes depuis l&apos;onglet Lecteur
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto divide-y">
+                  {queue.map((trackId, idx) => {
+                    const track = publicTracks.find((t) => t.id === trackId)
+                    if (!track) return null
+                    const isCurrent = playingTrackId === track.id
+                    return (
+                      <div
+                        key={track.id}
+                        className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 ${isCurrent ? 'bg-orange-50/50 dark:bg-orange-950/10' : ''}`}
+                      >
+                        {/* Now playing indicator */}
+                        <div className="w-6 shrink-0 flex justify-center">
+                          {isCurrent ? (
+                            <EqualizerBars />
+                          ) : (
+                            <span className="text-xs text-muted-foreground font-medium">{idx + 1}</span>
+                          )}
+                        </div>
+
+                        {/* Thumbnail */}
+                        <img
+                          src={
+                            track.thumbnailUrl ||
+                            getYouTubeThumbnail(track.youtubeId)
+                          }
+                          alt=""
+                          className="size-10 rounded object-cover shrink-0"
+                          style={{ aspectRatio: '16/9' }}
+                          loading="lazy"
+                        />
+
+                        {/* Track Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isCurrent ? 'text-orange-600 dark:text-orange-400' : ''}`}>
+                            {track.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {track.artist || 'Artiste inconnu'}
+                          </p>
+                        </div>
+
+                        {/* Duration */}
+                        <span className="text-xs text-muted-foreground font-mono shrink-0">
+                          {track.duration || '3:30'}
+                        </span>
+
+                        {/* Reorder Buttons */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => moveInQueue(idx, 'up')}
+                            disabled={idx === 0}
+                          >
+                            <ChevronUp className="size-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => moveInQueue(idx, 'down')}
+                            disabled={idx === queue.length - 1}
+                          >
+                            <ChevronDown className="size-3" />
+                          </Button>
+                        </div>
+
+                        {/* Play / Remove */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          {!isCurrent && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handlePlayFromQueue(track.id)}
+                            >
+                              <Play className="size-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                            onClick={() => removeFromQueue(track.id)}
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════ */}
+      {/* TAB: Lecteur (Player View)                   */}
       {/* ═══════════════════════════════════════════════ */}
       {activeTab === 'lecteur' && (
         <div className="space-y-4">
@@ -471,18 +1031,32 @@ export function MusicModule() {
           </div>
 
           {/* Track Grid */}
-          {filteredPublicTracks.length === 0 ? (
+          {displayTracks.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Music className="mb-3 size-12 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">Aucune piste disponible</p>
+                <p className="text-sm text-muted-foreground">
+                  {showFavoritesOnly ? 'Aucun favori trouvé' : 'Aucune piste disponible'}
+                </p>
+                {showFavoritesOnly && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => setShowFavoritesOnly(false)}
+                  >
+                    Voir toutes les pistes
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-              {filteredPublicTracks.map((track) => {
+              {displayTracks.map((track) => {
                 const isPlaying = playingTrackId === track.id
                 const hasThumbError = thumbErrors.has(track.id)
+                const isFavorite = favorites.includes(track.id)
+                const isInQueue = queue.includes(track.id)
                 return (
                   <div key={track.id} className="group space-y-2">
                     {/* Thumbnail / Iframe */}
@@ -534,6 +1108,39 @@ export function MusicModule() {
                               )}
                             </div>
                           </button>
+
+                          {/* Favorite Button (top-right) */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(track.id)
+                            }}
+                            className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/60"
+                          >
+                            <Heart
+                              className={`size-3.5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`}
+                            />
+                          </button>
+
+                          {/* Queue Button (top-left) */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              addToQueue(track.id)
+                            }}
+                            className="absolute top-2 left-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/60"
+                            title="Ajouter à la file"
+                          >
+                            <ListPlus className={`size-3.5 ${isInQueue ? 'text-orange-400' : 'text-white'}`} />
+                          </button>
+
+                          {/* Now Playing Indicator */}
+                          {isPlaying && (
+                            <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/50 px-2 py-1">
+                              <EqualizerBars />
+                              <span className="text-[10px] text-white font-medium">En lecture</span>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -550,21 +1157,40 @@ export function MusicModule() {
                       )}
                     </div>
 
-                    {/* Bottom row: play count + youtube link */}
+                    {/* Bottom row: actions */}
                     <div className="flex items-center justify-between">
-                      <Badge variant="secondary" className="text-[10px]">
-                        <Play className="mr-1 size-2.5" />
-                        {track.playCount}
-                      </Badge>
-                      <a
-                        href={getYouTubeWatchUrl(track.youtubeId)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-red-500"
-                      >
-                        <Youtube className="size-3" />
-                        YouTube
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-[10px]">
+                          <Play className="mr-1 size-2.5" />
+                          {track.playCount}
+                        </Badge>
+                        <button
+                          onClick={() => toggleFavorite(track.id)}
+                          className="p-1 rounded hover:bg-muted/50 transition-colors"
+                          title={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                        >
+                          <Heart
+                            className={`size-3.5 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`}
+                          />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => addToQueue(track.id)}
+                          className="p-1 rounded hover:bg-muted/50 transition-colors"
+                          title={isInQueue ? 'Déjà dans la file' : 'Ajouter à la file'}
+                        >
+                          <ListPlus className={`size-3.5 ${isInQueue ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                        </button>
+                        <a
+                          href={getYouTubeWatchUrl(track.youtubeId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-red-500 p-1"
+                        >
+                          <Youtube className="size-3" />
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )
@@ -575,7 +1201,7 @@ export function MusicModule() {
       )}
 
       {/* ═══════════════════════════════════════════════ */}
-      {/* TAB 2: Catégories (Admin CRUD)                 */}
+      {/* TAB: Catégories (Admin CRUD)                 */}
       {/* ═══════════════════════════════════════════════ */}
       {activeTab === 'categories' && (
         <div className="space-y-4">
@@ -758,7 +1384,7 @@ export function MusicModule() {
       )}
 
       {/* ═══════════════════════════════════════════════ */}
-      {/* TAB 3: Tracks (Admin CRUD)                     */}
+      {/* TAB: Tracks (Admin CRUD)                     */}
       {/* ═══════════════════════════════════════════════ */}
       {activeTab === 'tracks' && (
         <div className="space-y-4">
@@ -779,15 +1405,27 @@ export function MusicModule() {
                 </SelectContent>
               </Select>
             </div>
-            {!showTrackForm && (
+            <div className="flex items-center gap-2">
+              {/* Favorites Filter Toggle */}
               <Button
-                onClick={() => openTrackForm()}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
+                variant={showFavoritesOnly ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={showFavoritesOnly ? 'bg-red-500 hover:bg-red-600 text-white' : ''}
               >
-                <Plus className="mr-2 size-4" />
-                Ajouter track
+                <Heart className={`size-3.5 mr-1 ${showFavoritesOnly ? 'fill-white' : ''}`} />
+                {favoritesTabLabel}
               </Button>
-            )}
+              {!showTrackForm && (
+                <Button
+                  onClick={() => openTrackForm()}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  <Plus className="mr-2 size-4" />
+                  Ajouter track
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Inline Form */}
@@ -930,8 +1568,9 @@ export function MusicModule() {
                     {tracks
                       .filter(
                         (t) =>
-                          adminCategoryFilter === 'all' ||
-                          t.categoryId === adminCategoryFilter,
+                          (adminCategoryFilter === 'all' ||
+                            t.categoryId === adminCategoryFilter) &&
+                          (!showFavoritesOnly || favorites.includes(t.id))
                       )
                       .map((track) => (
                         <tr
@@ -981,8 +1620,17 @@ export function MusicModule() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => openTrackForm(track)}
                                 className="h-7 w-7 p-0"
+                                onClick={() => toggleFavorite(track.id)}
+                                title="Favori"
+                              >
+                                <Heart className={`size-3.5 ${favorites.includes(track.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => openTrackForm(track)}
                               >
                                 <Edit3 className="size-3.5" />
                               </Button>
@@ -1000,12 +1648,13 @@ export function MusicModule() {
                       ))}
                     {tracks.filter(
                       (t) =>
-                        adminCategoryFilter === 'all' ||
-                        t.categoryId === adminCategoryFilter,
+                        (adminCategoryFilter === 'all' ||
+                          t.categoryId === adminCategoryFilter) &&
+                        (!showFavoritesOnly || favorites.includes(t.id))
                     ).length === 0 && (
                       <tr>
                         <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                          Aucune piste trouvée
+                          {showFavoritesOnly ? 'Aucun favori trouvé' : 'Aucune piste trouvée'}
                         </td>
                       </tr>
                     )}
@@ -1018,7 +1667,7 @@ export function MusicModule() {
       )}
 
       {/* ═══════════════════════════════════════════════ */}
-      {/* TAB 4: Statistiques (Analytics)                */}
+      {/* TAB: Statistiques (Analytics)                */}
       {/* ═══════════════════════════════════════════════ */}
       {activeTab === 'stats' && stats && (
         <div className="space-y-6">
@@ -1027,10 +1676,12 @@ export function MusicModule() {
             <Card className="border-l-4 border-l-orange-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <Layers className="size-7 text-orange-500" />
+                  <Disc3 className="size-7 text-orange-500" />
                   <div>
-                    <p className="text-2xl font-bold">{stats.totalCategories}</p>
-                    <p className="text-xs text-muted-foreground">Catégories</p>
+                    <p className="text-2xl font-bold">
+                      {stats.totalTracks}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Pistes totales</p>
                   </div>
                 </div>
               </CardContent>
@@ -1038,12 +1689,12 @@ export function MusicModule() {
             <Card className="border-l-4 border-l-teal-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <Disc3 className="size-7 text-teal-500" />
+                  <Layers className="size-7 text-teal-500" />
                   <div>
-                    <p className="text-2xl font-bold">{stats.totalTracks}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {stats.activeTracks} actives
+                    <p className="text-2xl font-bold">
+                      {stats.totalCategories}
                     </p>
+                    <p className="text-xs text-muted-foreground">Catégories</p>
                   </div>
                 </div>
               </CardContent>

@@ -34,6 +34,7 @@ import {
 import {
   Building2,
   Bed,
+  Bath,
   Clock,
   MapPin,
   Star,
@@ -43,9 +44,16 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   X,
   Loader2,
+  Wifi,
+  Copy,
+  Check,
+  ArrowRightLeft,
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
 // ─── Types ──────────────────────────────────────────────
@@ -160,6 +168,83 @@ function statusLabel(status: string): string {
   }
 }
 
+// ─── Hotel Gallery Component ────────────────────────────
+
+function HotelGallery({ hotel }: { hotel: Hotel }) {
+  const [activeSlide, setActiveSlide] = useState(0)
+
+  const slides = [
+    { gradient: 'from-amber-600 via-orange-500 to-yellow-500', icon: Bed, label: 'Chambres confortables' },
+    { gradient: 'from-sky-600 via-cyan-500 to-teal-400', icon: Bath, label: 'Salle de bain privée' },
+    { gradient: 'from-violet-600 via-purple-500 to-fuchsia-400', icon: Wifi, label: 'Wi-Fi haut débit' },
+  ]
+
+  // Auto-advance
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % slides.length)
+    }, 3500)
+    return () => clearInterval(interval)
+  }, [slides.length])
+
+  const IconComp = slides[activeSlide].icon
+
+  return (
+    <div className="relative h-32 w-full">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSlide}
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -30 }}
+          transition={{ duration: 0.4 }}
+          className={`absolute inset-0 bg-gradient-to-br ${slides[activeSlide].gradient} flex items-center justify-center`}
+        >
+          <div className="flex flex-col items-center gap-1 text-white/90">
+            <IconComp className="size-10 drop-shadow-lg" />
+            <span className="text-xs font-medium drop-shadow">{slides[activeSlide].label}</span>
+          </div>
+          {/* Decorative circles */}
+          <div className="absolute top-2 right-8 size-20 rounded-full bg-white/10 blur-xl" />
+          <div className="absolute bottom-0 left-4 size-16 rounded-full bg-white/10 blur-lg" />
+        </motion.div>
+      </AnimatePresence>
+      {/* Slide dots + nav */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <button
+          className="flex size-5 items-center justify-center rounded-full bg-black/20 text-white/80 hover:bg-black/40 transition-colors"
+          onClick={() => setActiveSlide(prev => (prev - 1 + slides.length) % slides.length)}
+        >
+          <ChevronLeft className="size-3" />
+        </button>
+        <div className="flex gap-1">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              className={`size-1.5 rounded-full transition-all duration-300 ${
+                i === activeSlide ? 'bg-white w-4' : 'bg-white/50'
+              }`}
+              onClick={() => setActiveSlide(i)}
+            />
+          ))}
+        </div>
+        <button
+          className="flex size-5 items-center justify-center rounded-full bg-black/20 text-white/80 hover:bg-black/40 transition-colors"
+          onClick={() => setActiveSlide(prev => (prev + 1) % slides.length)}
+        >
+          <ChevronRight className="size-3" />
+        </button>
+      </div>
+      {/* Hotel name overlay top-left */}
+      <div className="absolute top-2 left-3">
+        <span className="text-[10px] font-medium text-white/80 bg-black/20 backdrop-blur-sm rounded px-1.5 py-0.5">
+          {hotel.name}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ─── Module Component ───────────────────────────────────
 
 export function HotelsModule() {
@@ -180,6 +265,21 @@ export function HotelsModule() {
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
   const [bookingForm, setBookingForm] = useState<BookingForm>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
+
+  // Confirmation dialog state
+  const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false)
+  const [confirmationData, setConfirmationData] = useState<{
+    bookingRef: string
+    hotelName: string
+    roomName: string
+    bookingDate: string
+    startTime: string
+    durationHours: number
+    guests: number
+    totalPrice: number
+    passengerName: string
+  } | null>(null)
+  const [copiedRef, setCopiedRef] = useState(false)
 
   // Cancel dialog state
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -293,8 +393,23 @@ export function HotelsModule() {
       const data = await res.json()
 
       if (data.success) {
-        toast.success(`Réservation créée — Réf: ${data.data?.bookingRef || 'N/A'}`)
+        const ref = data.data?.bookingRef || 'N/A'
+        toast.success(`Réservation créée — Réf: ${ref}`)
         setBookingDialogOpen(false)
+        // Show confirmation dialog
+        setConfirmationData({
+          bookingRef: ref,
+          hotelName: selectedHotel?.name || '',
+          roomName: selectedRoom?.name || '',
+          bookingDate: bookingForm.bookingDate,
+          startTime: bookingForm.startTime,
+          durationHours: bookingForm.durationHours,
+          guests: bookingForm.guests,
+          totalPrice: selectedRoom ? selectedRoom.hourPrice * bookingForm.durationHours : 0,
+          passengerName: bookingForm.passengerName.trim(),
+        })
+        setConfirmationDialogOpen(true)
+        setCopiedRef(false)
         resetForm()
         loadData()
       } else {
@@ -531,8 +646,43 @@ export function HotelsModule() {
                 const minPrice = getMinPrice(hotel)
                 const amenities = JSON.parse(hotel.amenities || '[]') as string[]
 
+                // Availability indicators per room
+                const totalAvailable = (hotel.rooms || []).reduce((s, r) => s + r.availableRooms, 0)
+                const hasFew = (hotel.rooms || []).some(r => r.availableRooms > 0 && r.availableRooms <= 2)
+                const allSoldOut = (hotel.rooms || []).length > 0 && totalAvailable === 0
+
                 return (
                   <Card key={hotel.id} className="overflow-hidden">
+                    {/* ── Mini Image Gallery ── */}
+                    <div className="relative h-32 w-full overflow-hidden">
+                      <HotelGallery hotel={hotel} />
+                      {/* Star Rating Overlay */}
+                      <div className="absolute bottom-2 left-3 flex items-center gap-0.5">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`size-4 ${i < hotel.starRating ? 'fill-amber-400 text-amber-400 drop-shadow' : 'fill-white/30 text-white/30'}`}
+                          />
+                        ))}
+                      </div>
+                      {/* Availability Indicator */}
+                      <div className="absolute top-2 right-2">
+                        <Badge
+                          className={`text-[10px] border backdrop-blur-sm ${
+                            allSoldOut
+                              ? 'bg-red-500/80 text-white border-red-400/50'
+                              : hasFew
+                                ? 'bg-yellow-500/80 text-white border-yellow-400/50'
+                                : 'bg-green-500/80 text-white border-green-400/50'
+                          }`}
+                        >
+                          <span className={`inline-block size-1.5 rounded-full mr-1 ${
+                            allSoldOut ? 'bg-red-200' : hasFew ? 'bg-yellow-200' : 'bg-green-200'
+                          }`} />
+                          {allSoldOut ? 'Complet' : hasFew ? 'Peu de places' : 'Disponible'}
+                        </Badge>
+                      </div>
+                    </div>
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
                         <div>
@@ -541,6 +691,7 @@ export function HotelsModule() {
                             {Array.from({ length: hotel.starRating }).map((_, i) => (
                               <Star key={i} className="size-3 fill-yellow-400 text-yellow-400" />
                             ))}
+                            <span className="text-xs text-muted-foreground ml-1">{hotel.starRating}/5</span>
                           </div>
                         </div>
                         <Badge variant="outline" className="text-xs">
@@ -624,12 +775,14 @@ export function HotelsModule() {
                                     </span>
                                     /h
                                   </span>
-                                  <Badge
-                                    variant="secondary"
-                                    className={`text-[10px] ${room.availableRooms <= 2 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}`}
-                                  >
-                                    {room.availableRooms} dispo{room.availableRooms > 1 ? 's' : ''}
-                                  </Badge>
+                                  <span className="flex items-center gap-1">
+                                    <span className={`inline-block size-2 rounded-full ${
+                                      room.availableRooms === 0 ? 'bg-red-500' : room.availableRooms <= 2 ? 'bg-yellow-500' : 'bg-green-500'
+                                    }`} />
+                                    <span className={`${
+                                      room.availableRooms === 0 ? 'text-red-600' : room.availableRooms <= 2 ? 'text-yellow-600' : 'text-green-600'
+                                    }`}>{room.availableRooms === 0 ? 'Complet' : `${room.availableRooms} dispo${room.availableRooms > 1 ? 's' : ''}`}</span>
+                                  </span>
                                 </div>
                                 {roomAmenities.length > 0 && (
                                   <div className="flex flex-wrap gap-1 pt-0.5">
@@ -1026,6 +1179,124 @@ export function HotelsModule() {
               {submitting ? 'Création...' : 'Confirmer la réservation'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Booking Confirmation Dialog ═══ */}
+      <Dialog open={confirmationDialogOpen} onOpenChange={setConfirmationDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="flex size-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                <Check className="size-5 text-green-600" />
+              </div>
+              Réservation Confirmée
+            </DialogTitle>
+            <DialogDescription>
+              Votre réservation day-use a été enregistrée avec succès.
+            </DialogDescription>
+          </DialogHeader>
+          {confirmationData && (
+            <div className="space-y-4">
+              {/* Booking Reference */}
+              <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800 p-3">
+                <p className="text-xs text-muted-foreground mb-1">Référence de réservation</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-mono font-bold tracking-wider text-orange-600">
+                    {confirmationData.bookingRef}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-orange-500"
+                    onClick={() => {
+                      navigator.clipboard.writeText(confirmationData.bookingRef)
+                      setCopiedRef(true)
+                      toast.success('Référence copiée dans le presse-papier')
+                      setTimeout(() => setCopiedRef(false), 2000)
+                    }}
+                  >
+                    {copiedRef ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <Building2 className="size-4 text-muted-foreground" />
+                  <span className="font-semibold">{confirmationData.hotelName}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Chambre :</span>
+                    <p className="font-medium">{confirmationData.roomName}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Passager :</span>
+                    <p className="font-medium">{confirmationData.passengerName}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Date :</span>
+                    <p className="font-medium">{confirmationData.bookingDate}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Heure :</span>
+                    <p className="font-medium">{confirmationData.startTime}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Durée :</span>
+                    <p className="font-medium">{confirmationData.durationHours}h</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Voyageurs :</span>
+                    <p className="font-medium">{confirmationData.guests}</p>
+                  </div>
+                </div>
+
+                {/* Price Summary */}
+                <div className="pt-2 border-t space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Prix total</span>
+                    <span className="font-bold text-orange-600">{formatPrice(confirmationData.totalPrice)} FCFA</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Check-in / Check-out Reminders */}
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3 text-center">
+                  <ArrowRightLeft className="size-5 text-green-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-green-700 dark:text-green-400">Check-in</p>
+                  <p className="text-sm font-bold">{confirmationData.startTime}</p>
+                  <p className="text-[10px] text-muted-foreground">{confirmationData.bookingDate}</p>
+                </div>
+                <div className="flex-1 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-3 text-center">
+                  <ArrowRightLeft className="size-5 text-red-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-400">Check-out</p>
+                  <p className="text-sm font-bold">{confirmationData.startTime}</p>
+                  <p className="text-[10px] text-muted-foreground">Apres {confirmationData.durationHours}h</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 text-xs"
+                  onClick={() => toast.info('Fonctionnalité PDF à venir')}
+                >
+                  Télécharger le reçu
+                </Button>
+                <Button
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                  onClick={() => setConfirmationDialogOpen(false)}
+                >
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

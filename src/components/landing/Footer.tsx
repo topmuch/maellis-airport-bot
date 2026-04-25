@@ -2,44 +2,51 @@
 
 import { motion, useReducedMotion } from 'framer-motion'
 import { Plane, Shield, MapPin, Zap, Linkedin, Github, MessageCircle } from 'lucide-react'
+import Link from 'next/link'
 
 const ease: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
 /* ─── Data ──────────────────────────────────────────────────────────────── */
 
-const footerColumns: { title: string; links: string[] }[] = [
+const footerColumns: { title: string; links: { label: string; href?: string }[] }[] = [
   {
     title: 'Produit',
     links: [
-      'IA Conversationnelle',
-      'Suivi de Vols',
-      'Marketplace',
-      'Dashboard Analytics',
-      'Gestion de Crise',
+      { label: 'IA Conversationnelle' },
+      { label: 'Suivi de Vols' },
+      { label: 'Marketplace' },
+      { label: 'Dashboard Analytics' },
+      { label: 'Gestion de Crise' },
     ],
   },
   {
     title: 'Entreprise',
-    links: ['À Propos', 'Équipe', 'Carrières', 'Partenaires', 'Contact'],
+    links: [
+      { label: 'À Propos', href: '/about' },
+      { label: 'Équipe' },
+      { label: 'Carrières' },
+      { label: 'Partenaires' },
+      { label: 'Contact', href: '/contact' },
+    ],
   },
   {
     title: 'Ressources',
     links: [
-      'Documentation',
-      'Blog',
-      'Études de Cas',
-      'Webinaires',
-      'Centre d\'Aide',
+      { label: 'Documentation' },
+      { label: 'Blog' },
+      { label: 'Études de Cas' },
+      { label: 'Webinaires' },
+      { label: 'Centre d\'Aide' },
     ],
   },
   {
     title: 'Légal',
     links: [
-      'Mentions Légales',
-      'Politique de Confidentialité',
-      'Conditions Générales',
-      'RGPD',
-      'Sécurité',
+      { label: 'Mentions Légales', href: '/legal' },
+      { label: 'Politique de Confidentialité', href: '/privacy' },
+      { label: 'Conditions Générales', href: '/terms' },
+      { label: 'RGPD', href: '/privacy' },
+      { label: 'Sécurité', href: '/legal#securite' },
     ],
   },
 ]
@@ -101,13 +108,21 @@ export function Footer() {
               </h4>
               <ul>
                 {column.links.map((link) => (
-                  <li key={link}>
-                    <a
-                      href="#"
-                      className="text-sm text-slate-400 hover:text-white transition-colors py-1.5 cursor-pointer block"
-                    >
-                      {link}
-                    </a>
+                  <li key={link.label}>
+                    {link.href ? (
+                      <Link
+                        href={link.href}
+                        className="text-sm text-slate-400 hover:text-white transition-colors py-1.5 cursor-pointer block"
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <span
+                        className="text-sm text-slate-400 py-1.5 block opacity-60"
+                      >
+                        {link.label}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

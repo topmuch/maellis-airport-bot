@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getFlightProvider } from '@/lib/flight-providers'
 
 const FLIGHT_SERVICE_URL = 'http://localhost:3006'
 
@@ -197,6 +198,60 @@ export async function POST(request: NextRequest) {
     const existing = await db.flightStatus.findFirst({
       where: { flightNumber: normalizedFlight },
     })
+
+    // Step 1.5: Try configurable flight provider (API-agnostic)
+    try {
+      const provider = await getFlightProvider()
+      const providerData = await provider.getFlightStatus({ flightNumber: normalizedFlight, date })
+
+      // Provider succeeded — upsert to DB using same logic
+      const providerRecord = {
+        flightNumber: providerData.flightNumber || normalizedFlight,
+        airline: providerData.airline || '',
+        departureCode: providerData.departureCode || '',
+        arrivalCode: providerData.arrivalCode || '',
+        scheduledDep: providerData.scheduledDep || null,
+        scheduledArr: providerData.scheduledArr || null,
+        estimatedDep: providerData.estimatedDep || null,
+        estimatedArr: providerData.estimatedArr || null,
+        actualDep: providerData.actualDep || null,
+        actualArr: providerData.actualArr || null,
+        gate: providerData.gate || null,
+        terminal: providerData.terminal || null,
+        status: providerData.status || 'scheduled',
+        delayMinutes: providerData.delayMinutes || 0,
+        aircraft: providerData.aircraft || null,
+        departureCity: providerData.departureCity || null,
+        arrivalCity: providerData.arrivalCity || null,
+        aircraftType: providerData.aircraftType || null,
+      }
+
+      if (existing) {
+        await db.flightStatus.update({
+          where: { id: existing.id },
+          data: providerRecord,
+        })
+      } else {
+        await db.flightStatus.create({
+          data: {
+            ...providerRecord,
+            id: `fst-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            updatedAt: new Date(),
+          },
+        })
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: providerData,
+        message: `Status retrieved for ${normalizedFlight}`,
+      })
+    } catch (providerErr) {
+      // Provider failed, log and continue to flight-service fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[flights/status] Configurable provider failed, falling back:', providerErr)
+      }
+    }
 
     // Step 2: Try flight-service proxy
     let serviceData: unknown = null

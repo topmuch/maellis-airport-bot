@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAirportSocket } from '@/hooks/useAirportSocket'
+import { useAuth } from '@/components/auth/AuthGuard'
 import {
   useDashboardKpis,
   useDashboardCharts,
@@ -245,8 +246,8 @@ export function OverviewModule() {
     // WebSocket is used for instant push notifications (see RealTimeNotificationToast)
   }, [])
 
-  // TODO: Replace with authenticated user's airport code from session
-  const { isConnected: wsConnected } = useAirportSocket('DSS', {
+  const { airportCode } = useAuth()
+  const { isConnected: wsConnected } = useAirportSocket(airportCode || 'DSS', {
     onStatsUpdate: handleStatsUpdate,
   })
 

@@ -26,7 +26,10 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case 'aviation': {
-        const key = process.env.AVIATION_STACK_KEY
+        // Try DB-stored key first, then env vars
+        const { db } = await import('@/lib/db')
+        const config = await db.systemConfig.findUnique({ where: { id: 'global' } })
+        const key = config?.aviationStackKey || process.env.AVIATION_STACK_KEY || process.env.AVIATION_API_KEY
         if (!key) {
           result = { connected: false, message: 'Clé AviationStack non configurée' }
           break

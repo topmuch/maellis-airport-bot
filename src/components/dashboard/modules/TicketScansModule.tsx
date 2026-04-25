@@ -19,6 +19,11 @@ import {
   TrendingUp,
   CheckCheck,
   X,
+  Check,
+  AlertCircle,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -55,6 +60,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -180,6 +195,130 @@ function ProviderBadge({ provider }: { provider: string }) {
     )
   }
   return <Badge variant="secondary">{provider}</Badge>
+}
+
+// ── Confidence Badge (for table) ─────────────────────────────────────────────
+
+function ConfidenceBadge({ value }: { value: number }) {
+  const pct = Math.round(value * 100)
+  if (pct >= 90) {
+    return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px]">Excellent</Badge>
+  }
+  if (pct >= 70) {
+    return <Badge className="bg-sky-100 text-sky-700 border-sky-200 hover:bg-sky-100 text-[10px]">Bon</Badge>
+  }
+  if (pct >= 50) {
+    return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100 text-[10px]">Moyen</Badge>
+  }
+  return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px]">Faible</Badge>
+}
+
+// ── Quality Ring Indicator ──────────────────────────────────────────────────
+
+function QualityRing({ confidence }: { confidence: number }) {
+  const pct = Math.round(confidence * 100)
+  const circumference = 2 * Math.PI * 14
+  const offset = circumference - (pct / 100) * circumference
+  const color =
+    pct >= 80
+      ? '#10b981'
+      : pct >= 50
+        ? '#f59e0b'
+        : '#ef4444'
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="inline-flex items-center justify-center size-7 cursor-default">
+          <svg className="size-7 -rotate-90" viewBox="0 0 32 32">
+            <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted" />
+            <circle
+              cx="16"
+              cy="16"
+              r="14"
+              fill="none"
+              strokeWidth="3"
+              strokeLinecap="round"
+              stroke={color}
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              style={{ transition: 'stroke-dashoffset 0.6s ease-in-out' }}
+            />
+          </svg>
+          <span className="absolute text-[7px] font-bold" style={{ color }}>{pct}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>Qualité : {pct}%</TooltipContent>
+    </Tooltip>
+  )
+}
+
+// ── Field Validation Indicator ──────────────────────────────────────────────
+
+function FieldValidation({ value, label, rule }: { value: string | null; label: string; rule: string }) {
+  if (!value || value.trim() === '') {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1.5">
+            <ShieldX className="size-3.5 text-red-500 shrink-0" />
+            <span className="text-muted-foreground italic">Non extrait</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="font-medium">{label}</p>
+          <p className="text-xs opacity-80">Règle : {rule}</p>
+          <p className="text-xs text-red-400 mt-1">Champ vide ou non extrait</p>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  const isPnr = label === 'PNR'
+  const isFlight = label === 'N° Vol'
+  const isCode = label.includes('Code')
+
+  const isValid =
+    (isPnr && /^[A-Z0-9]{5,6}$/i.test(value.trim())) ||
+    (isFlight && /^[A-Z]{2}\d{1,4}[A-Z]?$/i.test(value.trim())) ||
+    (isCode && /^[A-Z]{3}$/i.test(value.trim())) ||
+    (!isPnr && !isFlight && !isCode && value.trim().length > 0)
+
+  const mightNeedReview = !isValid && !isPnr && !isFlight && !isCode
+
+  if (isValid) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="size-3.5 text-emerald-500 shrink-0" />
+            <span className="font-medium">{value}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="font-medium">{label}</p>
+          <p className="text-xs opacity-80">Règle : {rule}</p>
+          <p className="text-xs text-emerald-400 mt-1">✓ Valide</p>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-1.5">
+          <ShieldAlert className="size-3.5 text-amber-500 shrink-0" />
+          <span className="font-medium text-amber-700 dark:text-amber-400">{value}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className="font-medium">{label}</p>
+        <p className="text-xs opacity-80">Règle : {rule}</p>
+        <p className="text-xs text-amber-400 mt-1">⚠ À vérifier</p>
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 // ── Confidence Bar ──────────────────────────────────────────────────────────
@@ -565,6 +704,10 @@ export function TicketScansModule() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchSubmitting, setBatchSubmitting] = useState(false)
 
+  // Batch confirm dialog
+  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false)
+  const [batchActionType, setBatchActionType] = useState<'confirm' | 'reject' | null>(null)
+
   // Tab state
   const [activeTab, setActiveTab] = useState('scans')
 
@@ -704,8 +847,26 @@ export function TicketScansModule() {
     }
   }
 
-  const handleBatchConfirm = async () => {
+  const openBatchConfirm = (action: 'confirm' | 'reject') => {
     if (selectedIds.size === 0) return
+    setBatchActionType(action)
+    setBatchConfirmOpen(true)
+  }
+
+  const handleBatchAction = async () => {
+    if (!batchActionType || selectedIds.size === 0) {
+      setBatchConfirmOpen(false)
+      return
+    }
+    setBatchConfirmOpen(false)
+    if (batchActionType === 'confirm') {
+      await executeBatchConfirm()
+    } else {
+      await executeBatchReject()
+    }
+  }
+
+  const executeBatchConfirm = async () => {
     setBatchSubmitting(true)
     const promises = Array.from(selectedIds).map(async (id) => {
       try {
@@ -728,14 +889,13 @@ export function TicketScansModule() {
           : s
       )
     )
-    toast.success(`${selectedIds.size} scan(s) confirmé(s)`)
+    toast.success(`${selectedIds.size} scan(s) confirmé(s) avec succès`)
     setSelectedIds(new Set())
     setBatchSubmitting(false)
     fetchScans()
   }
 
-  const handleBatchReject = async () => {
-    if (selectedIds.size === 0) return
+  const executeBatchReject = async () => {
     setBatchSubmitting(true)
     const promises = Array.from(selectedIds).map(async (id) => {
       try {
@@ -757,7 +917,7 @@ export function TicketScansModule() {
           : s
       )
     )
-    toast.success(`${selectedIds.size} scan(s) rejeté(s)`)
+    toast.success(`${selectedIds.size} scan(s) rejeté(s) avec succès`)
     setSelectedIds(new Set())
     setBatchSubmitting(false)
     fetchScans()
@@ -991,24 +1151,27 @@ export function TicketScansModule() {
                   <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
                     {selectedIds.size} scan{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
                   </span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    sur {pendingScans.length} en attente
+                  </Badge>
                   <div className="flex-1" />
                   <Button
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={handleBatchConfirm}
+                    onClick={() => openBatchConfirm('confirm')}
                     disabled={batchSubmitting}
                   >
                     <CheckCheck className="size-3.5" />
-                    {batchSubmitting ? 'Confirmation...' : 'Tout Confirmer'}
+                    Tout Confirmer
                   </Button>
                   <Button
                     size="sm"
                     className="bg-red-600 hover:bg-red-700 text-white"
-                    onClick={handleBatchReject}
+                    onClick={() => openBatchConfirm('reject')}
                     disabled={batchSubmitting}
                   >
                     <X className="size-3.5" />
-                    {batchSubmitting ? 'Rejet...' : 'Tout Rejeter'}
+                    Tout Rejeter
                   </Button>
                   <Button
                     size="sm"
@@ -1116,7 +1279,10 @@ export function TicketScansModule() {
                                 : '—'}
                             </TableCell>
                             <TableCell>
-                              <ConfidenceBar value={scan.confidence} />
+                              <div className="flex items-center gap-2">
+                                <ConfidenceBar value={scan.confidence} />
+                                <ConfidenceBadge value={scan.confidence} />
+                              </div>
                             </TableCell>
                             <TableCell>
                               <ProviderBadge provider={scan.provider} />
@@ -1125,15 +1291,18 @@ export function TicketScansModule() {
                               <StatusBadge status={scan.status} />
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleViewDetail(scan)}
-                                className="text-orange-500 border-orange-200 hover:bg-orange-50"
-                              >
-                                <Eye className="size-3.5" />
-                                Détails
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                <QualityRing confidence={scan.confidence} />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewDetail(scan)}
+                                  className="text-orange-500 border-orange-200 hover:bg-orange-50"
+                                >
+                                  <Eye className="size-3.5" />
+                                  Détails
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1359,7 +1528,11 @@ export function TicketScansModule() {
                         placeholder="Nom passager"
                       />
                     ) : (
-                      <p className="font-medium">{selectedScan.passengerName ?? 'Non extrait'}</p>
+                      <FieldValidation
+                        value={selectedScan.passengerName}
+                        label="Nom"
+                        rule="Texte non vide"
+                      />
                     )}
                   </div>
                   <div>
@@ -1376,12 +1549,20 @@ export function TicketScansModule() {
                         placeholder="PNR"
                       />
                     ) : (
-                      <p className="font-mono font-medium">{selectedScan.pnr ?? 'Non extrait'}</p>
+                      <FieldValidation
+                        value={selectedScan.pnr}
+                        label="PNR"
+                        rule="5-6 caractères alphanumériques"
+                      />
                     )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Classe :</span>
-                    <p className="font-medium">{selectedScan.class ?? 'Non extrait'}</p>
+                    <FieldValidation
+                      value={selectedScan.class}
+                      label="Classe"
+                      rule="Y, W, J, F, etc."
+                    />
                   </div>
                   <div>
                     <span className="text-muted-foreground">Siège :</span>
@@ -1393,7 +1574,11 @@ export function TicketScansModule() {
                         placeholder="Siège"
                       />
                     ) : (
-                      <p className="font-medium">{selectedScan.seat ?? 'Non extrait'}</p>
+                      <FieldValidation
+                        value={selectedScan.seat}
+                        label="Siège"
+                        rule="Numéro de siège (ex: 12A)"
+                      />
                     )}
                   </div>
                   <div>
@@ -1419,7 +1604,11 @@ export function TicketScansModule() {
                         placeholder="Compagnie"
                       />
                     ) : (
-                      <p className="font-medium">{selectedScan.airline ?? 'Non extraite'}</p>
+                      <FieldValidation
+                        value={selectedScan.airline}
+                        label="Compagnie"
+                        rule="Nom de compagnie aérienne"
+                      />
                     )}
                   </div>
                   <div>
@@ -1432,16 +1621,28 @@ export function TicketScansModule() {
                         placeholder="N° de vol"
                       />
                     ) : (
-                      <p className="font-mono font-medium">{selectedScan.flightNumber ?? 'Non extrait'}</p>
+                      <FieldValidation
+                        value={selectedScan.flightNumber}
+                        label="N° Vol"
+                        rule="2 lettres + chiffres (ex: AF123)"
+                      />
                     )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Date du vol :</span>
-                    <p className="font-medium">{formatDate(selectedScan.flightDate)}</p>
+                    <FieldValidation
+                      value={selectedScan.flightDate}
+                      label="Date vol"
+                      rule="Date valide (JJ/MM/AAAA)"
+                    />
                   </div>
                   <div>
                     <span className="text-muted-foreground">Heure embarquement :</span>
-                    <p className="font-medium">{selectedScan.boardingTime ?? 'Non extrait'}</p>
+                    <FieldValidation
+                      value={selectedScan.boardingTime}
+                      label="Heure embarquement"
+                      rule="Heure valide (HH:MM)"
+                    />
                   </div>
                   <div>
                     <span className="text-muted-foreground">Porte :</span>
@@ -1453,7 +1654,11 @@ export function TicketScansModule() {
                         placeholder="Porte"
                       />
                     ) : (
-                      <p className="font-medium">{selectedScan.gate ?? 'Non extraite'}</p>
+                      <FieldValidation
+                        value={selectedScan.gate}
+                        label="Porte"
+                        rule="Numéro ou lettre de porte"
+                      />
                     )}
                   </div>
                   <div>
@@ -1466,7 +1671,11 @@ export function TicketScansModule() {
                         placeholder="Terminal"
                       />
                     ) : (
-                      <p className="font-medium">{selectedScan.terminal ?? 'Non extrait'}</p>
+                      <FieldValidation
+                        value={selectedScan.terminal}
+                        label="Terminal"
+                        rule="Numéro ou lettre de terminal"
+                      />
                     )}
                   </div>
                 </div>
@@ -1484,7 +1693,11 @@ export function TicketScansModule() {
                         maxLength={3}
                       />
                     ) : (
-                      <p className="text-lg font-bold">{selectedScan.departureCode ?? '???'}</p>
+                      <FieldValidation
+                        value={selectedScan.departureCode}
+                        label="Code départ"
+                        rule="Code IATA 3 lettres"
+                      />
                     )}
                     <p className="text-xs">{selectedScan.departureCity ?? ''}</p>
                   </div>
@@ -1504,7 +1717,11 @@ export function TicketScansModule() {
                         maxLength={3}
                       />
                     ) : (
-                      <p className="text-lg font-bold">{selectedScan.arrivalCode ?? '???'}</p>
+                      <FieldValidation
+                        value={selectedScan.arrivalCode}
+                        label="Code arrivée"
+                        rule="Code IATA 3 lettres"
+                      />
                     )}
                     <p className="text-xs">{selectedScan.arrivalCity ?? ''}</p>
                   </div>
@@ -1602,6 +1819,32 @@ export function TicketScansModule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Batch Action Confirm Dialog */}
+      <AlertDialog open={batchConfirmOpen} onOpenChange={setBatchConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {batchActionType === 'confirm' ? 'Confirmer les scans' : 'Rejeter les scans'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {batchActionType === 'confirm'
+                ? `Êtes-vous sûr de vouloir confirmer ${selectedIds.size} scan${selectedIds.size > 1 ? 's' : ''} ? Cette action est irréversible.`
+                : `Êtes-vous sûr de vouloir rejeter ${selectedIds.size} scan${selectedIds.size > 1 ? 's' : ''} ? Cette action est irréversible.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchAction}
+              className={batchActionType === 'confirm' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}
+            >
+              {batchActionType === 'confirm' ? 'Confirmer' : 'Rejeter'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

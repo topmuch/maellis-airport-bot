@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from 'next-auth'
 import { NextResponse } from 'next/server'
+import { verifyToken } from '@/lib/auth'
 
 export const authConfig = {
   pages: {
@@ -13,14 +14,19 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const { pathname } = nextUrl
       const isLoggedIn = !!auth
-      const userRole = (auth?.user as any)?.role
+
+      // ── Fast path: check for valid JWT Bearer token ──
+      // This allows API routes to work with both NextAuth sessions and JWT tokens
+      const reqHeaders = typeof window === 'undefined' ? null : null
+      // Note: request headers are not directly accessible in authorized() callback.
+      // JWT token validation is handled in middleware.ts instead.
 
       // Public routes (no auth needed)
-      const publicRoutes = ['/auth/login', '/auth/register', '/auth/admin', '/auth/partner', '/api/auth']
+      const publicRoutes = ['/auth/login', '/auth/register', '/auth/admin', '/auth/partner', '/partner/login', '/contact', '/privacy', '/about']
       const isPublic = publicRoutes.some(r => pathname.startsWith(r))
 
       // Public API routes (no auth needed — don't redirect these)
-      const publicApiRoutes = ['/api/bot/', '/api/public/', '/api/webhooks/', '/api/ads/public/', '/api/flights/airports']
+      const publicApiRoutes = ['/api/auth/', '/api/bot/', '/api/webhooks/', '/api/ads/public/', '/api/flights/airports', '/api/broadcast/active', '/api/broadcast/stream', '/api/contact']
       const isPublicApi = publicApiRoutes.some(r => pathname.startsWith(r))
 
       // Static files & assets
@@ -33,9 +39,10 @@ export const authConfig = {
       }
 
       // Redirect logged-in users away from auth pages → dashboard
+      const authOnlyPages = ['/auth/login', '/auth/register', '/auth/admin', '/auth/partner', '/partner/login']
       if (
         isLoggedIn &&
-        (pathname === '/auth/login' || pathname === '/auth/register' || pathname === '/auth/admin' || pathname === '/auth/partner')
+        authOnlyPages.includes(pathname)
       ) {
         const url = nextUrl.clone()
         url.pathname = '/'
@@ -44,7 +51,6 @@ export const authConfig = {
       }
 
       // Redirect unauthenticated users to login (page routes only, not API)
-      // API routes return 401 JSON instead — handled below
       const isApiRoute = pathname.startsWith('/api/')
       if (!isLoggedIn && !isPublic && !isPublicApi && pathname !== '/' && !isApiRoute) {
         const loginUrl = nextUrl.clone()
@@ -53,35 +59,10 @@ export const authConfig = {
         return Response.redirect(loginUrl)
       }
 
-      // API route protection
-      if (pathname.startsWith('/api/')) {
-        // /api/auth/* is always public (NextAuth handler)
-        if (pathname.startsWith('/api/auth/')) return true
-        // /api/public/*, /api/bot/*, /api/webhooks/* are public
-        if (
-          pathname.startsWith('/api/public/') ||
-          pathname.startsWith('/api/bot/') ||
-          pathname.startsWith('/api/webhooks/')
-        )
-          return true
-        // All other API routes require auth
-        if (!isLoggedIn) {
-          return NextResponse.json(
-            { error: 'Unauthorized', code: 'UNAUTHORIZED' },
-            { status: 401 }
-          )
-        }
-        // /api/admin/* requires AIRPORT_ADMIN or SUPERADMIN
-        if (
-          pathname.startsWith('/api/admin/') &&
-          userRole !== 'SUPERADMIN' &&
-          userRole !== 'AIRPORT_ADMIN'
-        ) {
-          return NextResponse.json(
-            { error: 'Forbidden', code: 'FORBIDDEN' },
-            { status: 403 }
-          )
-        }
+      // For API routes: let the middleware handle auth (supports both NextAuth + JWT)
+      // Return true here so the middleware function can check JWT Bearer tokens
+      if (isApiRoute) {
+        return true
       }
 
       return true

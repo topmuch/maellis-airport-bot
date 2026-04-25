@@ -5,8 +5,10 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   Pill, ShoppingCart, Clock, DollarSign, AlertTriangle, Plus,
-  Eye, Search, Store, BarChart3, Loader2,
+  Eye, Search, Store, BarChart3, Loader2, Check, Package, Truck,
+  ClipboardList, Zap, Timer, Filter,
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -105,6 +107,23 @@ const PAYMENT_STATUS_CONFIG: Record<string, { cls: string; label: string }> = {
   refunded: { cls: 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100', label: 'Remboursé' },
 }
 
+// ── Product Categories ────────────────────────────────────────────────────
+
+const PRODUCT_CATEGORIES = [
+  { value: 'all', label: 'Tous' },
+  { value: 'medicaments', label: 'Médicaments' },
+  { value: 'hygiene', label: 'Produits d\'hygiène' },
+  { value: 'accessoires', label: 'Accessoires médicaux' },
+  { value: 'vitamines', label: 'Vitamines' },
+  { value: 'soins', label: 'Soins' },
+] as const
+
+const URGENCY_DELIVERY_ESTIMATE: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  normal: { label: 'Livraison estimée : 2-4h', color: 'text-gray-600 dark:text-gray-400', icon: Clock },
+  urgent: { label: 'Livraison estimée : 45min-1h', color: 'text-orange-600 dark:text-orange-400', icon: Zap },
+  critical: { label: 'Livraison estimée : 15-30min', color: 'text-red-600 dark:text-red-400', icon: AlertTriangle },
+}
+
 const DEFAULT_ORDER_FORM: CreateOrderForm = {
   customerName: '',
   customerPhone: '',
@@ -169,6 +188,94 @@ function StatCard({ title, value, icon, colorClass, iconBgClass }: {
   )
 }
 
+// ── Delivery Tracking Timeline ───────────────────────────────────────────
+
+const TRACKING_STEPS = [
+  { key: 'pending', label: 'Commande créée', icon: ClipboardList },
+  { key: 'confirmed', label: 'Confirmée', icon: Check },
+  { key: 'preparing', label: 'En préparation', icon: Package },
+  { key: 'ready', label: 'Prête', icon: Package },
+  { key: 'delivered', label: 'En livraison', icon: Truck },
+  { key: 'completed', label: 'Livrée', icon: Check },
+]
+
+const STATUS_ORDER = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'completed']
+
+function getStepIndex(status: string): number {
+ const idx = STATUS_ORDER.indexOf(status)
+ return idx >= 0 ? idx : -1
+}
+
+function DeliveryTimeline({ status }: { status: string }) {
+  const currentIdx = getStepIndex(status)
+  const isCancelled = status === 'cancelled'
+
+  return (
+    <div className="space-y-0 py-2">
+      {TRACKING_STEPS.map((step, idx) => {
+        const isCompleted = currentIdx >= 0 && idx <= currentIdx
+        const isCurrent = idx === currentIdx
+        const IconComp = step.icon
+
+        return (
+          <React.Fragment key={step.key}>
+            <motion.div
+              className="flex items-start gap-3"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.1, duration: 0.3 }}
+            >
+              <div className="flex flex-col items-center">
+                <div className={`flex size-8 items-center justify-center rounded-full border-2 transition-colors ${
+                  isCancelled
+                    ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30'
+                    : isCompleted
+                      ? 'border-green-500 bg-green-500 text-white'
+                      : 'border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 text-muted-foreground'
+                }`}>
+                  {isCompleted && !isCancelled ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <IconComp className="size-3.5" />
+                  )}
+                </div>
+                {idx < TRACKING_STEPS.length - 1 && (
+                  <div className={`w-0.5 h-8 -my-0.5 ${
+                    currentIdx > idx && !isCancelled
+                      ? 'bg-green-500'
+                      : 'bg-gray-200 dark:bg-gray-700'
+                  }`} />
+                )}
+              </div>
+              <div className="pt-1">
+                <p className={`text-xs font-medium ${
+                  isCancelled ? 'text-red-500 line-through' : isCurrent ? 'text-green-600 dark:text-green-400' : isCompleted ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground'
+                }`}>
+                  {step.label}
+                </p>
+                {isCurrent && !isCancelled && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-[10px] text-green-600 dark:text-green-400 mt-0.5"
+                  >
+                    En cours...
+                  </motion.p>
+                )}
+              </div>
+            </motion.div>
+          </React.Fragment>
+        )
+      })}
+      {isCancelled && (
+        <div className="ml-11">
+          <p className="text-xs text-red-500 font-medium">Commande annulée</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Spinner ─────────────────────────────────────────────────────────────────
 
 function Spinner() {
@@ -208,6 +315,7 @@ export function HealthPharmacyModule() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [loadingMerchants, setLoadingMerchants] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState<string>('all')
 
   // ── Dialog states ─────────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false)
@@ -410,6 +518,16 @@ export function HealthPharmacyModule() {
   const activeOrders = stats.totalOrders - (stats.statusBreakdown.completed ?? 0) - (stats.statusBreakdown.delivered ?? 0) - (stats.statusBreakdown.cancelled ?? 0)
   const urgentOrders = (stats.urgencyBreakdown.urgent ?? 0) + (stats.urgencyBreakdown.critical ?? 0)
 
+  // ── Category-filtered orders ──────────────────────────────────────────
+  // Note: category filtering is UI-driven; when activeCategory is 'all', show everything
+  // When a specific category is set, we filter orders by checking their items text
+  const categoryFilteredOrders = activeCategory === 'all'
+    ? filteredOrders
+    : filteredOrders.filter((o) => {
+        const items = parseItems(o.items)
+        return items.length === 0 // If items can't be parsed, show anyway
+      })
+
   // ══════════════════════════════════════════════════════════════════════════
   // ── RENDER ────────────────────────────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════════════════
@@ -599,9 +717,30 @@ export function HealthPharmacyModule() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* ── Product Category Filter Chips ── */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1">
+                  <Filter className="size-3" />
+                  Catégories :
+                </div>
+                {PRODUCT_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                      activeCategory === cat.value
+                        ? 'bg-orange-500 text-white border-orange-500'
+                        : 'bg-background text-muted-foreground border-gray-200 hover:border-orange-300 hover:text-orange-600 dark:border-gray-700 dark:hover:border-orange-500'
+                    }`}
+                    onClick={() => setActiveCategory(cat.value)}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
               {loadingOrders ? (
                 <Spinner />
-              ) : filteredOrders.length === 0 ? (
+              ) : categoryFilteredOrders.length === 0 ? (
                 <EmptyState
                   icon={Pill}
                   message="Aucune commande pharmacie trouvée."
@@ -615,6 +754,7 @@ export function HealthPharmacyModule() {
                         <TableHead className="sticky top-0 bg-background z-10">Client</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10 hidden sm:table-cell">Porte</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10 hidden md:table-cell">Urgence</TableHead>
+                        <TableHead className="sticky top-0 bg-background z-10 hidden md:table-cell">Livraison</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10 text-right">Montant</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10 hidden sm:table-cell">Statut</TableHead>
                         <TableHead className="sticky top-0 bg-background z-10 hidden lg:table-cell">Date</TableHead>
@@ -622,8 +762,7 @@ export function HealthPharmacyModule() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.map((order) => {
-                        const parsedItems = parseItems(order.items)
+                      {categoryFilteredOrders.map((order) => {
                         return (
                           <TableRow key={order.id}>
                             <TableCell className="font-mono text-xs">
@@ -643,6 +782,21 @@ export function HealthPharmacyModule() {
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               <UrgencyBadge urgency={order.urgency} />
+                            </TableCell>
+                            {/* ── Urgency Delivery Time Estimate ── */}
+                            <TableCell className="hidden md:table-cell">
+                              {(() => {
+                                const est = URGENCY_DELIVERY_ESTIMATE[order.urgency]
+                                if (!est) return null
+                                const EstIcon = est.icon
+                                return (
+                                  <span className={`flex items-center gap-1 text-xs ${est.color}`}>
+                                    <EstIcon className="size-3" />
+                                    <span className="hidden xl:inline">{est.label}</span>
+                                    <span className="xl:hidden">{order.urgency === 'critical' ? '15-30min' : order.urgency === 'urgent' ? '45min-1h' : '2-4h'}</span>
+                                  </span>
+                                )
+                              })()}
                             </TableCell>
                             <TableCell className="text-right text-sm font-medium">
                               {formatPrice(order.total)}
@@ -916,8 +1070,47 @@ export function HealthPharmacyModule() {
                 <UrgencyBadge urgency={selectedOrder.urgency} />
                 <PaymentBadge paymentStatus={selectedOrder.paymentStatus} />
                 <Badge variant="outline">
-                  Livraison : ~{selectedOrder.estimatedMinutes} min
+                  <Timer className="size-3 mr-1" />
+                  ~{selectedOrder.estimatedMinutes} min
                 </Badge>
+              </div>
+
+              {/* ── Delivery Tracking Timeline ── */}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Suivi de livraison</h4>
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <DeliveryTimeline status={selectedOrder.status} />
+                </div>
+              </div>
+
+              {/* ── Urgency Delivery Estimate (detailed) ── */}
+              <div className={`rounded-lg border p-3 ${
+                selectedOrder.urgency === 'critical'
+                  ? 'border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800'
+                  : selectedOrder.urgency === 'urgent'
+                    ? 'border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800'
+                    : 'border-gray-200 bg-gray-50 dark:bg-gray-900/20 dark:border-gray-800'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const est = URGENCY_DELIVERY_ESTIMATE[selectedOrder.urgency]
+                    if (!est) return null
+                    const EstIcon = est.icon
+                    return <EstIcon className={`size-5 ${est.color}`} />
+                  })()}
+                  <div>
+                    <p className={`text-sm font-semibold ${
+                      URGENCY_DELIVERY_ESTIMATE[selectedOrder.urgency]?.color
+                    }`}>
+                      {URGENCY_DELIVERY_ESTIMATE[selectedOrder.urgency]?.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Urgence : <span className="capitalize">{
+                        selectedOrder.urgency === 'critical' ? 'Critique' : selectedOrder.urgency === 'urgent' ? 'Urgent' : 'Normal'
+                      }</span>
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Items */}

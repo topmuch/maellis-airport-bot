@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getFlightProvider } from '@/lib/flight-providers'
 
 const FLIGHT_SERVICE_URL = 'http://localhost:3006'
 
@@ -195,6 +196,45 @@ export async function POST(request: NextRequest) {
     const arrCode = arrivalCode ? arrivalCode.toUpperCase().trim() : ''
     const depCity = getCityName(depCode)
     const arrCity = arrCode ? getCityName(arrCode) : ''
+
+    // Step 0.5: Try configurable flight provider (API-agnostic)
+    try {
+      const provider = await getFlightProvider()
+      const providerResult = await provider.searchFlights({ departureCode: depCode, arrivalCode: arrCode, date, flightNumber, passengers })
+
+      // Provider succeeded — save to DB using existing logic
+      const flights = providerResult.flights || []
+      const cheapestPrice = providerResult.cheapestPrice || null
+      const firstFlight = flights[0] as unknown as Record<string, unknown> | undefined
+      const airline = (firstFlight?.airline as string) || null
+
+      await db.flightSearch.create({
+        data: {
+          id: `fs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          departureCode: depCode,
+          arrivalCode: arrCode || '',
+          departureCity: depCity,
+          arrivalCity: arrCity || '',
+          travelDate: date || null,
+          passengers: passengers || 1,
+          results: JSON.stringify(flights),
+          cheapestPrice,
+          airline,
+          status: 'completed',
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: providerResult,
+        message: `Found ${providerResult.totalResults || flights.length || 0} flights`,
+      })
+    } catch (providerErr) {
+      // Provider failed, log and continue to flight-service fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[flights/search] Configurable provider failed, falling back:', providerErr)
+      }
+    }
 
     // Step 1: Try flight-service proxy
     let serviceData: unknown = null

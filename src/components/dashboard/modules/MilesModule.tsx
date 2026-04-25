@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Progress } from '@/components/ui/progress'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,17 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Clock,
+  Download,
+  Building,
+  ShoppingBag,
+  ClipboardCheck,
+  Cake,
+  Pencil,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -68,6 +80,7 @@ interface Transaction {
   reason: string
   description: string | null
   createdAt: string
+  balance?: number
 }
 
 interface LeaderboardEntry {
@@ -174,15 +187,62 @@ const REWARD_TYPE_LABELS: Record<string, string> = {
   driver: 'Chauffeur',
 }
 
+const TIER_BENEFITS: Record<string, { label: string; color: string; benefits: string[] }> = {
+  bronze: {
+    label: 'Bronze',
+    color: '#CD7F32',
+    benefits: [
+      'Avantages de base',
+      '1x multiplicateur de points',
+      'Accès support standard',
+    ],
+  },
+  silver: {
+    label: 'Silver',
+    color: '#C0C0C0',
+    benefits: [
+      'Avantages Silver',
+      '1.5x multiplicateur de points',
+      'Accès prioritaire',
+      '-10% dans les boutiques',
+    ],
+  },
+  gold: {
+    label: 'Gold',
+    color: '#FFD700',
+    benefits: [
+      'Avantages Gold',
+      '2x multiplicateur de points',
+      'Accès Lounge',
+      '-20% dans les boutiques',
+      'Transport gratuit',
+    ],
+  },
+  platinum: {
+    label: 'Platine',
+    color: '#E5E4E2',
+    benefits: [
+      'Avantages Platinum',
+      '3x multiplicateur de points',
+      'Accès Lounge VIP',
+      '-30% dans les boutiques',
+      'Transport premium',
+      'Service dédié',
+    ],
+  },
+}
+
 const CREDIT_REASONS = [
-  { value: 'flight_scan', label: '✈️ Scan de Vol (+50)', points: 50 },
-  { value: 'feedback', label: '⭐ Feedback Donné (+25)', points: 25 },
-  { value: 'checkin', label: '🎫 Check-in Vol (+30)', points: 30 },
-  { value: 'hotel_booking', label: '🏨 Réservation Hôtel (+100)', points: 100 },
-  { value: 'wifi_connect', label: '📡 Connexion WiFi (+10)', points: 10 },
-  { value: 'daily_login', label: '🔐 Connexion Quotidienne (+5)', points: 5 },
-  { value: 'baggage_scan', label: '🧳 Scan Bagage (+50)', points: 50 },
-  { value: 'custom', label: '✏️ Montant Personnalisé', points: 0 },
+  { value: 'flight_scan', label: 'Vol scanné', subtitle: '+50', points: 50, icon: Plane },
+  { value: 'feedback', label: 'Avis client', subtitle: '+25', points: 25, icon: Star },
+  { value: 'checkin', label: 'Check-in', subtitle: '+30', points: 30, icon: ClipboardCheck },
+  { value: 'hotel_booking', label: 'Réservation hôtel', subtitle: '+100', points: 100, icon: Building },
+  { value: 'wifi_connect', label: 'Connexion WiFi', subtitle: '+10', points: 10, icon: Wifi },
+  { value: 'daily_login', label: 'Connexion quotidienne', subtitle: '+5', points: 5, icon: Shield },
+  { value: 'baggage_scan', label: 'Achat boutique', subtitle: '+50', points: 50, icon: ShoppingBag },
+  { value: 'birthday', label: 'Anniversaire', subtitle: '+200', points: 200, icon: Cake },
+  { value: 'referral', label: 'Parrainage', subtitle: '+150', points: 150, icon: Users },
+  { value: 'custom', label: 'Custom', subtitle: '...', points: 0, icon: Pencil },
 ]
 
 // ─── Module Component ───────────────────────────────────
@@ -216,6 +276,12 @@ export function MilesModule() {
 
   // Active tab
   const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'leaderboard' | 'rewards'>('overview')
+
+  // Tier benefits panel
+  const [expandedTier, setExpandedTier] = useState<string | null>(null)
+
+  // Points expiration
+  const [expirationExpanded, setExpirationExpanded] = useState(false)
 
   useEffect(() => {
     loadStats()
@@ -398,6 +464,53 @@ export function MilesModule() {
 
   // ─── Helpers ────────────────────────────────────────
 
+  const getPointsExpirationDays = (): number | null => {
+    if (!balance || balance.balance === 0 || transactions.length === 0) return null
+    const creditTransactions = transactions.filter(t => t.type === 'credit')
+    if (creditTransactions.length === 0) return null
+    const firstCredit = creditTransactions.reduce((earliest, t) => {
+      return new Date(t.createdAt) < new Date(earliest.createdAt) ? t : earliest
+    })
+    const expirationDate = new Date(firstCredit.createdAt)
+    expirationDate.setDate(expirationDate.getDate() + 365)
+    const today = new Date()
+    const diffTime = expirationDate.getTime() - today.getTime()
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }
+
+  const exportTransactionsCSV = () => {
+    if (transactions.length === 0) {
+      toast.warning('Aucune transaction à exporter')
+      return
+    }
+    const headers = ['Date', 'Description', 'Points', 'Type', 'Solde']
+    let runningBalance = balance?.balance ?? 0
+    const rows = [...transactions].reverse().map((t, i) => {
+      const balanceAtRow = runningBalance
+      if (i < transactions.length - 1) {
+        const next = [...transactions].reverse()[i + 1]
+        runningBalance += next.type === 'credit' ? -next.amount : next.amount
+      }
+      return [
+        new Date(t.createdAt).toLocaleDateString('fr-FR'),
+        `${t.reason}${t.description ? ` — ${t.description}` : ''}`,
+        `${t.type === 'credit' ? '+' : '-'}${t.amount}`,
+        t.type === 'credit' ? 'Crédit' : 'Débit',
+        String(balanceAtRow),
+      ].join(';')
+    })
+    const csv = [headers.join(';'), ...rows].join('\n')
+    const BOM = '\uFEFF'
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `historique_transactions_${phoneLookup}_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Historique exporté avec succès')
+  }
+
   const tierIcon = (tier: string) => {
     const Icon = TIER_ICONS[tier] || Medal
     return <Icon className="size-5" />
@@ -497,27 +610,81 @@ export function MilesModule() {
         )
       )}
 
-      {/* Tier Distribution */}
+      {/* Tier Distribution with Benefits Panel */}
       {stats?.tierDistribution && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {['bronze', 'silver', 'gold', 'platinum'].map(tier => (
-            <div
-              key={tier}
-              className={`rounded-lg border p-3 text-center ${TIER_COLORS[tier]}`}
-            >
-              <div className="flex items-center justify-center gap-1 mb-1">
-                {tierIcon(tier)}
-                <span className="text-xs font-bold uppercase">{tier}</span>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {['bronze', 'silver', 'gold', 'platinum'].map(tier => (
+              <div
+                key={tier}
+                className={`rounded-lg border p-3 text-center ${TIER_COLORS[tier]}`}
+              >
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  {tierIcon(tier)}
+                  <span className="text-xs font-bold uppercase">{tier}</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.tierDistribution[tier] || 0}</p>
+                <p className="text-[10px] opacity-70">{TIER_RANGE[tier]}</p>
+                {stats.tierBreakdown && stats.tierBreakdown.find(t => t.tier === tier) && (
+                  <p className="text-[10px] opacity-50 mt-0.5">
+                    {(stats.tierBreakdown.find(t => t.tier === tier)?.totalBalance || 0).toLocaleString()} pts total
+                  </p>
+                )}
               </div>
-              <p className="text-2xl font-bold">{stats.tierDistribution[tier] || 0}</p>
-              <p className="text-[10px] opacity-70">{TIER_RANGE[tier]}</p>
-              {stats.tierBreakdown && stats.tierBreakdown.find(t => t.tier === tier) && (
-                <p className="text-[10px] opacity-50 mt-0.5">
-                  {(stats.tierBreakdown.find(t => t.tier === tier)?.totalBalance || 0).toLocaleString()} pts total
-                </p>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Tier Benefits Expandable Panels */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {['bronze', 'silver', 'gold', 'platinum'].map(tier => {
+              const info = TIER_BENEFITS[tier]
+              const isExpanded = expandedTier === tier
+              return (
+                <Collapsible
+                  key={tier}
+                  open={isExpanded}
+                  onOpenChange={(open) => setExpandedTier(open ? tier : null)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Card
+                      className="cursor-pointer hover:shadow-sm transition-all"
+                      style={{ borderLeftWidth: '4px', borderLeftColor: info.color }}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {tierIcon(tier)}
+                            <span className="text-sm font-semibold">Avantages {info.label}</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {info.benefits.length} avantages
+                            </Badge>
+                          </div>
+                          {isExpanded
+                            ? <ChevronUp className="size-4 text-muted-foreground" />
+                            : <ChevronDown className="size-4 text-muted-foreground" />
+                          }
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <Card className="mt-0 rounded-t-none" style={{ borderLeftWidth: '4px', borderLeftColor: info.color }}>
+                      <CardContent className="p-3 pt-2">
+                        <ul className="space-y-1.5">
+                          {info.benefits.map((benefit, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm">
+                              <CheckCircle2 className="size-3.5 shrink-0" style={{ color: info.color }} />
+                              <span>{benefit}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -669,17 +836,101 @@ export function MilesModule() {
             </Card>
           )}
 
+          {/* Points Expiration Warning */}
+          {balance && balance.balance > 0 && (() => {
+            const daysLeft = getPointsExpirationDays()
+            if (daysLeft === null || daysLeft > 365) return null
+            return (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30">
+                <div
+                  className="flex items-center gap-2 p-3 cursor-pointer select-none"
+                  onClick={() => setExpirationExpanded(!expirationExpanded)}
+                >
+                  <Clock className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    {daysLeft <= 0
+                      ? 'Vos points ont expiré'
+                      : daysLeft <= 30
+                        ? `Vos points expirent dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} !`
+                        : `Vos points expirent dans ${daysLeft} jours`
+                    }
+                  </span>
+                  {daysLeft <= 30 && daysLeft > 0 && (
+                    <Badge className="bg-amber-500 text-white text-[10px] shrink-0">Urgent</Badge>
+                  )}
+                  {daysLeft <= 0 && (
+                    <Badge className="bg-red-500 text-white text-[10px] shrink-0">Expiré</Badge>
+                  )}
+                  <div className="flex-1" />
+                  <span className="text-xs text-amber-600 dark:text-amber-400 underline">Plus de détails</span>
+                  {expirationExpanded
+                    ? <ChevronUp className="size-3.5 text-amber-600 dark:text-amber-400" />
+                    : <ChevronDown className="size-3.5 text-amber-600 dark:text-amber-400" />
+                  }
+                </div>
+                {expirationExpanded && (
+                  <div className="px-3 pb-3 border-t border-amber-200 dark:border-amber-800">
+                    <div className="mt-2 space-y-1 text-xs text-amber-800 dark:text-amber-300">
+                      <div className="flex justify-between">
+                        <span>Solde actuel</span>
+                        <span className="font-medium">{balance.balance.toLocaleString()} points</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Premier crédit</span>
+                        <span className="font-medium">
+                          {transactions.filter(t => t.type === 'credit').length > 0
+                            ? new Date(
+                                transactions
+                                  .filter(t => t.type === 'credit')
+                                  .reduce((earliest, t) =>
+                                    new Date(t.createdAt) < new Date(earliest.createdAt) ? t : earliest
+                                  ).createdAt
+                              ).toLocaleDateString('fr-FR')
+                            : '—'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Date d'expiration</span>
+                        <span className="font-medium">
+                          {transactions.filter(t => t.type === 'credit').length > 0
+                            ? (() => {
+                                const first = transactions
+                                  .filter(t => t.type === 'credit')
+                                  .reduce((earliest, t) =>
+                                    new Date(t.createdAt) < new Date(earliest.createdAt) ? t : earliest
+                                  )
+                                const exp = new Date(first.createdAt)
+                                exp.setDate(exp.getDate() + 365)
+                                return exp.toLocaleDateString('fr-FR')
+                              })()
+                            : '—'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10px] text-amber-600 dark:text-amber-400 opacity-70">
+                      Les points expirent 365 jours après leur premier crédit.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Quick credit buttons + Créditer Points dialog */}
           {balance && (
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-xs text-muted-foreground mr-1">Crédit rapide :</span>
               {[
-                { reason: 'flight_scan', label: '✈️ +50 Scan Vol' },
-                { reason: 'feedback', label: '⭐ +25 Feedback' },
-                { reason: 'checkin', label: '🎫 +30 Check-in' },
+                { reason: 'flight_scan', label: 'Vol scanné', subtitle: '+50', icon: Plane },
+                { reason: 'feedback', label: 'Avis client', subtitle: '+25', icon: Star },
+                { reason: 'checkin', label: 'Check-in', subtitle: '+30', icon: ClipboardCheck },
               ].map(action => (
-                <Button key={action.reason} variant="outline" size="sm" onClick={() => handleQuickCredit(action.reason)}>
-                  {action.label}
+                <Button key={action.reason} variant="outline" size="sm" onClick={() => handleQuickCredit(action.reason)} className="gap-1">
+                  <action.icon className="size-3.5" />
+                  <span>{action.subtitle}</span>
+                  <span className="text-[10px] opacity-70">{action.label}</span>
                 </Button>
               ))}
               <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
@@ -703,11 +954,17 @@ export function MilesModule() {
                           <SelectValue placeholder="Sélectionner une raison..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {CREDIT_REASONS.map(reason => (
-                            <SelectItem key={reason.value} value={reason.value}>
-                              {reason.label}
-                            </SelectItem>
-                          ))}
+                          {CREDIT_REASONS.map(reason => {
+                            const IconComp = reason.icon
+                            return (
+                              <SelectItem key={reason.value} value={reason.value}>
+                                <span className="flex items-center gap-2">
+                                  <IconComp className="size-3.5" />
+                                  {reason.label} {reason.subtitle !== '...' ? `(${reason.subtitle})` : ''}
+                                </span>
+                              </SelectItem>
+                            )
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
@@ -754,7 +1011,18 @@ export function MilesModule() {
           {/* Transaction History */}
           {transactions.length > 0 && (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Historique des Transactions</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-sm">Historique des Transactions</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={exportTransactionsCSV}
+                >
+                  <Download className="size-3.5" />
+                  Exporter l'historique
+                </Button>
+              </CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-64 overflow-y-auto">
                   <table className="w-full text-sm">

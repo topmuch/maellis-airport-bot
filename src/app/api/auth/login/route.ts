@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isValid = verifyPassword(password, admin.passwordHash)
+    const isValid = await verifyPassword(password, admin.passwordHash)
     if (!isValid) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
