@@ -151,6 +151,7 @@ async function storeFlightStatus(
         terminal: (responseData.terminal as string) || null,
         status: (responseData.status as string) || 'unknown',
         delayMinutes: (responseData.delayMinutes as number) || 0,
+        updatedAt: new Date(),
       },
       update: {
         scheduledDep: (responseData.scheduledDep as string) || null,

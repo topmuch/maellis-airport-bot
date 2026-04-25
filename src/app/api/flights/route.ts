@@ -107,13 +107,14 @@ export async function POST(request: NextRequest) {
 
     const flightSearch = await db.flightSearch.create({
       data: {
+        id: `fs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         departureCode: data.departureCode,
         arrivalCode: data.arrivalCode,
         departureCity: data.departureCity,
         arrivalCity: data.arrivalCity,
         travelDate: data.travelDate ?? null,
         passengers: data.passengers,
-        resultsCount: data.resultsCount,
+        results: JSON.stringify([]),
         cheapestPrice: data.cheapestPrice,
         airline: data.airline,
         status: data.status,

@@ -263,7 +263,11 @@ export async function POST(request: NextRequest) {
       })
     } else {
       await db.flightStatus.create({
-        data: flightRecord,
+        data: {
+          ...flightRecord,
+          id: `fst-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          updatedAt: new Date(),
+        },
       })
     }
 

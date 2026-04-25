@@ -655,7 +655,7 @@ export async function getLoungeBookings(
     const bookings = await db.loungeBooking.findMany({
       where,
       include: {
-        lounge: {
+        Lounge: {
           select: {
             id: true,
             name: true,

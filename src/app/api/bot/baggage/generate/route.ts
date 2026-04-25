@@ -176,6 +176,7 @@ async function storeBaggageQR(
   try {
     await db.baggageQR.create({
       data: {
+        id: `bq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         passengerName,
         phone: phone || (data.phone as string) || '',
         flightNumber: (data.flightNumber as string) || flightNumber,
@@ -187,6 +188,7 @@ async function storeBaggageQR(
         expiresAt: data.expiresAt
           ? new Date(data.expiresAt as string)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        updatedAt: new Date(),
       },
     });
   } catch (dbError) {

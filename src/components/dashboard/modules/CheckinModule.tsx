@@ -76,201 +76,76 @@ interface CheckInTestForm {
   phone: string
 }
 
-// ─── Supported Airlines ──────────────────────────────────────────────────────
+// ─── Supported Airlines (18 West African & international carriers) ────────────
 
 const SUPPORTED_AIRLINES = [
-  {
-    name: 'Air France',
-    code: 'AF',
-    checkInDomain: 'airfrance.com/checkin',
-    color: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
-  },
-  {
-    name: 'Ethiopian Airlines',
-    code: 'ET',
-    checkInDomain: 'ethiopianairlines.com/checkin',
-    color: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
-  },
-  {
-    name: 'ASKY',
-    code: 'KP',
-    checkInDomain: 'flyasky.com/checkin',
-    color: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
-  },
+  { name: 'Air Sénégal', code: 'HC', checkInDomain: 'air-senegal.com/check-in' },
+  { name: 'Air France', code: 'AF', checkInDomain: 'airfrance.com/check-in' },
+  { name: 'Ethiopian Airlines', code: 'ET', checkInDomain: 'ethiopianairlines.com/check-in' },
+  { name: 'Emirates', code: 'EK', checkInDomain: 'emirates.com/check-in' },
+  { name: 'Turkish Airlines', code: 'TK', checkInDomain: 'turkishairlines.com/check-in' },
+  { name: 'ASKY', code: 'KP', checkInDomain: 'flyasky.com/check-in' },
+  { name: 'Royal Air Maroc', code: 'AT', checkInDomain: 'royalairmaroc.com/check-in' },
+  { name: 'Brussels Airlines', code: 'SN', checkInDomain: 'brusselsairlines.com/check-in' },
+  { name: 'Mauritania Airlines', code: 'MR', checkInDomain: 'mauritania-airlines.com/check-in' },
+  { name: 'Tunisair', code: 'TU', checkInDomain: 'tunisair.com/check-in' },
+  { name: 'Kenya Airways', code: 'KQ', checkInDomain: 'kenya-airways.com/check-in' },
+  { name: 'South African Airways', code: 'SA', checkInDomain: 'flysaa.com/check-in' },
+  { name: 'Iberia', code: 'IB', checkInDomain: 'iberia.com/check-in' },
+  { name: 'Copa Airlines', code: 'CM', checkInDomain: 'copaair.com/check-in' },
+  { name: 'Corsair', code: 'SS', checkInDomain: 'corsair.com/check-in' },
+  { name: 'Transavia', code: 'TO', checkInDomain: 'transavia.com/check-in' },
+  { name: 'Delta Air Lines', code: 'DL', checkInDomain: 'delta.com/check-in' },
+  { name: 'Lufthansa', code: 'LH', checkInDomain: 'lufthansa.com/check-in' },
 ]
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── Dynamic Airline Color System ────────────────────────────────────────────
 
-const MOCK_SESSIONS: CheckInSession[] = [
-  {
-    id: 'ci-001',
-    phone: '+221 77 123 45 67',
-    passengerName: 'Amadou Diallo',
-    flightNumber: 'AF 722',
-    airline: 'Air France',
-    pnr: 'XYZ123AB',
-    departureCode: 'DSS',
-    arrivalCode: 'CDG',
-    flightDate: '2025-07-15',
-    checkInUrl: 'https://www.airfrance.com/checkin?pnr=XYZ123AB',
-    seat: '14A',
-    gate: 'A3',
-    terminal: 'T1',
-    boardingPassUrl: null,
-    status: 'completed',
-    errorMessage: null,
-    createdAt: '2025-07-10T08:30:00Z',
-  },
-  {
-    id: 'ci-002',
-    phone: '+221 78 987 65 43',
-    passengerName: 'Fatou Sow',
-    flightNumber: 'ET 912',
-    airline: 'Ethiopian Airlines',
-    pnr: 'DEF456CD',
-    departureCode: 'DSS',
-    arrivalCode: 'ADD',
-    flightDate: '2025-07-18',
-    checkInUrl: 'https://www.ethiopianairlines.com/checkin?pnr=DEF456CD',
-    seat: null,
-    gate: null,
-    terminal: null,
-    boardingPassUrl: null,
-    status: 'link_generated',
-    errorMessage: null,
-    createdAt: '2025-07-12T14:00:00Z',
-  },
-  {
-    id: 'ci-003',
-    phone: '+221 76 555 44 33',
-    passengerName: 'Ibrahim Keita',
-    flightNumber: 'KP 202',
-    airline: 'ASKY',
-    pnr: 'GHI789EF',
-    departureCode: 'DSS',
-    arrivalCode: 'LFW',
-    flightDate: '2025-07-20',
-    checkInUrl: 'https://www.flyasky.com/checkin?pnr=GHI789EF',
-    seat: '7C',
-    gate: 'B2',
-    terminal: 'T2',
-    boardingPassUrl: null,
-    status: 'checkin_initiated',
-    errorMessage: null,
-    createdAt: '2025-07-13T10:15:00Z',
-  },
-  {
-    id: 'ci-004',
-    phone: '+221 77 111 22 33',
-    passengerName: 'Awa Ndiaye',
-    flightNumber: 'AF 724',
-    airline: 'Air France',
-    pnr: 'JKL012GH',
-    departureCode: 'CDG',
-    arrivalCode: 'DSS',
-    flightDate: '2025-07-22',
-    checkInUrl: null,
-    seat: null,
-    gate: null,
-    terminal: null,
-    boardingPassUrl: null,
-    status: 'detected',
-    errorMessage: null,
-    createdAt: '2025-07-14T06:45:00Z',
-  },
-  {
-    id: 'ci-005',
-    phone: '+221 78 444 55 66',
-    passengerName: 'Moussa Traoré',
-    flightNumber: 'ET 914',
-    airline: 'Ethiopian Airlines',
-    pnr: 'MNO345IJ',
-    departureCode: 'DSS',
-    arrivalCode: 'NBO',
-    flightDate: '2025-07-16',
-    checkInUrl: null,
-    seat: null,
-    gate: null,
-    terminal: null,
-    boardingPassUrl: null,
-    status: 'failed',
-    errorMessage: 'PNR non reconnu par le système de la compagnie',
-    createdAt: '2025-07-11T16:20:00Z',
-  },
-  {
-    id: 'ci-006',
-    phone: '+221 76 222 33 44',
-    passengerName: 'Mariam Ba',
-    flightNumber: 'AF 720',
-    airline: 'Air France',
-    pnr: 'PQR678KL',
-    departureCode: 'DSS',
-    arrivalCode: 'ORY',
-    flightDate: '2025-07-25',
-    checkInUrl: 'https://www.airfrance.com/checkin?pnr=PQR678KL',
-    seat: '22F',
-    gate: 'C1',
-    terminal: 'T1',
-    boardingPassUrl: null,
-    status: 'completed',
-    errorMessage: null,
-    createdAt: '2025-07-09T11:00:00Z',
-  },
-  {
-    id: 'ci-007',
-    phone: '+221 77 888 99 00',
-    passengerName: 'Ousmane Diop',
-    flightNumber: 'KP 301',
-    airline: 'ASKY',
-    pnr: 'STU901MN',
-    departureCode: 'DSS',
-    arrivalCode: 'ACC',
-    flightDate: '2025-07-19',
-    checkInUrl: null,
-    seat: null,
-    gate: null,
-    terminal: null,
-    boardingPassUrl: null,
-    status: 'detected',
-    errorMessage: null,
-    createdAt: '2025-07-13T09:30:00Z',
-  },
-  {
-    id: 'ci-008',
-    phone: '+221 78 333 22 11',
-    passengerName: 'Aissatou Fall',
-    flightNumber: 'ET 916',
-    airline: 'Ethiopian Airlines',
-    pnr: 'VWX234OP',
-    departureCode: 'ADD',
-    arrivalCode: 'DSS',
-    flightDate: '2025-07-21',
-    checkInUrl: 'https://www.ethiopianairlines.com/checkin?pnr=VWX234OP',
-    seat: '3A',
-    gate: 'A1',
-    terminal: 'T1',
-    boardingPassUrl: null,
-    status: 'completed',
-    errorMessage: null,
-    createdAt: '2025-07-12T07:15:00Z',
-  },
+const AIRLINE_DOT_COLORS = [
+  'bg-blue-400', 'bg-green-400', 'bg-amber-400', 'bg-rose-400',
+  'bg-violet-400', 'bg-teal-400', 'bg-orange-400', 'bg-cyan-400',
+  'bg-lime-400', 'bg-fuchsia-400', 'bg-sky-400', 'bg-emerald-400',
+  'bg-pink-400', 'bg-indigo-400', 'bg-yellow-400', 'bg-red-400',
+  'bg-purple-400', 'bg-stone-400',
 ]
 
-const MOCK_STATS: CheckInStats = {
-  totalSessions: 147,
-  sessionsLast7Days: 23,
-  statusBreakdown: [
-    { status: 'detected', count: 32 },
-    { status: 'link_generated', count: 28 },
-    { status: 'checkin_initiated', count: 19 },
-    { status: 'completed', count: 58 },
-    { status: 'failed', count: 10 },
-  ],
-  airlineBreakdown: [
-    { airline: 'Air France', count: 72 },
-    { airline: 'Ethiopian Airlines', count: 48 },
-    { airline: 'ASKY', count: 27 },
-  ],
+const AIRLINE_BADGE_STYLES = [
+  'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
+  'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+  'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
+  'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800',
+  'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-800',
+  'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800',
+  'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800',
+  'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-800',
+  'bg-lime-100 text-lime-700 border-lime-200 dark:bg-lime-900/30 dark:text-lime-400 dark:border-lime-800',
+  'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-400 dark:border-fuchsia-800',
+  'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-800',
+  'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800',
+  'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-400 dark:border-pink-800',
+  'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800',
+  'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
+  'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
+  'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800',
+  'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-900/30 dark:text-stone-400 dark:border-stone-800',
+]
+
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32-bit int
+  }
+  return Math.abs(hash)
+}
+
+function getAirlineColor(airline: string): string {
+  return AIRLINE_DOT_COLORS[hashString(airline) % AIRLINE_DOT_COLORS.length]
+}
+
+function getAirlineBadgeStyle(airline: string): string {
+  return AIRLINE_BADGE_STYLES[hashString(airline) % AIRLINE_BADGE_STYLES.length]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -347,28 +222,6 @@ function getStatusBarColor(status: string): string {
     case 'completed': return 'bg-green-400'
     case 'failed': return 'bg-red-400'
     default: return 'bg-gray-400'
-  }
-}
-
-function getAirlineColor(airline: string): string {
-  switch (airline) {
-    case 'Air France': return 'bg-blue-400'
-    case 'Ethiopian Airlines': return 'bg-green-400'
-    case 'ASKY': return 'bg-amber-400'
-    default: return 'bg-gray-400'
-  }
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return '—'
-  try {
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })
-  } catch {
-    return dateStr
   }
 }
 
@@ -456,32 +309,34 @@ export function CheckinModule() {
       ])
 
       if (statsRes.ok) {
-        const data = await statsRes.json()
-        if (data.totalSessions) {
-          setStats(data)
+        const raw = await statsRes.json()
+        // Handle both wrapped ({ success, data: {...} }) and unwrapped responses
+        const statsData = raw.data?.totalSessions != null ? raw.data : raw
+        if (statsData.totalSessions != null) {
+          setStats({
+            totalSessions: statsData.totalSessions,
+            sessionsLast7Days: statsData.sessionsLast7Days ?? 0,
+            statusBreakdown: statsData.statusBreakdown ?? [],
+            airlineBreakdown: statsData.airlineBreakdown ?? [],
+          })
         }
       }
 
       if (sessionsRes.ok) {
-        const data = await sessionsRes.json()
-        const items = Array.isArray(data) ? data : (data.data ?? data.items ?? [])
-        if (items.length > 0) {
-          setSessions(items)
-          setIsRefreshing(false)
-          if (showLoading) setLoading(false)
-          return
-        }
+        const raw = await sessionsRes.json()
+        // Handle both wrapped ({ success, data: [...] }) and unwrapped ([...]) responses
+        const items = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw.data)
+            ? raw.data
+            : Array.isArray(raw.items)
+              ? raw.items
+              : []
+        setSessions(items)
       }
     } catch {
       // API error — leave lists empty
     }
-    setSessions([])
-    setStats({
-      totalSessions: 0,
-      sessionsLast7Days: 0,
-      statusBreakdown: [],
-      airlineBreakdown: [],
-    })
     setIsRefreshing(false)
     if (showLoading) setLoading(false)
   }, [])
@@ -523,34 +378,31 @@ export function CheckinModule() {
         }),
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        if (data.checkInUrl) {
-          setTestResult({
-            url: data.checkInUrl,
-            airline: testForm.airline,
-            pnr: testForm.pnr,
-          })
-          toast.success('Lien de check-in généré avec succès')
-          setIsTesting(false)
-          return
-        }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        toast.error(errBody.error ?? `Erreur serveur (${res.status})`)
+        setIsTesting(false)
+        return
+      }
+
+      const data = await res.json()
+      // Handle both { data: { checkInUrl } } and { checkInUrl } responses
+      const checkInUrl = data.data?.checkInUrl ?? data.checkInUrl
+
+      if (checkInUrl) {
+        setTestResult({
+          url: checkInUrl,
+          airline: testForm.airline,
+          pnr: testForm.pnr,
+        })
+        toast.success('Lien de check-in généré avec succès')
+      } else {
+        toast.error('Le serveur n\'a pas pu générer de lien de check-in pour cette compagnie. Veuillez vérifier que la compagnie est supportée.')
       }
     } catch {
-      // Fallback to local generation
+      toast.error('Erreur de connexion au serveur. Veuillez réessayer.')
     }
 
-    // Local fallback: generate a simulated link
-    const airline = SUPPORTED_AIRLINES.find((a) => a.name === testForm.airline)
-    const domain = airline?.checkInDomain ?? 'example.com/checkin'
-    const generatedUrl = `https://www.${domain}?pnr=${testForm.pnr.toUpperCase()}&lang=fr`
-
-    setTestResult({
-      url: generatedUrl,
-      airline: testForm.airline,
-      pnr: testForm.pnr,
-    })
-    toast.success('Lien de check-in simulé avec succès')
     setIsTesting(false)
   }
 
@@ -618,7 +470,7 @@ export function CheckinModule() {
         />
         <StatCard
           title="Compagnies Supportées"
-          value={SUPPORTED_AIRLINES.length}
+          value={18}
           icon={<ShieldCheck className="size-6 text-emerald-600 dark:text-emerald-400" />}
           colorClass="text-emerald-600 dark:text-emerald-400"
           iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
@@ -660,40 +512,48 @@ export function CheckinModule() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {stats.statusBreakdown.map((item) => {
-                  const total = stats.statusBreakdown.reduce((sum, s) => sum + s.count, 0)
-                  const percentage = Math.round((item.count / total) * 100)
-                  return (
-                    <div key={item.status} className="space-y-2">
+                {stats.statusBreakdown.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Aucune donnée disponible pour le moment.
+                  </p>
+                ) : (
+                  <>
+                    {stats.statusBreakdown.map((item) => {
+                      const total = stats.statusBreakdown.reduce((sum, s) => sum + s.count, 0)
+                      const percentage = Math.round((item.count / total) * 100)
+                      return (
+                        <div key={item.status} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-3 w-3 rounded-full ${getStatusColor(item.status)}`} />
+                              <span className="text-sm font-medium">
+                                {getStatusLabel(item.status)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold">{item.count}</span>
+                              <span className="text-xs text-muted-foreground">({percentage}%)</span>
+                            </div>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${getStatusBarColor(item.status)}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="pt-3 border-t">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`h-3 w-3 rounded-full ${getStatusColor(item.status)}`} />
-                          <span className="text-sm font-medium">
-                            {getStatusLabel(item.status)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold">{item.count}</span>
-                          <span className="text-xs text-muted-foreground">({percentage}%)</span>
-                        </div>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${getStatusBarColor(item.status)}`}
-                          style={{ width: `${percentage}%` }}
-                        />
+                        <span className="text-sm font-semibold">Total</span>
+                        <span className="text-sm font-bold">
+                          {stats.statusBreakdown.reduce((sum, s) => sum + s.count, 0)}
+                        </span>
                       </div>
                     </div>
-                  )
-                })}
-                <div className="pt-3 border-t">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold">Total</span>
-                    <span className="text-sm font-bold">
-                      {stats.statusBreakdown.reduce((sum, s) => sum + s.count, 0)}
-                    </span>
-                  </div>
-                </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -706,53 +566,61 @@ export function CheckinModule() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {stats.airlineBreakdown.map((item) => {
-                  const total = stats.airlineBreakdown.reduce((sum, s) => sum + s.count, 0)
-                  const percentage = Math.round((item.count / total) * 100)
-                  return (
-                    <div key={item.airline} className="space-y-2">
+                {stats.airlineBreakdown.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Aucune donnée disponible pour le moment.
+                  </p>
+                ) : (
+                  <>
+                    {stats.airlineBreakdown.map((item) => {
+                      const total = stats.airlineBreakdown.reduce((sum, s) => sum + s.count, 0)
+                      const percentage = Math.round((item.count / total) * 100)
+                      return (
+                        <div key={item.airline} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-3 w-3 rounded-full ${getAirlineColor(item.airline)}`} />
+                              <span className="text-sm font-medium">{item.airline}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold">{item.count}</span>
+                              <span className="text-xs text-muted-foreground">({percentage}%)</span>
+                            </div>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${getAirlineColor(item.airline)}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="pt-3 border-t">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`h-3 w-3 rounded-full ${getAirlineColor(item.airline)}`} />
-                          <span className="text-sm font-medium">{item.airline}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold">{item.count}</span>
-                          <span className="text-xs text-muted-foreground">({percentage}%)</span>
-                        </div>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${getAirlineColor(item.airline)}`}
-                          style={{ width: `${percentage}%` }}
-                        />
+                        <span className="text-sm font-semibold">Total</span>
+                        <span className="text-sm font-bold">
+                          {stats.airlineBreakdown.reduce((sum, s) => sum + s.count, 0)}
+                        </span>
                       </div>
                     </div>
-                  )
-                })}
-                <div className="pt-3 border-t">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold">Total</span>
-                    <span className="text-sm font-bold">
-                      {stats.airlineBreakdown.reduce((sum, s) => sum + s.count, 0)}
-                    </span>
-                  </div>
-                </div>
+                  </>
+                )}
 
                 {/* Supported Airlines Info */}
                 <div className="mt-4 rounded-lg border border-dashed border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 p-4">
                   <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-3 flex items-center gap-2">
                     <ShieldCheck className="size-4" />
-                    Compagnies Supportées pour Auto Check-in
+                    Compagnies Supportées pour Auto Check-in ({SUPPORTED_AIRLINES.length})
                   </h4>
-                  <div className="space-y-2">
+                  <div className="max-h-64 overflow-y-auto space-y-2">
                     {SUPPORTED_AIRLINES.map((airline) => (
                       <div
-                        key={airline.name}
+                        key={airline.code}
                         className="flex items-center justify-between text-sm"
                       >
                         <div className="flex items-center gap-2">
-                          <Badge className={airline.color}>{airline.code}</Badge>
+                          <Badge className={getAirlineBadgeStyle(airline.name)}>{airline.code}</Badge>
                           <span>{airline.name}</span>
                         </div>
                         <span className="text-xs text-muted-foreground font-mono">
@@ -934,7 +802,7 @@ export function CheckinModule() {
                     </SelectTrigger>
                     <SelectContent>
                       {SUPPORTED_AIRLINES.map((airline) => (
-                        <SelectItem key={airline.name} value={airline.name}>
+                        <SelectItem key={airline.code} value={airline.name}>
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs text-muted-foreground">
                               {airline.code}

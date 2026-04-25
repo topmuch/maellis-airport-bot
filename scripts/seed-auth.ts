@@ -56,11 +56,13 @@ async function seed() {
   // Create user
   const user = await db.authUser.create({
     data: {
+      id: crypto.randomBytes(12).toString('hex'),
       email,
       name,
       password: hashedPassword,
       role: 'SUPERADMIN',
       isActive: true,
+      updatedAt: new Date(),
     },
   })
 

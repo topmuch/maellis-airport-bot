@@ -27,7 +27,127 @@ export interface CheckInLinkResult {
 }
 
 // ---------------------------------------------------------------------------
-// Airline check-in URL mapping
+// Airline seed data — 18 airlines serving West Africa / Dakar (DSS)
+// ---------------------------------------------------------------------------
+interface AirlineSeedEntry {
+  iataCode: string;
+  airlineName: string;
+  checkinUrl: string;
+  apiUrl?: string;
+  notes?: string;
+}
+
+const AIRLINE_SEED_DATA: AirlineSeedEntry[] = [
+  // ── West / Central African carriers ──────────────────────────────────────
+  {
+    iataCode: 'SN',
+    airlineName: 'Air Sénégal',
+    checkinUrl: 'https://www.air-senegal.com/check-in',
+    notes: 'Flag carrier of Senegal. IATA "SN" also used by Brussels Airlines; this entry is for Air Sénégal.',
+  },
+  {
+    iataCode: 'HC',
+    airlineName: 'Air Côte d\'Ivoire',
+    checkinUrl: 'https://www.aircotedivoire.com/en/check-in',
+  },
+  {
+    iataCode: 'KP',
+    airlineName: 'ASKY Airlines',
+    checkinUrl: 'https://www.flyasky.com/check-in',
+  },
+  {
+    iataCode: 'ET',
+    airlineName: 'Ethiopian Airlines',
+    checkinUrl: 'https://www.ethiopianairlines.com/check-in',
+  },
+
+  // ── North African carriers ───────────────────────────────────────────────
+  {
+    iataCode: 'AT',
+    airlineName: 'Royal Air Maroc',
+    checkinUrl: 'https://www.royalairmaroc.com/check-in',
+  },
+  {
+    iataCode: 'TU',
+    airlineName: 'Tunisair',
+    checkinUrl: 'https://www.tunisair.com/en/check-in',
+  },
+  {
+    iataCode: 'MS',
+    airlineName: 'EgyptAir',
+    checkinUrl: 'https://www.egyptair.com/check-in',
+  },
+  {
+    iataCode: 'RJ',
+    airlineName: 'Royal Jordanian',
+    checkinUrl: 'https://www.rj.com/check-in',
+  },
+
+  // ── European legacy carriers ────────────────────────────────────────────
+  {
+    iataCode: 'AF',
+    airlineName: 'Air France',
+    checkinUrl: 'https://www.airfrance.com/check-in',
+  },
+  {
+    iataCode: 'IB',
+    airlineName: 'Iberia',
+    checkinUrl: 'https://www.iberia.com/check-in',
+  },
+  {
+    iataCode: 'LH',
+    airlineName: 'Lufthansa',
+    checkinUrl: 'https://www.lufthansa.com/check-in',
+  },
+  // Note: Brussels Airlines also uses IATA "SN". To disambiguate from Air
+  // Sénégal we store it with a composite key-like code. The normalise
+  // function handles the alias "brussels" or "sn_bru".
+  {
+    iataCode: 'SN_BRU',
+    airlineName: 'Brussels Airlines',
+    checkinUrl: 'https://www.brusselsairlines.com/check-in',
+    notes: 'Uses SN_BRU to avoid collision with Air Sénégal (SN).',
+  },
+
+  // ── Middle-East & Gulf carriers ─────────────────────────────────────────
+  {
+    iataCode: 'TK',
+    airlineName: 'Turkish Airlines',
+    checkinUrl: 'https://www.turkishairlines.com/check-in',
+  },
+  {
+    iataCode: 'EK',
+    airlineName: 'Emirates',
+    checkinUrl: 'https://www.emirates.com/check-in',
+  },
+  {
+    iataCode: 'QR',
+    airlineName: 'Qatar Airways',
+    checkinUrl: 'https://www.qatarairways.com/check-in',
+  },
+
+  // ── Sub-Saharan African carriers ────────────────────────────────────────
+  {
+    iataCode: 'SA',
+    airlineName: 'South African Airways',
+    checkinUrl: 'https://www.flysaa.com/check-in',
+  },
+
+  // ── American carriers ───────────────────────────────────────────────────
+  {
+    iataCode: 'DL',
+    airlineName: 'Delta Air Lines',
+    checkinUrl: 'https://www.delta.com/check-in',
+  },
+  {
+    iataCode: 'UA',
+    airlineName: 'United Airlines',
+    checkinUrl: 'https://www.united.com/check-in',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Hardcoded fallback airline check-in URL mapping (kept for backward compat)
 // ---------------------------------------------------------------------------
 const AIRLINE_CHECKIN_URLS: Record<string, (pnr: string) => string> = {
   air_france: (pnr) => `https://www.airfrance.com/checkin?ref=${pnr}`,
@@ -37,15 +157,91 @@ const AIRLINE_CHECKIN_URLS: Record<string, (pnr: string) => string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Helper: normalize airline name for URL lookup
+// Helper: normalize airline name / IATA code for URL lookup
 // ---------------------------------------------------------------------------
 function normalizeAirline(airline: string): string {
   const lower = airline.toLowerCase().trim();
+
+  // Original 3 entries (backward-compatible)
   if (lower.includes('air france') || lower === 'af') return 'air_france';
   if (lower.includes('ethiopian') || lower === 'et') return 'ethiopian';
   if (lower.includes('asky') || lower === 'kp') return 'asky';
+
+  // New airlines — return normalised key for DB / fallback lookup
+  if (lower.includes('air senegal') || lower === 'sn') return 'sn';
+  if (lower.includes('air cote') || lower.includes('air côte') || lower === 'hc') return 'hc';
+  if (lower.includes('tunisair') || lower === 'tu') return 'tu';
+  if (lower.includes('royal air maroc') || lower === 'at') return 'at';
+  if (lower.includes('turkish') || lower === 'tk') return 'tk';
+  if (lower.includes('emirates') || lower === 'ek') return 'ek';
+  if (lower.includes('qatar') || lower === 'qr') return 'qr';
+  if (lower.includes('iberia') || lower === 'ib') return 'ib';
+  if (lower.includes('south african') || lower === 'saa' || lower === 'sa') return 'sa';
+  if (lower.includes('delta') || lower === 'dl') return 'dl';
+  if (lower.includes('united') || lower === 'ua') return 'ua';
+  if (lower.includes('lufthansa') || lower === 'lh') return 'lh';
+  if (lower.includes('brussels') || lower === 'sn_bru') return 'sn_bru';
+  if (lower.includes('royal jordanian') || lower === 'rj') return 'rj';
+  if (lower.includes('egyptair') || lower === 'ms') return 'ms';
+
   return lower;
 }
+
+// ---------------------------------------------------------------------------
+// Seed function — upsert all known airlines into CheckinAirline table
+// Called once at module load time if the table is empty.
+// ---------------------------------------------------------------------------
+let seedPromise: Promise<void> | null = null;
+
+export async function seedCheckinAirlines(): Promise<void> {
+  try {
+    const count = await db.checkinAirline.count();
+    if (count > 0) {
+      console.log(
+        `[checkin.service] seedCheckinAirlines: ${count} airlines already present, skipping seed.`,
+      );
+      return;
+    }
+
+    console.log(
+      `[checkin.service] seedCheckinAirlines: table is empty, seeding ${AIRLINE_SEED_DATA.length} airlines…`,
+    );
+
+    for (const entry of AIRLINE_SEED_DATA) {
+      await db.checkinAirline.upsert({
+        where: { iataCode: entry.iataCode },
+        update: {
+          airlineName: entry.airlineName,
+          checkinUrl: entry.checkinUrl,
+          ...(entry.apiUrl !== undefined && { apiUrl: entry.apiUrl }),
+          ...(entry.notes !== undefined && { notes: entry.notes }),
+          isActive: true,
+        },
+        create: {
+          iataCode: entry.iataCode,
+          airlineName: entry.airlineName,
+          checkinUrl: entry.checkinUrl,
+          ...(entry.apiUrl !== undefined && { apiUrl: entry.apiUrl }),
+          ...(entry.notes !== undefined && { notes: entry.notes }),
+          isActive: true,
+        },
+      });
+    }
+
+    console.log(
+      `[checkin.service] seedCheckinAirlines: ✅ seeded ${AIRLINE_SEED_DATA.length} airlines.`,
+    );
+  } catch (error) {
+    console.error(
+      '[checkin.service] seedCheckinAirlines error:',
+      error,
+    );
+  }
+}
+
+// Fire-and-forget seed at module load. The promise is stored so callers can
+// optionally await it, but the module works regardless.
+seedPromise = seedCheckinAirlines();
 
 // ---------------------------------------------------------------------------
 // 1. detectUpcomingFlights — Check TicketScan for flights within 48h
@@ -89,12 +285,43 @@ export async function detectUpcomingFlights(phone: string) {
 
 // ---------------------------------------------------------------------------
 // 2. generateCheckInLink — Generate check-in deep link based on airline
+//     First checks the CheckinAirline DB table, then falls back to the
+//     hardcoded AIRLINE_CHECKIN_URLS map.
 // ---------------------------------------------------------------------------
-export function generateCheckInLink(
+export async function generateCheckInLink(
   pnr: string,
   airline: string,
-): CheckInLinkResult {
+): Promise<CheckInLinkResult> {
   const key = normalizeAirline(airline);
+
+  // ── 2a. Try the database first ─────────────────────────────────────────
+  try {
+    // Ensure seed has completed before querying
+    if (seedPromise) await seedPromise;
+
+    const dbAirline = await db.checkinAirline.findUnique({
+      where: { iataCode: key },
+    });
+
+    if (dbAirline && dbAirline.isActive && dbAirline.checkinUrl) {
+      const url = dbAirline.checkinUrl.includes('?')
+        ? `${dbAirline.checkinUrl}&pnr=${encodeURIComponent(pnr)}`
+        : `${dbAirline.checkinUrl}?pnr=${encodeURIComponent(pnr)}`;
+
+      return {
+        airline: dbAirline.airlineName,
+        url,
+        message: `✈️ Check-in en ligne disponible pour ${dbAirline.airlineName}`,
+      };
+    }
+  } catch (error) {
+    console.warn(
+      '[checkin.service] generateCheckInLink: DB lookup failed, falling back to hardcoded map.',
+      error,
+    );
+  }
+
+  // ── 2b. Fallback to hardcoded map ─────────────────────────────────────
   const urlBuilder = AIRLINE_CHECKIN_URLS[key];
 
   if (urlBuilder) {
@@ -120,7 +347,7 @@ export async function createCheckInSession(data: CreateCheckInSessionInput) {
     // Auto-generate check-in URL if airline and PNR are available
     let checkInUrl = data.checkInUrl ?? null;
     if (!checkInUrl && data.pnr && data.airline) {
-      const linkResult = generateCheckInLink(data.pnr, data.airline);
+      const linkResult = await generateCheckInLink(data.pnr, data.airline);
       checkInUrl = linkResult.url;
     }
 

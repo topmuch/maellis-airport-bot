@@ -256,6 +256,7 @@ async function storePayment(params: {
   try {
     await db.payment.create({
       data: {
+        id: `pay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         bookingId: params.bookingId || null,
         bookingType: params.bookingType || 'general',
         phone: params.phone || '',
@@ -265,6 +266,7 @@ async function storePayment(params: {
         amount: params.amount,
         status: params.status,
         externalRef: params.externalRef || null,
+        updatedAt: new Date(),
       },
     });
   } catch (dbError) {

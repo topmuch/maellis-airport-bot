@@ -19,10 +19,10 @@ export async function GET(request: NextRequest) {
       skip,
       take: limit,
       include: {
-        user: true,
+        User: true,
         _count: {
           select: {
-            conversationMessages: true,
+            ConversationMessage: true,
           },
         },
       },
@@ -30,14 +30,14 @@ export async function GET(request: NextRequest) {
 
     const formatted = conversations.map((conv) => ({
       id: conv.id,
-      userPhone: conv.user?.phone ?? null,
-      userName: conv.user?.name ?? null,
+      userPhone: conv.User?.phone ?? null,
+      userName: conv.User?.name ?? null,
       language: conv.language,
       status: conv.status,
       intent: conv.intent,
       resolved: conv.resolved,
       lastMessage: conv.lastMessage,
-      messageCount: conv._count.conversationMessages,
+      messageCount: conv._count.ConversationMessage,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
     }))

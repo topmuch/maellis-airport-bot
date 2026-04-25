@@ -7,109 +7,523 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ========================
-// MAELLIS AIRPORT BOT - Production Database Schema
-// Phase 4 — Business Logic Modules (Lounge, Transport, Emergency, Partners)
-// Phase 5 — Marketplace Marchands + Publicité & Monétisation
-// Phase 6 — FAQ Intelligente & Analytics
-// Phase 7 — RAG Knowledge Base (Retrieval-Augmented Generation)
-// ========================
+model Account {
+  id                String   @id
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  AuthUser          AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-// ─────────────────────────────────────────────
-// WhatsApp Users (end users, not admins)
-// ─────────────────────────────────────────────
-model User {
-  id            String   @id @default(cuid())
-  phone         String   @unique
-  name          String?
-  language      String   @default("fr")
-  isActive      Boolean  @default(true)
-  preferences   String   @default("{}")
-  lastSeen      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  conversations Conversation[]
-  wallet        UserWallet?
+  @@unique([provider, providerAccountId])
 }
 
-// ─────────────────────────────────────────────
-// Enhanced Conversation (linked to User, JSON history)
-// ─────────────────────────────────────────────
-model Conversation {
-  id                  String              @id @default(cuid())
-  userId              String
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages            String              // JSON array of message history (legacy, kept for backward compatibility)
-  intent              String?
-  resolved            Boolean             @default(false)
-  language            String              @default("fr")
-  status              String              @default("active")
-  lastMessage         DateTime            @default(now())
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-
-  conversationMessages ConversationMessage[]
+model ActivityLog {
+  id        String   @id
+  adminId   String?
+  action    String
+  module    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  Admin     Admin?   @relation(fields: [adminId], references: [id])
 }
 
-// ─────────────────────────────────────────────
-// Conversation Messages (1:N relation to Conversation)
-// ─────────────────────────────────────────────
-model ConversationMessage {
-  id             String       @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String       // "user" | "assistant" | "system" | "agent"
-  content        String
-  intent         String?
-  entities       String?      // JSON string
-  language       String?
-  metadata       String?      // JSON string — { gate: "B12", flight: "AF123" }
-  createdAt      DateTime     @default(now())
+model AdCampaign {
+  id            String          @id
+  airportCode   String
+  name          String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  totalBudget   Float
+  spentBudget   Float           @default(0)
+  status        String          @default("draft")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  Advertisement Advertisement[]
 
-  @@index([conversationId, createdAt])
-  @@index([intent, createdAt])
+  @@index([airportCode, status])
 }
 
-// ─────────────────────────────────────────────
-// Admin users of the dashboard
-// ─────────────────────────────────────────────
+model AdClick {
+  id              String       @id
+  impressionId    String
+  converted       Boolean      @default(false)
+  conversionValue Float        @default(0)
+  timestamp       DateTime     @default(now())
+  AdImpression    AdImpression @relation(fields: [impressionId], references: [id], onDelete: Cascade)
+
+  @@index([impressionId])
+}
+
+model AdImpression {
+  id              String        @id
+  advertisementId String
+  sessionId       String?
+  placement       String
+  deviceInfo      String?
+  location        String?
+  timestamp       DateTime      @default(now())
+  AdClick         AdClick[]
+  Advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+
+  @@index([advertisementId, timestamp])
+}
+
 model Admin {
-  id           String   @id @default(cuid())
+  id           String        @id
   name         String
-  email        String   @unique
-  role         String   @default("admin")
+  email        String        @unique
+  role         String        @default("admin")
   passwordHash String
   airportCode  String?
   refreshToken String?
-  isActive     Boolean  @default(true)
+  isActive     Boolean       @default(true)
   lastLogin    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  activityLogs ActivityLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime
+  ActivityLog  ActivityLog[]
 }
 
-// ─────────────────────────────────────────────
-// Message log (standalone — historical record)
-// ─────────────────────────────────────────────
-model Message {
-  id             String   @id @default(cuid())
+model Advertisement {
+  id              String         @id
+  airportCode     String
+  campaignId      String?
+  merchantId      String?
+  title           String
+  description     String?
+  type            String
+  placement       String
+  imageUrl        String
+  videoUrl        String?
+  targetUrl       String?
+  ctaText         String         @default("En savoir plus")
+  targetAudience  String?
+  startDate       DateTime
+  endDate         DateTime
+  budget          Float
+  budgetType      String         @default("total")
+  cpmRate         Float?
+  cpcRate         Float?
+  impressions     Int            @default(0)
+  clicks          Int            @default(0)
+  conversions     Int            @default(0)
+  revenue         Float          @default(0)
+  status          String         @default("draft")
+  rejectionReason String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime
+  AdImpression    AdImpression[]
+  Merchant        Merchant?      @relation(fields: [merchantId], references: [id])
+  AdCampaign      AdCampaign?    @relation(fields: [campaignId], references: [id])
+
+  @@index([type, placement])
+  @@index([airportCode, status, startDate, endDate])
+}
+
+model AudioGeneration {
+  id           String   @id
+  phone        String?
+  userId       String?
+  type         String
+  inputText    String
+  audioUrl     String?
+  language     String   @default("fr")
+  provider     String   @default("mock")
+  durationSec  Int      @default(0)
+  status       String   @default("pending")
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+
+  @@index([status])
+  @@index([type])
+  @@index([phone, createdAt])
+}
+
+model AuthUser {
+  id                                        String       @id
+  name                                      String?
+  email                                     String       @unique
+  emailVerified                             DateTime?
+  image                                     String?
+  password                                  String?
+  role                                      String       @default("AGENT")
+  airportCode                               String?
+  isActive                                  Boolean      @default(true)
+  createdAt                                 DateTime     @default(now())
+  updatedAt                                 DateTime
+  Account                                   Account[]
+  Invitation_Invitation_usedByToAuthUser    Invitation?  @relation("Invitation_usedByToAuthUser")
+  Invitation_Invitation_invitedByToAuthUser Invitation[] @relation("Invitation_invitedByToAuthUser")
+  Session                                   Session[]
+}
+
+model BaggageClaim {
+  id            String    @id
+  baggageId     String?
+  phone         String
+  passengerName String
+  description   String
+  flightNumber  String?
+  location      String?
+  status        String    @default("open")
+  resolution    String?
+  compensation  Float?
+  resolvedAt    DateTime?
+  assignedTo    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+
+  @@index([phone])
+  @@index([status, createdAt])
+}
+
+model BaggageQR {
+  id            String    @id
+  userId        String?
+  passengerName String
+  phone         String
+  flightNumber  String
+  pnr           String
+  tagNumber     String
+  weight        Float?
+  destination   String
+  qrToken       String    @unique
+  status        String    @default("active")
+  lastScan      DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+}
+
+model BillingClient {
+  id        String    @id
+  name      String
+  email     String    @unique
+  phone     String
+  company   String?
+  taxId     String?
+  address   String
+  currency  String    @default("XOF")
+  taxRate   Float     @default(0.18)
+  isActive  Boolean   @default(true)
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Invoice   Invoice[]
+
+  @@index([isActive, createdAt])
+}
+
+model BillingSettings {
+  id              String   @id @default("global")
+  nextInvoiceNum  Int      @default(1)
+  defaultTaxRate  Float    @default(0.18)
+  gracePeriodDays Int      @default(3)
+  reminderDays    String   @default("[3,7,15]")
+  legalName       String   @default("MAELLIS Technologies")
+  legalAddress    String   @default("Dakar, Sénégal")
+  legalTaxId      String   @default("")
+  legalRccm       String   @default("")
+  bankName        String   @default("")
+  bankAccount     String   @default("")
+  paymentLink     String   @default("")
+  updatedAt       DateTime
+}
+
+model Cart {
+  id            String     @id
+  customerPhone String     @unique
+  updatedAt     DateTime
+  createdAt     DateTime   @default(now())
+  CartItem      CartItem[]
+}
+
+model CartItem {
+  id              String   @id
+  cartId          String
+  productId       String
+  productName     String
+  productImage    String?
+  merchantId      String
+  merchantName    String
+  quantity        Int      @default(1)
+  unitPrice       Float
+  discountPercent Float    @default(0)
+  addedAt         DateTime @default(now())
+  Cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([cartId])
+}
+
+model CheckInSession {
+  id              String   @id
+  phone           String
+  passengerName   String?
+  flightNumber    String
+  airline         String?
+  pnr             String?
+  departureCode   String?
+  arrivalCode     String?
+  flightDate      String?
+  checkInUrl      String?
+  boardingPassUrl String?
+  seat            String?
+  gate            String?
+  terminal        String?
+  status          String   @default("detected")
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+
+  @@index([status])
+  @@index([pnr])
+  @@index([flightNumber])
+  @@index([phone, createdAt])
+}
+
+model CheckinAirline {
+  id           String   @id
+  iataCode     String   @unique
+  airlineName  String
+  checkinUrl   String
+  apiUrl       String?
+  notes        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+}
+
+model Conversation {
+  id                  String                @id
+  userId              String
+  messages            String
+  intent              String?
+  resolved            Boolean               @default(false)
+  language            String                @default("fr")
+  status              String                @default("active")
+  lastMessage         DateTime              @default(now())
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  User                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ConversationMessage ConversationMessage[]
+}
+
+model ConversationMessage {
+  id             String       @id
   conversationId String
-  direction      String
+  role           String
   content        String
-  messageType    String   @default("text")
   intent         String?
   entities       String?
-  responseTime   Int?
-  createdAt      DateTime @default(now())
+  language       String?
+  metadata       String?
+  createdAt      DateTime     @default(now())
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([intent, createdAt])
+  @@index([conversationId, createdAt])
 }
 
-// ─────────────────────────────────────────────
-// Enhanced FlightSearch (linked to User, JSON results)
-// ─────────────────────────────────────────────
+model CrisisAlert {
+  id             String    @id
+  airportCode    String    @default("DSS")
+  title          String
+  description    String
+  severity       String    @default("medium")
+  status         String    @default("draft")
+  targetType     String    @default("all")
+  targetValue    String?
+  message        String
+  sentCount      Int       @default(0)
+  deliveredCount Int       @default(0)
+  failedCount    Int       @default(0)
+  optOutCount    Int       @default(0)
+  createdBy      String?
+  activatedAt    DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+
+  @@index([severity, status])
+  @@index([airportCode, status])
+}
+
+model DayUseBooking {
+  id                 String    @id
+  hotelId            String
+  roomId             String
+  roomType           String    @default("standard")
+  passengerName      String
+  phone              String
+  email              String?
+  flightNumber       String?
+  bookingDate        String
+  startTime          String
+  durationHours      Int       @default(4)
+  guests             Int       @default(1)
+  unitPrice          Float
+  totalPrice         Float
+  currency           String    @default("XOF")
+  paymentMethod      String?
+  paymentStatus      String    @default("pending")
+  bookingRef         String    @unique
+  qrCheckin          String?
+  status             String    @default("confirmed")
+  cancellationReason String?
+  cancelledAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  Hotel              Hotel     @relation(fields: [hotelId], references: [id])
+
+  @@index([status])
+  @@index([phone])
+  @@index([hotelId, bookingDate])
+}
+
+model DocumentChunk {
+  id             String        @id
+  kbId           String
+  content        String
+  chunkIndex     Int
+  tokenCount     Int           @default(0)
+  embedding      String?
+  embeddingModel String?
+  metadata       String        @default("{}")
+  KnowledgeBase  KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
+
+  @@index([kbId])
+}
+
+model EmergencyAlert {
+  id          String   @id
+  airportCode String   @default("DSS")
+  userPhone   String
+  userEmail   String?
+  userName    String?
+  alertType   String
+  location    String?
+  description String
+  severity    String   @default("medium")
+  status      String   @default("open")
+  assignedTo  String?
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([severity, status])
+  @@index([airportCode, status, createdAt])
+}
+
+model EmergencyContact {
+  id          String   @id
+  airportCode String
+  category    String
+  name        String
+  phoneNumber String
+  whatsappNum String?
+  email       String?
+  isPrimary   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([airportCode, isActive])
+  @@index([airportCode, category])
+}
+
+model FAQ {
+  id            String         @id
+  airportCode   String         @default("DSS")
+  category      String
+  question      String
+  answer        String
+  keywords      String         @default("[]")
+  priority      Int            @default(0)
+  isActive      Boolean        @default(true)
+  viewCount     Int            @default(0)
+  resolvedCount Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime
+  FAQAnalytics  FAQAnalytics[]
+
+  @@index([airportCode, category, isActive])
+}
+
+model FAQAnalytics {
+  id           String   @id
+  airportCode  String   @default("DSS")
+  faqId        String?
+  userQuestion String
+  matchedFAQ   Boolean
+  language     String   @default("fr")
+  score        Float?
+  timestamp    DateTime @default(now())
+  FAQ          FAQ?     @relation(fields: [faqId], references: [id])
+
+  @@index([matchedFAQ, timestamp])
+  @@index([airportCode, timestamp])
+}
+
+model FAQSuggestion {
+  id             String   @id
+  airportCode    String   @default("DSS")
+  question       String
+  proposedAnswer String?
+  category       String?
+  status         String   @default("pending")
+  suggestedBy    String   @default("user")
+  createdAt      DateTime @default(now())
+
+  @@index([airportCode, status])
+}
+
+model Feedback {
+  id           String   @id
+  phone        String
+  userName     String?
+  flightNumber String?
+  airportCode  String   @default("DSS")
+  rating       Int
+  category     String   @default("general")
+  comment      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+
+  @@index([rating])
+  @@index([airportCode, createdAt])
+}
+
+model FlightNotification {
+  id            String   @id
+  flightNumber  String
+  airline       String?
+  type          String
+  message       String
+  priority      String   @default("medium")
+  departureCode String?
+  arrivalCode   String?
+  isRead        Boolean  @default(false)
+  isDismissed   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([priority, createdAt])
+  @@index([flightNumber, isRead])
+}
+
 model FlightSearch {
-  id            String   @id @default(cuid())
+  id            String   @id
   userId        String?
   departureCode String
   arrivalCode   String
@@ -117,18 +531,15 @@ model FlightSearch {
   arrivalCity   String
   travelDate    String?
   passengers    Int      @default(1)
-  results       String?  // JSON array of flight results from API
+  results       String?
   cheapestPrice Float?
   airline       String?
   status        String   @default("completed")
   createdAt     DateTime @default(now())
 }
 
-// ─────────────────────────────────────────────
-// Flight status tracking
-// ─────────────────────────────────────────────
 model FlightStatus {
-  id            String   @id @default(cuid())
+  id            String   @id
   flightNumber  String
   airline       String
   departureCode String
@@ -141,347 +552,481 @@ model FlightStatus {
   terminal      String?
   status        String   @default("scheduled")
   delayMinutes  Int      @default(0)
-  aircraft        String?
-  estimatedDep    String?
-  estimatedArr    String?
-  departureCity   String?
-  arrivalCity     String?
-  aircraftType    String?
+  aircraft      String?
+  estimatedDep  String?
+  estimatedArr  String?
+  departureCity String?
+  arrivalCity   String?
+  aircraftType  String?
   createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime
 }
 
-// ─────────────────────────────────────────────
-// Flight notifications (gate changes, delays, etc.)
-// ─────────────────────────────────────────────
-model FlightNotification {
-  id              String   @id @default(cuid())
-  flightNumber    String
-  airline         String?
-  type            String
-  message         String
-  priority        String   @default("medium")
-  departureCode   String?
-  arrivalCode     String?
-  isRead          Boolean  @default(false)
-  isDismissed     Boolean  @default(false)
-  createdAt       DateTime @default(now())
-
-  @@index([flightNumber, isRead])
-  @@index([priority, createdAt])
-}
-
-// ─────────────────────────────────────────────
-// Flight subscriptions (real-time alerts)
-// ─────────────────────────────────────────────
 model FlightSubscription {
-  id              String   @id @default(cuid())
-  flightNumber    String
-  phone           String
-  events          String   @default("delay,gate_change,cancellation")
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id
+  flightNumber String
+  phone        String
+  events       String   @default("delay,gate_change,cancellation")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
 
   @@index([flightNumber, isActive])
 }
 
-// ─────────────────────────────────────────────
-// Enhanced BaggageQR (with phone & scan tracking)
-// ─────────────────────────────────────────────
-model BaggageQR {
-  id             String    @id @default(cuid())
-  userId         String?
-  passengerName  String
-  phone          String
-  flightNumber   String
-  pnr            String
-  tagNumber      String
-  weight         Float?
-  destination    String
-  qrToken        String    @unique
-  status         String    @default("active")
-  lastScan       DateTime?
-  expiresAt      DateTime
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-}
-
-// ─────────────────────────────────────────────
-// Baggage Claims (lost/damaged/delayed baggage reports)
-// ─────────────────────────────────────────────
-model BaggageClaim {
-  id             String    @id @default(cuid())
-  baggageId      String?
-  phone          String
-  passengerName  String
-  description    String
-  flightNumber   String?
-  location       String?   // JSON: { terminal: "1", gate: "B12" }
-  status         String    @default("open") // open, investigating, resolved, compensated, rejected
-  resolution     String?
-  compensation   Float?    // FCFA compensation amount
-  resolvedAt     DateTime?
-  assignedTo     String?   // Agent/admin ID
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  @@index([status, createdAt])
-  @@index([phone])
-}
-
-// ═══════════════════════════════════════════════
-// MODULE 1: SALONS VIP (LOUNGES) — Catalog + Bookings
-// ═══════════════════════════════════════════════
-
-model Lounge {
-  id            String   @id @default(cuid())
-  airportCode   String
+model Hotel {
+  id            String          @id
+  airportCode   String          @default("DSS")
   name          String
   description   String?
-  terminal      String   @default("")   // ex: "Terminal 1"
-  gateLocation  String   @default("")   // ex: "Porte B10-B15"
-  location      String   @default("") // Compatibilité: concat terminal + gateLocation
+  starRating    Int             @default(3)
+  address       String
+  distanceKm    Float           @default(0)
+  terminal      String          @default("")
   imageUrl      String?
+  contactPhone  String          @default("")
+  contactEmail  String          @default("")
+  isActive      Boolean         @default(true)
+  amenities     String          @default("[]")
+  checkInTime   String          @default("14:00")
+  checkOutTime  String          @default("12:00")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  DayUseBooking DayUseBooking[]
+  HotelRoom     HotelRoom[]
 
-  // Tarification (4 niveaux de prix)
-  priceStandard Float    @default(0)   // Prix passager Eco
-  priceBusiness Float    @default(0)   // Prix passager Business
-  priceFirstClass Float   @default(0)   // Prix passager First Class (souvent gratuit)
-  priceChild     Float    @default(0)   // Prix enfant (-12 ans)
-  currency      String   @default("XOF")
+  @@unique([airportCode, name])
+  @@index([airportCode, isActive])
+}
 
-  // Capacités & Horaires
-  maxCapacity     Int    @default(50)
-  currentOccupancy Int   @default(0)
-  isOpen          Boolean @default(true)
-  openingTime     String  @default("06:00")
-  closingTime     String  @default("22:00")
-  openingHours    String  @default("\"06:00-22:00\"") // JSON legacy compat
+model HotelRoom {
+  id             String   @id
+  hotelId        String
+  roomType       String
+  name           String
+  description    String?
+  maxGuests      Int      @default(2)
+  basePrice      Float
+  hourPrice      Float    @default(0)
+  minHours       Int      @default(3)
+  maxHours       Int      @default(8)
+  currency       String   @default("XOF")
+  totalRooms     Int      @default(10)
+  availableRooms Int      @default(10)
+  amenities      String   @default("[]")
+  imageUrl       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  Hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
-  // Équipements
-  amenities      String  @default("[]") // JSON array: ["wifi","shower","food","bar","workspace"]
+  @@index([hotelId, isActive])
+}
 
-  // Accès
-  accessLevel   String   @default("all") // all, business, vip
+model Invitation {
+  id                                      String    @id
+  email                                   String    @unique
+  token                                   String    @unique
+  role                                    String    @default("AGENT")
+  airportCode                             String?
+  invitedBy                               String?
+  usedBy                                  String?   @unique
+  usedAt                                  DateTime?
+  expiresAt                               DateTime
+  createdAt                               DateTime  @default(now())
+  AuthUser_Invitation_usedByToAuthUser    AuthUser? @relation("Invitation_usedByToAuthUser", fields: [usedBy], references: [id])
+  AuthUser_Invitation_invitedByToAuthUser AuthUser? @relation("Invitation_invitedByToAuthUser", fields: [invitedBy], references: [id])
+}
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model Invoice {
+  id              String            @id
+  invoiceNumber   String            @unique
+  clientId        String
+  type            String
+  status          String            @default("draft")
+  issueDate       DateTime          @default(now())
+  dueDate         DateTime
+  paidAt          DateTime?
+  currency        String            @default("XOF")
+  subtotal        Float
+  taxRate         Float
+  taxAmount       Float
+  total           Float
+  pdfUrl          String?
+  receiptUrl      String?
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  BillingClient   BillingClient     @relation(fields: [clientId], references: [id])
+  InvoiceItem     InvoiceItem[]
+  InvoicePayment  InvoicePayment[]
+  InvoiceReminder InvoiceReminder[]
 
-  bookings      LoungeBooking[]
+  @@index([status, type])
+  @@index([dueDate, status])
+  @@index([clientId, status, issueDate])
+}
+
+model InvoiceItem {
+  id          String  @id
+  invoiceId   String
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Float
+  total       Float
+  Invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model InvoicePayment {
+  id            String   @id
+  invoiceId     String
+  amount        Float
+  method        String
+  transactionId String?  @unique
+  status        String   @default("pending")
+  paidAt        DateTime @default(now())
+  metadata      String   @default("{}")
+  Invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([transactionId])
+  @@index([invoiceId])
+}
+
+model InvoiceReminder {
+  id          String   @id
+  invoiceId   String
+  type        String
+  sentAt      DateTime @default(now())
+  daysOverdue Int
+  status      String   @default("sent")
+  metadata    String   @default("{}")
+  Invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([type, sentAt])
+  @@index([invoiceId, sentAt])
+}
+
+model KnowledgeBase {
+  id            String          @id
+  airportCode   String          @default("DSS")
+  title         String
+  fileName      String
+  fileType      String
+  fileSize      Int             @default(0)
+  fileUrl       String?
+  content       String?
+  chunkCount    Int             @default(0)
+  isActive      Boolean         @default(true)
+  status        String          @default("pending")
+  errorMessage  String?
+  uploadedBy    String
+  processedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  DocumentChunk DocumentChunk[]
+
+  @@index([status])
+  @@index([airportCode, isActive])
+}
+
+model Lounge {
+  id               String          @id
+  airportCode      String
+  name             String
+  description      String?
+  terminal         String          @default("")
+  gateLocation     String          @default("")
+  location         String          @default("")
+  imageUrl         String?
+  priceStandard    Float           @default(0)
+  priceBusiness    Float           @default(0)
+  priceFirstClass  Float           @default(0)
+  priceChild       Float           @default(0)
+  currency         String          @default("XOF")
+  maxCapacity      Int             @default(50)
+  currentOccupancy Int             @default(0)
+  isOpen           Boolean         @default(true)
+  openingTime      String          @default("06:00")
+  closingTime      String          @default("22:00")
+  openingHours     String          @default("\"06:00-22:00\"")
+  amenities        String          @default("[]")
+  accessLevel      String          @default("all")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime
+  LoungeBooking    LoungeBooking[]
 
   @@unique([airportCode, name])
   @@index([airportCode, isOpen])
 }
 
 model LoungeBooking {
-  id            String   @id @default(cuid())
+  id            String   @id
   loungeId      String?
-  lounge        Lounge?  @relation(fields: [loungeId], references: [id])
-
-  // Info passager
   passengerName String
   phone         String
   email         String?
-
-  // Redondant pour compatibilité
   loungeName    String   @default("")
   airportCode   String
-
-  // Détails réservation
   guests        Int      @default(1)
   bookingDate   String
   startTime     String
   durationHours Int      @default(3)
-  ticketClass   String   @default("standard") // standard, business, first, child
+  ticketClass   String   @default("standard")
   flightNumber  String?
-
-  // Prix figé à la réservation
-  unitPrice     Float    @default(0) // Prix unitaire au moment de la résa
+  unitPrice     Float    @default(0)
   totalPrice    Float
-
   paymentMethod String?
   paymentStatus String   @default("pending")
   bookingRef    String   @unique
-  status        String   @default("confirmed") // confirmed, checked_in, completed, cancelled
+  status        String   @default("confirmed")
   createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime
+  Lounge        Lounge?  @relation(fields: [loungeId], references: [id])
 
-  @@index([loungeId, bookingDate])
   @@index([status])
+  @@index([loungeId, bookingDate])
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 2: TRANSPORT (TAXI/VTC) — Providers + Bookings
-// ═══════════════════════════════════════════════
-
-model TransportProvider {
-  id          String   @id @default(cuid())
-  airportCode String
-  name        String   // ex: "Taxi Officiel Dakar"
-  type        String   // taxi, vtc, shuttle, private
-  logoUrl     String?
-  isActive    Boolean  @default(true)
-
-  // Grille tarifaire
-  baseFare       Float   @default(0)   // Prise en charge en FCFA
-  perKmRate      Float   @default(0)   // Prix au km
-  minFare        Float   @default(0)   // Minimum à payer
-  nightSurcharge Float   @default(0)   // Majoration nuit (0.20 = 20%)
-
-  // Contacts du partenaire
-  contactPhone   String  @default("")
-  contactEmail   String  @default("")
-  whatsappNumber String  @default("")
-  contacts       String? // JSON legacy
-
-  // Zones desservies
-  serviceZones   String  @default("[]") // JSON array: ["Dakar Centre","Almadies","Plateau"]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  bookings    TransportBooking[]
+model Merchant {
+  id              String           @id
+  airportCode     String
+  name            String
+  description     String?
+  logo            String?
+  category        String
+  terminal        String           @default("")
+  gate            String?
+  location        String?
+  phone           String
+  email           String
+  openingHours    String           @default("{}")
+  isActive        Boolean          @default(true)
+  isVerified      Boolean          @default(false)
+  commissionRate  Float            @default(0.10)
+  paymentSchedule String           @default("weekly")
+  totalSales      Float            @default(0)
+  totalOrders     Int              @default(0)
+  averageRating   Float            @default(0)
+  reviewsCount    Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime
+  Advertisement   Advertisement[]
+  MerchantPayout  MerchantPayout[]
+  Order           Order[]
+  Product         Product[]
+  Review          Review[]
 
   @@unique([airportCode, name])
-  @@index([airportCode, type, isActive])
+  @@index([airportCode, category, isActive])
 }
 
-model TransportBooking {
-  id              String   @id @default(cuid())
-  providerId      String?
-  provider        TransportProvider? @relation(fields: [providerId], references: [id])
+model MerchantPayout {
+  id               String    @id
+  merchantId       String
+  orderId          String
+  orderTotal       Float
+  commissionRate   Float
+  commissionAmount Float
+  currency         String    @default("XOF")
+  status           String    @default("pending")
+  paidAt           DateTime?
+  paidBy           String?
+  reference        String?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  Merchant         Merchant  @relation(fields: [merchantId], references: [id])
 
-  // Info client
-  passengerName   String
-  phone           String
-  email           String?
-
-  // Course
-  vehicleType     String   @default("") // Redondant pour compatibilité
-  pickupLocation  String
-  dropoffLocation String
-  pickupDate      String
-  pickupTime      String
-  passengers      Int      @default(1)
-
-  // Prix
-  totalPrice      Float    @default(0)
-  paymentMethod   String?
-  paymentStatus   String   @default("pending")
-  bookingRef      String   @unique
-
-  // Chauffeur assigné
-  driverName      String?
-  driverPhone     String?
-  vehiclePlate    String?
-
-  // Champs calculés
-  distanceKm      Float?
-  estimatedPrice  Float?
-  finalPrice      Float?
-
-  status          String   @default("pending") // requested, assigned, in_progress, completed, cancelled
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([providerId, status])
+  @@index([status])
+  @@index([merchantId, status])
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 3: URGENCES & SÉCURITÉ — Contacts + Incidents
-// ═══════════════════════════════════════════════
-
-model EmergencyContact {
-  id          String   @id @default(cuid())
-  airportCode String
-  category    String   // medical, security, fire, police, lost_child, maintenance, other
-  name        String   // ex: "Infirmerie Terminal 1"
-  phoneNumber String
-  whatsappNum String?
-  email       String?
-  isPrimary   Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  notes       String? // Notes internes
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([airportCode, category])
-  @@index([airportCode, isActive])
+model Message {
+  id             String   @id
+  conversationId String
+  direction      String
+  content        String
+  messageType    String   @default("text")
+  intent         String?
+  entities       String?
+  responseTime   Int?
+  createdAt      DateTime @default(now())
 }
 
-model EmergencyAlert {
-  id          String   @id @default(cuid())
-  airportCode String   @default("DSS")
-  userPhone   String
-  userEmail   String?
-  userName    String?
-  alertType   String   // medical, security, fire, police, lost_child, maintenance, other
-  location    String?  // JSON: {"terminal":"1","gate":"B12","description":"..."}
-  description String
-  severity    String   @default("medium") // low, medium, high, critical
-  status      String   @default("open") // open, acknowledged, in_progress, resolved, closed
-  assignedTo  String?  // ID du contact d'urgence ou nom
-  resolution  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model MilesTransaction {
+  id            String     @id
+  walletId      String
+  type          String
+  amount        Int
+  reason        String
+  description   String?
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime   @default(now())
+  UserWallet    UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
-  @@index([airportCode, status, createdAt])
-  @@index([severity, status])
+  @@index([type, createdAt])
+  @@index([walletId, createdAt])
 }
 
-// ═══════════════════════════════════════════════
-// MODULE 4: PARTENAIRES (Agences/Compagnies)
-// ═══════════════════════════════════════════════
+model MusicCategory {
+  id          String       @id
+  name        String
+  slug        String       @unique
+  description String?
+  icon        String       @default("🎵")
+  color       String       @default("#F97316")
+  imageUrl    String?
+  sortOrder   Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime
+  MusicTrack  MusicTrack[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model MusicTrack {
+  id            String        @id
+  categoryId    String
+  title         String
+  artist        String        @default("")
+  youtubeUrl    String
+  youtubeId     String        @unique
+  thumbnailUrl  String
+  duration      String?
+  sortOrder     Int           @default(0)
+  isActive      Boolean       @default(true)
+  playCount     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  MusicCategory MusicCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([playCount, createdAt])
+  @@index([isActive])
+  @@index([categoryId, sortOrder])
+}
+
+model Order {
+  id                 String      @id
+  orderNumber        String      @unique
+  merchantId         String
+  airportCode        String
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  flightNumber       String?
+  gate               String?
+  type               String      @default("pickup")
+  status             String      @default("pending")
+  subtotal           Float       @default(0)
+  tax                Float       @default(0)
+  deliveryFee        Float       @default(0)
+  total              Float       @default(0)
+  currency           String      @default("XOF")
+  paymentMethod      String?
+  paymentStatus      String      @default("pending")
+  transactionId      String?
+  scheduledTime      DateTime?
+  notes              String?
+  qrCode             String?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime
+  Merchant           Merchant    @relation(fields: [merchantId], references: [id])
+  OrderItem          OrderItem[]
+
+  @@index([customerPhone, status])
+  @@index([orderNumber])
+  @@index([merchantId, status])
+}
+
+model OrderItem {
+  id             String  @id
+  orderId        String
+  productId      String
+  productName    String
+  productImage   String?
+  quantity       Int
+  unitPrice      Float
+  discount       Float   @default(0)
+  total          Float
+  customizations String?
+  Order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
 
 model Partner {
-  id             String   @id @default(cuid())
+  id             String        @id
   airportCode    String
-  type           String   // TRAVEL_AGENCY, AIRLINE, SERVICE_PROVIDER
+  type           String
   name           String
   logoUrl        String?
-  email          String   @unique
+  email          String        @unique
   phone          String
   contactPerson  String
-  commissionRate Float    @default(0.10)
-  contractStart  DateTime @default(now())
+  commissionRate Float         @default(0.10)
+  contractStart  DateTime      @default(now())
   contractEnd    DateTime?
-  status         String   @default("pending") // pending, active, inactive
-  isActive       Boolean  @default(false)
-  inviteToken    String? // JWT token pour invitation
+  status         String        @default("pending")
+  isActive       Boolean       @default(false)
+  inviteToken    String?
   activatedAt    DateTime?
   notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  users          PartnerUser[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  PartnerUser    PartnerUser[]
+  Pharmacy       Pharmacy?
 
   @@unique([airportCode, name])
   @@index([airportCode, type, isActive])
 }
 
 model PartnerUser {
-  id         String   @id @default(cuid())
-  partnerId  String
-  partner    Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  email      String   @unique
-  name       String
-  password   String   // Hashed
-  phone      String  @default("")
-  role       String   @default("agent") // agent, manager, admin
-  isActive   Boolean  @default(true)
-  lastLogin  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String    @id
+  partnerId String
+  email     String    @unique
+  name      String
+  password  String
+  phone     String    @default("")
+  role      String    @default("agent")
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Partner   Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId])
 }
 
-// ─────────────────────────────────────────────
-// Payments
-// ─────────────────────────────────────────────
+model Pharmacy {
+  id            String         @id
+  partnerId     String         @unique
+  airportCode   String         @default("DSS")
+  name          String
+  address       String         @default("")
+  terminal      String         @default("")
+  contactPhone  String         @default("")
+  contactEmail  String         @default("")
+  openingHours  String         @default("{}")
+  deliveryZones String         @default("[]")
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime
+  Partner       Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  PharmacyOrder PharmacyOrder[]
+
+  @@index([airportCode, isActive])
+}
+
 model Payment {
-  id           String   @id @default(cuid())
+  id           String   @id
   bookingId    String?
   bookingType  String
   phone        String
@@ -493,620 +1038,306 @@ model Payment {
   externalRef  String?
   errorMessage String?
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime
 }
 
-// ─────────────────────────────────────────────
-// Activity logs
-// ─────────────────────────────────────────────
-model ActivityLog {
-  id        String   @id @default(cuid())
-  adminId   String?
-  action    String
-  module    String
-  details   String?
-  ipAddress String?
-  createdAt DateTime @default(now())
+model PharmacyOrder {
+  id               String   @id
+  airportCode      String   @default("DSS")
+  customerName     String
+  customerPhone    String
+  flightNumber     String?
+  gate             String?
+  urgency          String   @default("normal")
+  items            String
+  subtotal         Float    @default(0)
+  deliveryFee      Float    @default(0)
+  total            Float    @default(0)
+  currency         String   @default("XOF")
+  paymentMethod    String?
+  paymentStatus    String   @default("pending")
+  paymentRef       String?
+  pharmacyId       String?
+  pharmacyName     String?
+  status           String   @default("pending")
+  deliveryNotes    String?
+  estimatedMinutes Int      @default(15)
+  orderRef         String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+  Pharmacy         Pharmacy? @relation(fields: [pharmacyId], references: [id])
 
-  admin Admin? @relation(fields: [adminId], references: [id])
+  @@index([airportCode])
+  @@index([status])
+  @@index([customerPhone, status])
 }
 
-// ─────────────────────────────────────────────
-// System settings
-// ─────────────────────────────────────────────
+model ProactiveLog {
+  id             String    @id
+  phone          String
+  flightNumber   String?
+  airportCode    String    @default("DSS")
+  messageType    String
+  messageContent String
+  triggeredBy    String
+  status         String    @default("sent")
+  sentAt         DateTime  @default(now())
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([airportCode, messageType])
+  @@index([phone, sentAt])
+}
+
+model Product {
+  id              String   @id
+  merchantId      String
+  name            String
+  description     String?
+  category        String
+  price           Float
+  currency        String   @default("XOF")
+  images          String   @default("[]")
+  stock           Int      @default(0)
+  isAvailable     Boolean  @default(true)
+  isPreOrder      Boolean  @default(false)
+  tags            String   @default("[]")
+  discountPercent Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  Merchant        Merchant @relation(fields: [merchantId], references: [id])
+
+  @@index([category])
+  @@index([merchantId, isAvailable])
+}
+
+model RebookingLog {
+  id               String   @id
+  phone            String
+  passengerName    String?
+  originalFlight   String
+  originalAirline  String?
+  originalDepCode  String?
+  originalArrCode  String?
+  suggestedFlight  String?
+  suggestedAirline String?
+  suggestedDepTime String?
+  suggestedPrice   Float?
+  currency         String   @default("XOF")
+  status           String   @default("sent")
+  response         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+
+  @@index([status])
+  @@index([originalFlight])
+  @@index([phone, createdAt])
+}
+
+model Review {
+  id            String    @id
+  merchantId    String
+  customerName  String
+  customerPhone String
+  orderId       String?
+  rating        Int
+  comment       String?
+  images        String    @default("[]")
+  isVerified    Boolean   @default(true)
+  response      String?
+  respondedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+  Merchant      Merchant  @relation(fields: [merchantId], references: [id])
+
+  @@index([merchantId, rating])
+}
+
+model Reward {
+  id          String     @id
+  walletId    String
+  name        String
+  description String?
+  costPoints  Int
+  type        String
+  value       String?
+  status      String     @default("available")
+  redeemedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  UserWallet  UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([type])
+  @@index([walletId, status])
+}
+
+model Session {
+  id           String   @id
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  AuthUser     AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Setting {
-  id          String   @id @default(cuid())
+  id          String   @id
   key         String   @unique
   value       String
   type        String   @default("string")
   group       String   @default("general")
   description String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 9: MARKETPLACE MARCHANDS AÉROPORT
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Merchant {
-  id              String   @id @default(cuid())
-  airportCode     String
-  name            String
-  description     String?
-  logo            String?
-  category        String   // duty_free, restaurant, cafe, souvenir, fashion, electronics, pharmacy, other
-  terminal        String   @default("")
-  gate            String?
-  location        String?  // JSON: { x: number, y: number } coordonnées plan interactif
-  phone           String
-  email           String
-  openingHours    String   @default("{}") // JSON: { mon: {open: "08:00", close: "20:00"}, ... }
-  isActive        Boolean  @default(true)
-  isVerified      Boolean  @default(false)
-  commissionRate  Float    @default(0.10) // 10% par défaut
-  paymentSchedule String   @default("weekly") // daily, weekly, monthly
-  totalSales      Float    @default(0)
-  totalOrders     Int      @default(0)
-  averageRating   Float    @default(0)
-  reviewsCount    Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  products        Product[]
-  orders          Order[]
-  reviews         Review[]
-  advertisements  Advertisement[]
-  payouts         MerchantPayout[]
-
-  @@unique([airportCode, name])
-  @@index([airportCode, category, isActive])
-}
-
-model Product {
-  id              String   @id @default(cuid())
-  merchantId      String
-  merchant        Merchant @relation(fields: [merchantId], references: [id])
-  name            String
-  description     String?
-  category        String   // perfume, alcohol, tobacco, food, beverage, clothing, accessory, electronics, book, other
-  price           Float
-  currency        String   @default("XOF")
-  images          String   @default("[]") // JSON array: ["https://..."]
-  stock           Int      @default(0)
-  isAvailable     Boolean  @default(true)
-  isPreOrder      Boolean  @default(false) // pré-commande duty-free
-  tags            String   @default("[]") // JSON array: ["bestseller", "promo", "new", "duty_free"]
-  discountPercent Float    @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([merchantId, isAvailable])
-  @@index([category])
-}
-
-model Order {
-  id                  String   @id @default(cuid())
-  orderNumber         String   @unique // ex: "ORD-2026-001234"
-  merchantId          String
-  merchant            Merchant @relation(fields: [merchantId], references: [id])
-  airportCode         String
-  customerName        String
-  customerPhone       String
-  customerEmail       String?
-  flightNumber        String?  // Pour livraison à la porte
-  gate                String?  // Porte d'embarquement pour livraison
-  type                String   @default("pickup") // pickup, delivery_gate, reservation
-  status              String   @default("pending") // pending, confirmed, preparing, ready, completed, cancelled
-  items               OrderItem[]
-  subtotal            Float    @default(0)
-  tax                 Float    @default(0)
-  deliveryFee         Float    @default(0)
-  total               Float    @default(0)
-  currency            String   @default("XOF")
-  paymentMethod       String?  // orange_money, wave, card, cash
-  paymentStatus       String   @default("pending") // pending, paid, refunded
-  transactionId       String?
-  scheduledTime       DateTime? // Pour réservation table ou créneau retrait
-  notes               String?
-  qrCode              String?  // QR pour retrait
-  completedAt         DateTime?
-  cancelledAt         DateTime?
-  cancellationReason  String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([merchantId, status])
-  @@index([orderNumber])
-  @@index([customerPhone, status])
-}
-
-model OrderItem {
-  id              String   @id @default(cuid())
-  orderId         String
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId       String   // Pas de FK — produit peut être modifié/supprimé, on garde l'historique
-  productName     String   // Dénominalisé pour précision historique
-  productImage    String?  // Dénominalisé
-  quantity        Int
-  unitPrice       Float    // Prix figé au moment de la commande
-  discount        Float    @default(0)
-  total           Float
-  customizations  String?  // JSON: { size: "L", color: "blue" }
-
-  @@index([orderId])
-}
-
-model Review {
-  id              String   @id @default(cuid())
-  merchantId      String
-  merchant        Merchant @relation(fields: [merchantId], references: [id])
-  customerName    String
-  customerPhone   String
-  orderId         String?  // Achat vérifié si rempli
-  rating          Int      // 1-5
-  comment         String?
-  images          String   @default("[]") // JSON array: ["https://..."]
-  isVerified      Boolean  @default(true)
-  response        String?  // Réponse du marchand
-  respondedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([merchantId, rating])
-}
-
-model Wishlist {
-  id              String   @id @default(cuid())
-  customerPhone   String
-  productId       String
-  createdAt       DateTime @default(now())
-
-  @@unique([customerPhone, productId])
-  @@index([customerPhone])
-}
-
-// ─────────────────────────────────────────────
-// Cart (Panier) — One per customer phone
-// ─────────────────────────────────────────────
-model Cart {
-  id              String   @id @default(cuid())
-  customerPhone   String   @unique
-  items           CartItem[]
-  updatedAt       DateTime @updatedAt
-  createdAt       DateTime @default(now())
-}
-
-model CartItem {
-  id              String   @id @default(cuid())
-  cartId          String
-  cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  productId       String
-  productName     String
-  productImage    String?
-  merchantId      String
-  merchantName    String
-  quantity        Int      @default(1)
-  unitPrice       Float
-  discountPercent Float    @default(0)
-  addedAt         DateTime @default(now())
-
-  @@index([cartId])
-  @@index([merchantId])
-}
-
-// ─────────────────────────────────────────────
-// Merchant Payouts (Commissions vers marchands)
-// ─────────────────────────────────────────────
-model MerchantPayout {
-  id              String   @id @default(cuid())
-  merchantId      String
-  merchant        Merchant @relation(fields: [merchantId], references: [id])
-  orderId         String
-  orderTotal      Float
-  commissionRate  Float
-  commissionAmount Float
-  currency        String   @default("XOF")
-  status          String   @default("pending") // pending, processing, paid, failed
-  paidAt          DateTime?
-  paidBy          String?  // Admin ID
-  reference       String?  // Reference paiement externe
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([merchantId, status])
-  @@index([status])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 7: FEEDBACK & ANALYTICS — Passenger Satisfaction Tracking
-// ═══════════════════════════════════════════════════════════════════════════
-
-model Feedback {
-  id           String   @id @default(cuid())
-  phone        String
-  userName     String?
-  flightNumber String?
-  airportCode  String   @default("DSS")
-  rating       Int      // NPS 1-5
-  category     String   @default("general") // overall, lounge, transport, restaurant, wifi, signage, security
-  comment      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([airportCode, createdAt])
-  @@index([rating])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MODULE 4: CONCIERGERIE HYBRIDE (Live Chat + PMR)
-// ═══════════════════════════════════════════════════════════════
 
 model Ticket {
-  id              String    @id @default(cuid())
-  phone           String
-  passengerName   String
-  type            String    // general_assistance, pmr, wheelchair, infant, allergy, medical, lost_item, other
-  priority        String    @default("normal") // low, normal, high, urgent
-  status          String    @default("open") // open, assigned, in_progress, resolved, closed
-  description     String
-  flightNumber    String?
-  gate            String?
-  category        String?   // wheelchair, infant_seat, allergy_info, medical_equipment
-  resolution      String?
-  assignedTo      String?   // Agent name or ID
-  slaDeadline     DateTime? // SLA timer (e.g. 15min for urgent)
-  resolvedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id            String    @id
+  phone         String
+  passengerName String
+  type          String
+  priority      String    @default("normal")
+  status        String    @default("open")
+  description   String
+  flightNumber  String?
+  gate          String?
+  category      String?
+  resolution    String?
+  assignedTo    String?
+  slaDeadline   DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
 
-  @@index([status, priority])
-  @@index([phone])
   @@index([type])
+  @@index([phone])
+  @@index([status, priority])
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 8: GESTION DE CRISE — Crisis Broadcast & Alerting
-// ═══════════════════════════════════════════════════════════════════════════
-
-model CrisisAlert {
-  id              String    @id @default(cuid())
-  airportCode     String    @default("DSS")
-  title           String
-  description     String
-  severity        String    @default("medium") // low, medium, high, critical
-  status          String    @default("draft")  // draft, active, paused, closed
-  targetType      String    @default("all")    // all, flight, terminal, zone
-  targetValue     String?   // e.g. flight number, terminal name
-  message         String    // WhatsApp broadcast message
-  sentCount       Int       @default(0)
-  deliveredCount  Int       @default(0)
-  failedCount     Int       @default(0)
-  optOutCount     Int       @default(0)
-  createdBy       String?   // Admin ID
-  activatedAt     DateTime?
-  closedAt        DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([airportCode, status])
-  @@index([severity, status])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 12: OCR — Ticket Scan & Boarding Pass Recognition
-// ═══════════════════════════════════════════════════════════════════════════
 
 model TicketScan {
-  id              String    @id @default(cuid())
-  phone           String
-  passengerName   String?
-  // Extracted data from OCR
-  pnr             String?
-  flightNumber    String?
-  airline         String?
-  departureCode   String?
-  arrivalCode     String?
-  departureCity   String?
-  arrivalCity     String?
-  flightDate      String?
-  seat            String?
-  boardingTime    String?
-  gate            String?
-  terminal        String?
-  class           String?           // economy, business, first
-  // OCR metadata
-  rawText         String?           // Full raw text from OCR
-  confidence      Float    @default(0) // 0-100 extraction confidence
-  provider        String   @default("mock") // mock, tesseract, google
-  status          String   @default("pending") // pending, confirmed, rejected, expired
-  confirmedAt     DateTime?
-  rejectedAt      DateTime?
-  // Context
-  source          String   @default("whatsapp") // whatsapp, api, dashboard
-  imageUrl        String?           // URL of the uploaded image (if stored)
-  metadata        String   @default("{}") // JSON: additional extracted fields
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([phone, createdAt])
-  @@index([pnr])
-  @@index([flightNumber])
-  @@index([status])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 11: ASSISTANT PROACTIF — Automated Flight Notifications
-// ═══════════════════════════════════════════════════════════════════════════
-
-model ProactiveLog {
-  id              String    @id @default(cuid())
-  phone           String
-  flightNumber    String?
-  airportCode     String    @default("DSS")
-  messageType     String    // departure_reminder, delay_alert, gate_change, boarding_call, promotion
-  messageContent  String
-  triggeredBy     String    // rule description
-  status          String    @default("sent") // sent, delivered, failed, read, clicked
-  sentAt          DateTime  @default(now())
-  deliveredAt     DateTime?
-  readAt          DateTime?
-  createdAt       DateTime  @default(now())
-
-  @@index([phone, sentAt])
-  @@index([airportCode, messageType])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 10: PUBLICITÉ & MONÉTISATION
-// ═══════════════════════════════════════════════════════════════════════════
-
-model AdCampaign {
-  id              String   @id @default(cuid())
-  airportCode     String
-  name            String
-  description     String?
-  startDate       DateTime
-  endDate         DateTime
-  totalBudget     Float
-  spentBudget     Float    @default(0)
-  status          String   @default("draft") // draft, active, paused, completed
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  advertisements  Advertisement[]
-
-  @@index([airportCode, status])
-}
-
-model Advertisement {
-  id              String   @id @default(cuid())
-  airportCode     String
-  campaignId      String?
-  campaign        AdCampaign? @relation(fields: [campaignId], references: [id])
-  merchantId      String?
-  merchant        Merchant? @relation(fields: [merchantId], references: [id])
-  title           String
-  description     String?
-  type            String   // banner, sponsored_message, push_notification, native, video
-  placement       String   // home, between_messages, bottom_banner, search_results, flight_status
-  imageUrl        String
-  videoUrl        String?
-  targetUrl       String?  // Lien destination
-  ctaText         String   @default("En savoir plus")
-  targetAudience  String?  // JSON: { destinations: ["CDG"], class: ["business"], frequency: "regular" }
-  startDate       DateTime
-  endDate         DateTime
-  budget          Float
-  budgetType      String   @default("total") // total, daily, cpm, cpc
-  cpmRate         Float?   // Coût pour 1000 impressions
-  cpcRate         Float?   // Coût par clic
-  impressions     Int      @default(0)
-  clicks          Int      @default(0)
-  conversions     Int      @default(0)
-  revenue         Float    @default(0)
-  status          String   @default("draft") // draft, pending, active, paused, completed, rejected
-  rejectionReason String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  adImpressions   AdImpression[]
-
-  @@index([airportCode, status, startDate, endDate])
-  @@index([type, placement])
-}
-
-model AdImpression {
-  id              String   @id @default(cuid())
-  advertisementId String
-  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
-  sessionId       String?
-  placement       String
-  deviceInfo      String?  // JSON: { os: "iOS", browser: "WhatsApp" }
-  location        String?  // JSON: { terminal: "1", gate: "B12" }
-  timestamp       DateTime @default(now())
-
-  adClicks        AdClick[]
-
-  @@index([advertisementId, timestamp])
-}
-
-model AdClick {
-  id              String   @id @default(cuid())
-  impressionId    String
-  impression      AdImpression @relation(fields: [impressionId], references: [id], onDelete: Cascade)
-  converted       Boolean  @default(false)
-  conversionValue Float    @default(0)
-  timestamp       DateTime @default(now())
-
-  @@index([impressionId])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 13: FACTURATION — Clients, Invoices, Payments, Reminders
-// Conformité OHADA/UEMOA — TVA configurable, NINEA/RCCM, devise XOF
-// ═══════════════════════════════════════════════════════════════════════════
-
-model BillingClient {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
+  id            String    @id
   phone         String
-  company       String?
-  taxId         String?              // NINEA / RCCM
-  address       String               // JSON: { street, city, country, postalCode }
-  currency      String   @default("XOF")
-  taxRate       Float    @default(0.18) // 18% TVA par défaut OHADA
-  isActive      Boolean  @default(true)
-  notes         String?
-  invoices      Invoice[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([isActive, createdAt])
-}
-
-model Invoice {
-  id            String   @id @default(cuid())
-  invoiceNumber String   @unique         // FAC-YYYY-NNNN
-  clientId      String
-  client        BillingClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  type          String                    // subscription, commission, marketplace, custom
-  status        String   @default("draft") // draft, sent, partially_paid, paid, overdue, cancelled
-  issueDate     DateTime @default(now())
-  dueDate       DateTime
-  paidAt        DateTime?
-  currency      String   @default("XOF")
-  subtotal      Float                     // HT
-  taxRate       Float                     // 0.18 par défaut
-  taxAmount     Float                     // Montant TVA
-  total         Float                     // TTC
-  pdfUrl        String?
-  receiptUrl    String?
-  notes         String?
-  items         InvoiceItem[]
-  invoicePayments InvoicePayment[]
-  reminders     InvoiceReminder[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([clientId, status, issueDate])
-  @@index([dueDate, status])
-  @@index([status, type])
-}
-
-model InvoiceItem {
-  id          String   @id @default(cuid())
-  invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  description String
-  quantity    Int      @default(1)
-  unitPrice   Float
-  total       Float
-
-  @@index([invoiceId])
-}
-
-model InvoicePayment {
-  id            String   @id @default(cuid())
-  invoiceId     String
-  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
-  amount        Float
-  method        String                    // cinetpay, bank_transfer, cash
-  transactionId String?  @unique
-  status        String   @default("pending") // pending, completed, failed
-  paidAt        DateTime @default(now())
-  metadata      String   @default("{}")    // JSON: CinetPay response, etc.
-
-  @@index([invoiceId])
-  @@index([transactionId])
-}
-
-model InvoiceReminder {
-  id          String   @id @default(cuid())
-  invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  type        String                    // email, whatsapp
-  sentAt      DateTime @default(now())
-  daysOverdue Int
-  status      String   @default("sent") // sent, failed, opened
-  metadata    String   @default("{}")    // JSON: provider response, etc.
-
-  @@index([invoiceId, sentAt])
-  @@index([type, sentAt])
-}
-
-model BillingSettings {
-  id              String   @id @default("global")
-  nextInvoiceNum  Int      @default(1)
-  defaultTaxRate  Float    @default(0.18)
-  gracePeriodDays Int      @default(3)
-  reminderDays    String   @default("[3,7,15]") // JSON array stored as string (SQLite)
-  legalName       String   @default("MAELLIS Technologies")
-  legalAddress    String   @default("Dakar, Sénégal")
-  legalTaxId      String   @default("")        // NINEA de MAELLIS
-  legalRccm       String   @default("")        // RCCM de MAELLIS
-  bankName        String   @default("")
-  bankAccount     String   @default("")
-  paymentLink     String   @default("")        // Base URL for payment links
-  updatedAt       DateTime @updatedAt
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTH — NextAuth v5 RBAC System
-// ═══════════════════════════════════════════════════════════════════════════
-
-enum Role {
-  SUPERADMIN
-  AIRPORT_ADMIN
-  AGENT
-  VIEWER
-}
-
-model AuthUser {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role      @default(AGENT)
-  airportCode   String?
-  isActive      Boolean   @default(true)
+  passengerName String?
+  pnr           String?
+  flightNumber  String?
+  airline       String?
+  departureCode String?
+  arrivalCode   String?
+  departureCity String?
+  arrivalCity   String?
+  flightDate    String?
+  seat          String?
+  boardingTime  String?
+  gate          String?
+  terminal      String?
+  class         String?
+  rawText       String?
+  confidence    Float     @default(0)
+  provider      String    @default("mock")
+  status        String    @default("pending")
+  confirmedAt   DateTime?
+  rejectedAt    DateTime?
+  source        String    @default("whatsapp")
+  imageUrl      String?
+  metadata      String    @default("{}")
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime
 
-  accounts           Account[]
-  sessions           Session[]
-  invitations_sent   Invitation[] @relation("InvitationSender")
-  invitation_used    Invitation?   @relation("InvitationUsed")
+  @@index([status])
+  @@index([flightNumber])
+  @@index([pnr])
+  @@index([phone, createdAt])
 }
 
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  user              AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+model TransportBooking {
+  id                String             @id
+  providerId        String?
+  passengerName     String
+  phone             String
+  email             String?
+  vehicleType       String             @default("")
+  pickupLocation    String
+  dropoffLocation   String
+  pickupDate        String
+  pickupTime        String
+  passengers        Int                @default(1)
+  totalPrice        Float              @default(0)
+  paymentMethod     String?
+  paymentStatus     String             @default("pending")
+  bookingRef        String             @unique
+  driverName        String?
+  driverPhone       String?
+  vehiclePlate      String?
+  distanceKm        Float?
+  estimatedPrice    Float?
+  finalPrice        Float?
+  status            String             @default("pending")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime
+  TransportProvider TransportProvider? @relation(fields: [providerId], references: [id])
 
-  @@unique([provider, providerAccountId])
+  @@index([providerId, status])
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  user         AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expires      DateTime
+model TransportProvider {
+  id               String             @id
+  airportCode      String
+  name             String
+  type             String
+  logoUrl          String?
+  isActive         Boolean            @default(true)
+  baseFare         Float              @default(0)
+  perKmRate        Float              @default(0)
+  minFare          Float              @default(0)
+  nightSurcharge   Float              @default(0)
+  contactPhone     String             @default("")
+  contactEmail     String             @default("")
+  whatsappNumber   String             @default("")
+  contacts         String?
+  serviceZones     String             @default("[]")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  TransportBooking TransportBooking[]
+
+  @@unique([airportCode, name])
+  @@index([airportCode, type, isActive])
+}
+
+model User {
+  id           String         @id
+  phone        String         @unique
+  name         String?
+  language     String         @default("fr")
+  isActive     Boolean        @default(true)
+  preferences  String         @default("{}")
+  lastSeen     DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  Conversation Conversation[]
+  UserWallet   UserWallet?
+}
+
+model UserWallet {
+  id               String             @id
+  userId           String             @unique
+  phone            String             @unique
+  balance          Int                @default(0)
+  tier             String             @default("bronze")
+  totalEarned      Int                @default(0)
+  totalSpent       Int                @default(0)
+  streakDays       Int                @default(0)
+  lastActivityAt   DateTime?
+  tierUpdatedAt    DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  MilesTransaction MilesTransaction[]
+  Reward           Reward[]
+  User             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([balance])
+  @@index([tier])
 }
 
 model VerificationToken {
@@ -1117,435 +1348,101 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Invitation {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  token       String   @unique
-  role        Role     @default(AGENT)
-  airportCode String?
-  invitedBy   String?
-  usedBy      String?  @unique
-  usedAt      DateTime?
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-
-  inviter AuthUser?  @relation("InvitationSender", fields: [invitedBy], references: [id])
-  usedUser AuthUser?  @relation("InvitationUsed", fields: [usedBy], references: [id])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 14: FAQ INTELLIGENTE — Base de connaissances multilingue
-// ═══════════════════════════════════════════════════════════════════════════
-
-model FAQ {
-  id            String   @id @default(cuid())
-  airportCode   String   @default("DSS")
-  category      String   // baggage, money, transport, food, emergency, other
-  question      String   // JSON: { fr: "...", en: "...", wo: "...", ar: "..." }
-  answer        String   // JSON: { fr: "...", en: "...", wo: "...", ar: "..." }
-  keywords      String   @default("[]") // JSON array: ["parking", "voiture", "stationnement"]
-  priority      Int      @default(0) // Higher = shown first
-  isActive      Boolean  @default(true)
-  viewCount     Int      @default(0)
-  resolvedCount Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  analytics     FAQAnalytics[]
-
-  @@index([airportCode, category, isActive])
-}
-
-model FAQAnalytics {
-  id           String   @id @default(cuid())
-  airportCode  String   @default("DSS")
-  faqId        String?
-  faq          FAQ?     @relation(fields: [faqId], references: [id])
-  userQuestion String
-  matchedFAQ   Boolean
-  language     String   @default("fr")
-  score        Float?
-  timestamp    DateTime @default(now())
-
-  @@index([airportCode, timestamp])
-  @@index([matchedFAQ, timestamp])
-}
-
-model FAQSuggestion {
-  id             String   @id @default(cuid())
-  airportCode    String   @default("DSS")
-  question       String
-  proposedAnswer String?
-  category       String?
-  status         String   @default("pending") // pending, approved, rejected
-  suggestedBy    String   @default("user") // user, admin
-  createdAt      DateTime @default(now())
-
-  @@index([airportCode, status])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MODULE 14: RAG KNOWLEDGE BASE — Retrieval-Augmented Generation
-// Documents uploadés par l'Admin pour enrichir les réponses du bot
-// ═══════════════════════════════════════════════════════════════════════════
-
-model KnowledgeBase {
-  id            String   @id @default(cuid())
-  airportCode   String   @default("DSS")
-  title         String
-  fileName      String
-  fileType      String                // pdf, txt, md
-  fileSize      Int      @default(0)
-  fileUrl       String?
-  content       String?               // Texte extrait (pour petits fichiers)
-  chunkCount    Int      @default(0)
-  isActive      Boolean  @default(true)
-  status        String   @default("pending") // pending, processing, indexed, error
-  errorMessage  String?
-  uploadedBy    String
-  processedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  chunks        DocumentChunk[]
-
-  @@index([airportCode, isActive])
-  @@index([status])
-}
-
-model DocumentChunk {
-  id            String   @id @default(cuid())
-  kbId          String
-  knowledgeBase KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
-  content       String
-  chunkIndex    Int
-  tokenCount    Int      @default(0)
-  embedding     String?               // JSON string of float[]
-  embeddingModel String?
-  metadata      String   @default("{}")
-
-  @@index([kbId])
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SMARTLY V1.5 — 7 Advanced Modules
-// ═══════════════════════════════════════════════════════════════════════════
-
-// MODULE V1.5-1: MARKETPLACE HÔTELS "DAY-USE"
-// Hôtels proches aéroport pour escales de quelques heures
-model Hotel {
-  id            String   @id @default(cuid())
-  airportCode   String   @default("DSS")
-  name          String
-  description   String?
-  starRating    Int      @default(3)
-  address       String
-  distanceKm    Float    @default(0)       // Distance de l'aéroport
-  terminal      String   @default("")      // Terminal le plus proche
-  imageUrl      String?
-  contactPhone  String   @default("")
-  contactEmail  String   @default("")
-  isActive      Boolean  @default(true)
-  amenities     String   @default("[]")    // JSON: ["wifi","pool","spa","gym","restaurant","shuttle"]
-  checkInTime   String   @default("14:00")
-  checkOutTime  String   @default("12:00")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  rooms         HotelRoom[]
-  dayUseBookings DayUseBooking[]
-
-  @@unique([airportCode, name])
-  @@index([airportCode, isActive])
-}
-
-model HotelRoom {
-  id            String   @id @default(cuid())
-  hotelId       String
-  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  roomType      String   // standard, deluxe, suite, family
-  name          String
-  description   String?
-  maxGuests     Int      @default(2)
-  basePrice     Float                      // Prix par nuit
-  hourPrice     Float    @default(0)       // Prix par heure (day-use)
-  minHours      Int      @default(3)       // Durée minimum day-use
-  maxHours      Int      @default(8)       // Durée maximum day-use
-  currency      String   @default("XOF")
-  totalRooms    Int      @default(10)
-  availableRooms Int     @default(10)
-  amenities     String   @default("[]")    // JSON: ["king_bed","city_view","ac"]
-  imageUrl      String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([hotelId, isActive])
-}
-
-model DayUseBooking {
-  id            String   @id @default(cuid())
-  hotelId       String
-  hotel         Hotel    @relation(fields: [hotelId], references: [id])
-  roomId        String
-  roomType      String   @default("standard")
-  passengerName String
-  phone         String
-  email         String?
-  flightNumber  String?
-  bookingDate   String                       // YYYY-MM-DD
-  startTime     String                       // HH:mm
-  durationHours Int      @default(4)
-  guests        Int      @default(1)
-  unitPrice     Float
-  totalPrice    Float
-  currency      String   @default("XOF")
-  paymentMethod String?
-  paymentStatus String   @default("pending") // pending, paid, refunded
-  bookingRef    String   @unique
-  qrCheckin     String?                       // QR code URL
-  status        String   @default("confirmed") // confirmed, checked_in, completed, cancelled, no_show
-  cancellationReason String?
-  cancelledAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([hotelId, bookingDate])
-  @@index([phone])
-  @@index([status])
-}
-
-// MODULE V1.5-2: AGENT IA PROACTIF DE REBOOKING
-// Utilise FlightStatus existant + logs de rebooking
-model RebookingLog {
-  id               String   @id @default(cuid())
-  phone            String
-  passengerName    String?
-  originalFlight   String                       // Numéro vol annulé
-  originalAirline  String?
-  originalDepCode  String?
-  originalArrCode  String?
-  suggestedFlight  String?                      // Numéro vol suggéré
-  suggestedAirline String?
-  suggestedDepTime String?
-  suggestedPrice   Float?
-  currency         String   @default("XOF")
-  status           String   @default("sent")    // detected, sent, accepted, rejected, expired
-  response         String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([phone, createdAt])
-  @@index([originalFlight])
-  @@index([status])
-}
-
-// MODULE V1.5-3: ASSISTANCE VISUELLE PMR (Audio-Description)
-// Utilise TTS pour générer des descriptions vocales
-model AudioGeneration {
-  id            String   @id @default(cuid())
-  phone         String?
-  userId        String?
-  type          String                       // navigation, announcement, gate_info, emergency, general
-  inputText     String                       // Texte source
-  audioUrl      String?                      // URL du fichier audio généré
-  language      String   @default("fr")
-  provider      String   @default("mock")    // mock, google, azure
-  durationSec   Int      @default(0)
-  status        String   @default("pending") // pending, generated, failed, expired
-  errorMessage  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([phone, createdAt])
-  @@index([type])
-  @@index([status])
-}
-
-// MODULE V1.5-4: PHARMACIE & SANTÉ EXPRESS
-// Utilise Product existant (catégorie: health) + commandes spécifiques
-model PharmacyOrder {
-  id               String   @id @default(cuid())
-  airportCode      String   @default("DSS")
-  customerName     String
-  customerPhone    String
-  flightNumber     String?
-  gate             String?                     // Porte de livraison
-  urgency          String   @default("normal") // normal, urgent, critical
-  items            String                      // JSON: [{name, quantity, price, productId}]
-  subtotal         Float    @default(0)
-  deliveryFee      Float    @default(0)
-  total            Float    @default(0)
-  currency         String   @default("XOF")
-  paymentMethod    String?
-  paymentStatus    String   @default("pending")
-  paymentRef       String?
-  pharmacyId       String?                     // Pharmacie assignée
-  pharmacyName     String?
-  status           String   @default("pending") // pending, confirmed, preparing, delivering, completed, cancelled
-  deliveryNotes    String?
-  estimatedMinutes Int      @default(15)
-  orderRef         String   @unique
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([customerPhone, status])
-  @@index([status])
-  @@index([airportCode])
-}
-
-// MODULE V1.5-5: WIFI AÉROPORT AUTOMATISÉ
-model WiFiVoucher {
-  id            String   @id @default(cuid())
-  airportCode   String   @default("DSS")
-  voucherCode   String   @unique              // Code d'accès unique
-  phone         String?                      // Téléphone de l'utilisateur
-  planType      String   @default("free")     // free, premium, premium_plus
-  durationMinutes Int     @default(60)         // Durée en minutes
-  bandwidthMbps Int      @default(10)         // Débit en Mbps
-  price         Float    @default(0)          // 0 = gratuit
-  currency      String   @default("XOF")
-  paymentStatus String   @default("none")     // none, pending, paid
-  portalUrl     String?                      // URL du Captive Portal
-  isActive      Boolean  @default(true)
-  activatedAt   DateTime?
-  expiresAt     DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([voucherCode])
-  @@index([phone])
-  @@index([airportCode, isActive])
-}
-
-// MODULE V1.5-6: BILLETTERIE & CHECK-IN ONE-CLICK
-// Utilise TicketScan existant + liens check-in
-model CheckInSession {
-  id               String   @id @default(cuid())
-  phone            String
-  passengerName    String?
-  flightNumber     String
-  airline          String?
-  pnr              String?
-  departureCode    String?
-  arrivalCode      String?
-  flightDate       String?
-  checkInUrl       String?                     // Deep link vers site compagnie
-  boardingPassUrl  String?                     // URL carte d'embarquement PDF
-  seat             String?
-  gate             String?
-  terminal         String?
-  status           String   @default("detected") // detected, link_sent, checked_in, failed, expired
-  errorMessage     String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([phone, createdAt])
-  @@index([flightNumber])
-  @@index([pnr])
-  @@index([status])
-}
-
-// MODULE V1.5-7: GAMIFICATION "SMARTLY MILES"
-model UserWallet {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phone           String   @unique
-  balance         Int      @default(0)         // Solde en points
-  tier            String   @default("bronze")   // bronze, silver, gold, platinum
-  totalEarned     Int      @default(0)
-  totalSpent      Int      @default(0)
-  streakDays      Int      @default(0)         // Jours consécutifs d'activité
-  lastActivityAt  DateTime?
-  tierUpdatedAt   DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  transactions    MilesTransaction[]
-  rewards         Reward[]
-
-  @@index([tier])
-  @@index([balance])
-}
-
-model MilesTransaction {
-  id              String   @id @default(cuid())
-  walletId        String
-  wallet          UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  type            String                       // credit, debit
-  amount          Int                           // Nombre de points
-  reason          String                       // Ex: "flight_scan", "hotel_booking", "feedback_given"
-  description     String?
-  referenceType   String?                      // booking_id, order_id, etc.
-  referenceId     String?
-  createdAt       DateTime @default(now())
-
-  @@index([walletId, createdAt])
-  @@index([type, createdAt])
-}
-
-model Reward {
-  id              String   @id @default(cuid())
-  walletId        String
-  wallet          UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  name            String
-  description     String?
-  costPoints      Int                           // Coût en points
-  type            String                       // lounge_access, wifi_premium, discount, merchandise
-  value           String?                      // JSON: { discount_percent: 10, lounge_hours: 3 }
-  status          String   @default("available") // available, redeemed, expired
-  redeemedAt      DateTime?
-  expiresAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([walletId, status])
-  @@index([type])
-  @@index([expiresAt])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MODULE: SMARTLY ZEN MUSIC — YouTube Mini-Player
-// ═══════════════════════════════════════════════════════════════
-
-model MusicCategory {
-  id          String   @id @default(cuid())
-  name        String                       // "Chill", "Sénégal", "Focus", "Jazz"
-  slug        String   @unique              // "chill", "senegal", "focus", "jazz"
+model PointRule {
+  id          String   @id
+  action      String   @unique
+  label       String
+  points      Int
   description String?
-  icon        String   @default("🎵")       // Emoji icon
-  color       String   @default("#F97316")  // Hex color for chip
-  imageUrl    String?                      // Optional category cover image
-  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  maxDaily    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model WiFiVoucher {
+  id              String    @id
+  airportCode     String    @default("DSS")
+  voucherCode     String    @unique
+  phone           String?
+  planType        String    @default("free")
+  durationMinutes Int       @default(60)
+  bandwidthMbps   Int       @default(10)
+  price           Float     @default(0)
+  currency        String    @default("XOF")
+  paymentStatus   String    @default("none")
+  portalUrl       String?
+  isActive        Boolean   @default(true)
+  activatedAt     DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime
+
+  @@index([airportCode, isActive])
+  @@index([phone])
+  @@index([voucherCode])
+}
+
+model Wishlist {
+  id            String   @id
+  customerPhone String
+  productId     String
+  createdAt     DateTime @default(now())
+
+  @@unique([customerPhone, productId])
+  @@index([customerPhone])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW MODELS — Smartly Advanced Modules (Phase 2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Pharmacy store linked to a Partner account
+model Pharmacy {
+  id             String   @id
+  partnerId      String   @unique
+  airportCode    String   @default("DSS")
+  name           String
+  address        String   @default("")
+  terminal       String   @default("")
+  contactPhone   String   @default("")
+  contactEmail   String   @default("")
+  logoUrl        String?
+  openingHours   String   @default("{}")
+  deliveryZones  String   @default("[]")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  Partner        Partner  @relation(fields: [partnerId], references: [id])
+  PharmacyOrder  PharmacyOrder[]
+
+  @@index([airportCode, isActive])
+}
+
+/// Airline check-in URL database (IATA code → check-in link)
+model CheckinAirline {
+  id          String   @id
+  iataCode    String   @unique
+  airlineName String
+  checkinUrl  String
+  apiUrl      String?
+  notes       String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime
 
-  tracks      MusicTrack[]
-
-  @@index([sortOrder])
-  @@index([isActive])
+  @@index([iataCode])
 }
 
-model MusicTrack {
-  id           String   @id @default(cuid())
-  categoryId   String
-  category     MusicCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  title        String                       // Track title (auto from YouTube or custom)
-  artist       String   @default("")         // Artist name
-  youtubeUrl   String                       // Original YouTube URL
-  youtubeId    String                       // Extracted video ID (e.g. "dQw4w9WgXcQ")
-  thumbnailUrl String                       // img.youtube.com/vi/{ID}/hqdefault.jpg
-  duration     String?                      // "3:45" if available
-  sortOrder    Int      @default(0)
-  isActive     Boolean  @default(true)
-  playCount    Int      @default(0)         // Number of times played
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([youtubeId])
-  @@index([categoryId, sortOrder])
-  @@index([isActive])
-  @@index([playCount, createdAt])
+/// Gamification point rules configuration
+model PointRule {
+  id          String   @id
+  action      String   @unique
+  label       String
+  points      Int
+  description String?
+  isActive    Boolean  @default(true)
+  maxDaily    Int?     /// Max times this rule can trigger per user per day (null = unlimited)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
 }

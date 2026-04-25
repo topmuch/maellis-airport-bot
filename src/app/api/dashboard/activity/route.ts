@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       skip: (page - 1) * limit,
       take: limit,
       include: {
-        user: {
+        User: {
           select: {
             phone: true,
             name: true,
@@ -46,8 +46,8 @@ export async function GET(request: NextRequest) {
 
       return {
         id: conv.id,
-        phone: conv.user?.phone || '—',
-        name: conv.user?.name || 'Inconnu',
+        phone: conv.User?.phone || '—',
+        name: conv.User?.name || 'Inconnu',
         intent: conv.intent || 'general',
         language: (conv.language || 'FR').toUpperCase(),
         status: conv.status || 'active',

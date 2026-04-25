@@ -94,6 +94,7 @@ async function migrate() {
         continue
       }
 
+      const crypto = await import('crypto')
       const records = legacyMessages
         .map((msg, index) => {
           // Determine role from direction or role field
@@ -104,6 +105,7 @@ async function migrate() {
           if (!content) return null
 
           return {
+            id: crypto.randomBytes(12).toString('hex'),
             conversationId: conv.id,
             role,
             content,
@@ -115,6 +117,7 @@ async function migrate() {
           }
         })
         .filter(Boolean) as Array<{
+          id: string
           conversationId: string
           role: string
           content: string

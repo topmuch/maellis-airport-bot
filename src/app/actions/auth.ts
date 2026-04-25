@@ -34,7 +34,11 @@ export async function loginUser(
   try {
     const email = formData.get('email') as string
     const password = formData.get('password') as string
-    const callbackUrl = (formData.get('callbackUrl') as string) || '/'
+    let callbackUrl = (formData.get('callbackUrl') as string) || ''
+    // If no callbackUrl or it points to public pages, redirect to dashboard
+    if (!callbackUrl || callbackUrl === '/' || callbackUrl === '/auth/login' || callbackUrl === '/auth/admin') {
+      callbackUrl = '/?showLanding=false'
+    }
 
     // Validate input
     const result = loginSchema.safeParse({ email, password })
@@ -142,7 +146,7 @@ export async function registerUser(
     // Validate invitation token
     const invitation = await db.invitation.findUnique({
       where: { token },
-      include: { inviter: true },
+      include: { AuthUser_Invitation_invitedByToAuthUser: true },
     })
 
     if (!invitation) {
@@ -185,11 +189,13 @@ export async function registerUser(
     await db.$transaction(async (tx) => {
       const newUser = await tx.authUser.create({
         data: {
+          id: crypto.randomBytes(12).toString('hex'),
           email: invitation.email,
           name,
           password: hashedPassword,
           role: invitation.role,
           airportCode: invitation.airportCode,
+          updatedAt: new Date(),
         },
       })
 
@@ -272,6 +278,7 @@ export async function createInvitation(
     // Create invitation (expires in 7 days)
     await db.invitation.create({
       data: {
+        id: crypto.randomBytes(12).toString('hex'),
         email,
         token,
         role: role as 'SUPERADMIN' | 'AIRPORT_ADMIN' | 'AGENT' | 'VIEWER',
@@ -373,7 +380,7 @@ export async function loginPartner(
     // Find partner user by email
     const partnerUser = await db.partnerUser.findUnique({
       where: { email },
-      include: { partner: true },
+      include: { Partner: true },
     })
 
     if (!partnerUser || !partnerUser.password) {
@@ -384,7 +391,7 @@ export async function loginPartner(
       return { success: false, error: 'Votre compte a été désactivé. Contactez un administrateur.' }
     }
 
-    if (!partnerUser.partner?.isActive) {
+    if (!partnerUser.Partner?.isActive) {
       return { success: false, error: 'Votre organisation partenaire a été désactivée.' }
     }
 
@@ -406,7 +413,7 @@ export async function loginPartner(
     await signIn('credentials', {
       email: partnerUser.email,
       password,
-      redirectTo: '/?showLanding=false&activeModule=partners',
+      redirectTo: '/?showLanding=false&activeModule=partners', // partner login goes to partners module
     })
 
     return { success: true, message: 'Connexion réussie' }

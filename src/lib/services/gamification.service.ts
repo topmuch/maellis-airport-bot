@@ -1,5 +1,4 @@
 import { db } from '@/lib/db';
-import type { Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,6 +25,9 @@ export type TierName = 'bronze' | 'silver' | 'gold' | 'platinum';
 
 const TIER_ORDER: TierName[] = ['bronze', 'silver', 'gold', 'platinum'];
 
+/** Phone used by the internal system wallet that holds template/default rewards. */
+const SYSTEM_REWARDS_PHONE = '__system_rewards__';
+
 // ---------------------------------------------------------------------------
 // TypeScript types
 // ---------------------------------------------------------------------------
@@ -50,6 +52,16 @@ export interface TierUpgradeResult {
   newBalance: number;
 }
 
+export interface CreateRewardInput {
+  walletId: string;
+  name: string;
+  description?: string;
+  costPoints: number;
+  type: string;
+  value?: string;
+  expiresAt?: Date | null;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: determine tier from total earned points
 // ---------------------------------------------------------------------------
@@ -58,6 +70,50 @@ function determineTier(totalEarned: number): TierName {
   if (totalEarned >= TIER_THRESHOLDS.gold) return 'gold';
   if (totalEarned >= TIER_THRESHOLDS.silver) return 'silver';
   return 'bronze';
+}
+
+// ---------------------------------------------------------------------------
+// Helper: get or create the internal system wallet used for default rewards
+// ---------------------------------------------------------------------------
+async function getOrCreateSystemWallet() {
+  // Try to find an existing system wallet
+  let wallet = await db.userWallet.findUnique({
+    where: { phone: SYSTEM_REWARDS_PHONE },
+  });
+
+  if (wallet) {
+    return wallet;
+  }
+
+  // Create the system user first
+  const userId = 'system_rewards_user';
+  let user = await db.user.findUnique({ where: { id: userId } });
+
+  if (!user) {
+    user = await db.user.create({
+      data: {
+        id: userId,
+        phone: SYSTEM_REWARDS_PHONE,
+        name: 'System Rewards',
+        language: 'fr',
+        isActive: true,
+      },
+    });
+  }
+
+  wallet = await db.userWallet.create({
+    data: {
+      userId: user.id,
+      phone: user.phone,
+      balance: 0,
+      tier: 'platinum',
+      totalEarned: 0,
+      totalSpent: 0,
+      streakDays: 0,
+    },
+  });
+
+  return wallet;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +127,7 @@ export async function getOrCreateWallet(
     // Try to find existing wallet by phone
     let wallet = await db.userWallet.findUnique({
       where: { phone },
-      include: { user: true },
+      include: { User: true },
     });
 
     if (wallet) {
@@ -82,7 +138,7 @@ export async function getOrCreateWallet(
     if (userId) {
       wallet = await db.userWallet.findUnique({
         where: { userId },
-        include: { user: true },
+        include: { User: true },
       });
 
       if (wallet) {
@@ -114,7 +170,7 @@ export async function getOrCreateWallet(
         totalSpent: 0,
         streakDays: 0,
       },
-      include: { user: true },
+      include: { User: true },
     });
 
     return wallet;
@@ -166,7 +222,7 @@ export async function creditPoints(
         lastActivityAt: new Date(),
         tierUpdatedAt: newTier !== previousTier ? new Date() : wallet.tierUpdatedAt,
       },
-      include: { user: true },
+      include: { User: true },
     });
 
     const tierUpgradeResult: TierUpgradeResult = {
@@ -220,7 +276,7 @@ export async function debitPoints(phone: string, amount: number, reason: string)
         totalSpent: { increment: amount },
         lastActivityAt: new Date(),
       },
-      include: { user: true },
+      include: { User: true },
     });
 
     return { transaction, wallet: updatedWallet };
@@ -289,7 +345,7 @@ export async function getLeaderboard(limit: number = 10) {
       orderBy: { balance: 'desc' },
       take: limit,
       include: {
-        user: {
+        User: {
           select: { id: true, phone: true, name: true },
         },
       },
@@ -303,117 +359,194 @@ export async function getLeaderboard(limit: number = 10) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. getAvailableRewards — Rewards available for a tier
+// 7. seedDefaultRewards — Create default reward records in the DB (idempotent)
+// ---------------------------------------------------------------------------
+export async function seedDefaultRewards() {
+  try {
+    const systemWallet = await getOrCreateSystemWallet();
+
+    // Define all default rewards per tier
+    const defaultRewards: Array<{
+      name: string;
+      description: string;
+      costPoints: number;
+      type: string;
+      value: string;
+      seedKey: string;
+    }> = [
+      // Bronze rewards
+      {
+        name: 'Réduction 5% salon VIP',
+        description: '[default_bronze_vip_discount]',
+        costPoints: 100,
+        type: 'bronze',
+        value: 'Réduction de 5% sur l\'accès au salon VIP',
+        seedKey: 'default_bronze_vip_discount',
+      },
+      {
+        name: 'WiFi gratuit 2h',
+        description: '[default_bronze_wifi]',
+        costPoints: 50,
+        type: 'bronze',
+        value: 'Accès WiFi gratuit pendant 2 heures',
+        seedKey: 'default_bronze_wifi',
+      },
+
+      // Silver rewards
+      {
+        name: 'Réduction 10% taxi',
+        description: '[default_silver_taxi_discount]',
+        costPoints: 200,
+        type: 'silver',
+        value: 'Réduction de 10% sur votre prochaine course en taxi',
+        seedKey: 'default_silver_taxi_discount',
+      },
+      {
+        name: 'Café offert',
+        description: '[default_silver_coffee]',
+        costPoints: 150,
+        type: 'silver',
+        value: 'Un café offert dans les boutiques de l\'aéroport',
+        seedKey: 'default_silver_coffee',
+      },
+      {
+        name: 'Priorité check-in',
+        description: '[default_silver_priority_checkin]',
+        costPoints: 300,
+        type: 'silver',
+        value: 'Accès au guichet check-in prioritaire',
+        seedKey: 'default_silver_priority_checkin',
+      },
+
+      // Gold rewards
+      {
+        name: 'Salon VIP gratuit',
+        description: '[default_gold_lounge]',
+        costPoints: 500,
+        type: 'gold',
+        value: 'Accès gratuit au salon VIP pendant 3 heures',
+        seedKey: 'default_gold_lounge',
+      },
+      {
+        name: 'Upgrade siège',
+        description: '[default_gold_seat_upgrade]',
+        costPoints: 800,
+        type: 'gold',
+        value: 'Upgrade de siège disponible sur votre prochain vol',
+        seedKey: 'default_gold_seat_upgrade',
+      },
+      {
+        name: 'Bagage prioritaire',
+        description: '[default_gold_priority_baggage]',
+        costPoints: 400,
+        type: 'gold',
+        value: 'Traitement prioritaire de vos bagages',
+        seedKey: 'default_gold_priority_baggage',
+      },
+
+      // Platinum rewards
+      {
+        name: 'Lounge accès illimité 1 mois',
+        description: '[default_platinum_lounge_unlimited]',
+        costPoints: 1500,
+        type: 'platinum',
+        value: 'Accès illimité au salon VIP pendant 1 mois',
+        seedKey: 'default_platinum_lounge_unlimited',
+      },
+      {
+        name: 'Vol offert',
+        description: '[default_platinum_free_flight]',
+        costPoints: 5000,
+        type: 'platinum',
+        value: 'Un vol offert vers une destination de votre choix',
+        seedKey: 'default_platinum_free_flight',
+      },
+      {
+        name: 'Chauffeur privé',
+        description: '[default_platinum_private_driver]',
+        costPoints: 3000,
+        type: 'platinum',
+        value: 'Transfert aéroport avec chauffeur privé',
+        seedKey: 'default_platinum_private_driver',
+      },
+    ];
+
+    // Fetch existing seeded rewards for this wallet to avoid duplicates
+    const existingRewards = await db.reward.findMany({
+      where: {
+        walletId: systemWallet.id,
+        description: { startsWith: '[default_' },
+      },
+      select: { description: true },
+    });
+
+    const existingKeys = new Set(
+      existingRewards.map((r) => r.description),
+    );
+
+    // Only create rewards that don't already exist
+    const toCreate = defaultRewards.filter(
+      (r) => !existingKeys.has(r.description),
+    );
+
+    if (toCreate.length === 0) {
+      console.log('[gamification.service] seedDefaultRewards: all default rewards already exist, skipping.');
+      return { created: 0, skipped: defaultRewards.length };
+    }
+
+    const results = await db.reward.createMany({
+      data: toCreate.map((r) => ({
+        walletId: systemWallet.id,
+        name: r.name,
+        description: r.description,
+        costPoints: r.costPoints,
+        type: r.type,
+        value: r.value,
+        status: 'available',
+        expiresAt: null,
+      })),
+    });
+
+    console.log(
+      `[gamification.service] seedDefaultRewards: created ${results.count} rewards, skipped ${existingKeys.size}.`,
+    );
+
+    return { created: results.count, skipped: existingKeys.size };
+  } catch (error) {
+    console.error('[gamification.service] seedDefaultRewards error:', error);
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 8. getAvailableRewards — Rewards available for a tier (DB-backed)
 // ---------------------------------------------------------------------------
 export async function getAvailableRewards(tier: string) {
   try {
-    // Get all active reward templates (rewards that are not tied to a specific wallet
-    // or are available across all tiers). Since the Reward model is tied to a wallet,
-    // we return reward type definitions based on tier.
-    const tierRewards: Record<
-      string,
-      Array<{
-        type: string;
-        name: string;
-        description: string;
-        costPoints: number;
-        value: string;
-      }>
-    > = {
-      bronze: [
-        {
-          type: 'wifi_premium',
-          name: 'WiFi Premium (60 min)',
-          description: 'Accès WiFi premium gratuit pendant 60 minutes',
-          costPoints: 100,
-          value: JSON.stringify({ duration_minutes: 60, plan: 'premium' }),
-        },
-        {
-          type: 'discount',
-          name: 'Réduction Transport 5%',
-          description: '5% de réduction sur votre prochaine course',
-          costPoints: 200,
-          value: JSON.stringify({ discount_percent: 5 }),
-        },
-      ],
-      silver: [
-        {
-          type: 'wifi_premium',
-          name: 'WiFi Premium Plus (120 min)',
-          description: 'Accès WiFi premium plus gratuit pendant 120 minutes',
-          costPoints: 150,
-          value: JSON.stringify({
-            duration_minutes: 120,
-            plan: 'premium_plus',
-          }),
-        },
-        {
-          type: 'discount',
-          name: 'Réduction Transport 10%',
-          description: '10% de réduction sur votre prochaine course',
-          costPoints: 350,
-          value: JSON.stringify({ discount_percent: 10 }),
-        },
-        {
-          type: 'lounge_access',
-          name: 'Lounge VIP (1h)',
-          description: 'Accès gratuit au salon VIP pendant 1 heure',
-          costPoints: 500,
-          value: JSON.stringify({ lounge_hours: 1 }),
-        },
-      ],
-      gold: [
-        {
-          type: 'lounge_access',
-          name: 'Lounge VIP (3h)',
-          description: 'Accès gratuit au salon VIP pendant 3 heures',
-          costPoints: 800,
-          value: JSON.stringify({ lounge_hours: 3 }),
-        },
-        {
-          type: 'discount',
-          name: 'Réduction Marketplace 15%',
-          description: '15% de réduction sur le marketplace',
-          costPoints: 600,
-          value: JSON.stringify({ discount_percent: 15 }),
-        },
-        {
-          type: 'wifi_premium',
-          name: 'WiFi Premium Plus (480 min)',
-          description: 'Accès WiFi premium plus gratuit pendant 8 heures',
-          costPoints: 200,
-          value: JSON.stringify({
-            duration_minutes: 480,
-            plan: 'premium_plus',
-          }),
-        },
-      ],
-      platinum: [
-        {
-          type: 'lounge_access',
-          name: 'Lounge VIP (illimité)',
-          description: 'Accès illimité au salon VIP',
-          costPoints: 1500,
-          value: JSON.stringify({ lounge_hours: 24 }),
-        },
-        {
-          type: 'discount',
-          name: 'Réduction Marketplace 25%',
-          description: '25% de réduction sur le marketplace',
-          costPoints: 1000,
-          value: JSON.stringify({ discount_percent: 25 }),
-        },
-        {
-          type: 'merchandise',
-          name: 'Cadeau Smartly exclusif',
-          description: 'Un cadeau surprise de la part de Smartly',
-          costPoints: 2000,
-          value: JSON.stringify({ merchandise: 'smartly_exclusive' }),
-        },
-      ],
-    };
+    // Ensure default rewards exist (idempotent — safe to call every time)
+    await seedDefaultRewards();
 
-    return tierRewards[tier] ?? tierRewards.bronze;
+    // Get the system wallet that holds the template rewards
+    const systemWallet = await db.userWallet.findUnique({
+      where: { phone: SYSTEM_REWARDS_PHONE },
+    });
+
+    if (!systemWallet) {
+      // Fallback: return empty if system wallet was never created
+      return [];
+    }
+
+    // Query available rewards for this tier (or rewards available to "all")
+    const rewards = await db.reward.findMany({
+      where: {
+        walletId: systemWallet.id,
+        status: 'available',
+        type: { in: [tier, 'all'] },
+      },
+      orderBy: { costPoints: 'asc' },
+    });
+
+    return rewards;
   } catch (error) {
     console.error('[gamification.service] getAvailableRewards error:', error);
     throw error;
@@ -421,7 +554,7 @@ export async function getAvailableRewards(tier: string) {
 }
 
 // ---------------------------------------------------------------------------
-// 8. redeemReward — Redeem a reward using wallet points
+// 9. redeemReward — Redeem a reward using wallet points
 // ---------------------------------------------------------------------------
 export async function redeemReward(phone: string, rewardId: string) {
   try {
@@ -485,7 +618,7 @@ export async function redeemReward(phone: string, rewardId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// 9. getGamificationStats — Admin stats for gamification system
+// 10. getGamificationStats — Admin stats for gamification system
 // ---------------------------------------------------------------------------
 export async function getGamificationStats() {
   try {
@@ -512,7 +645,7 @@ export async function getGamificationStats() {
         orderBy: { totalEarned: 'desc' },
         take: 5,
         include: {
-          user: {
+          User: {
             select: { id: true, phone: true, name: true },
           },
         },
@@ -538,7 +671,7 @@ export async function getGamificationStats() {
       })),
       topEarners: topEarners.map((w) => ({
         phone: w.phone,
-        name: w.user?.name ?? null,
+        name: w.User?.name ?? null,
         tier: w.tier,
         totalEarned: w.totalEarned,
         balance: w.balance,
@@ -547,6 +680,75 @@ export async function getGamificationStats() {
     };
   } catch (error) {
     console.error('[gamification.service] getGamificationStats error:', error);
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 11. createReward — Admin CRUD: create a new reward
+// ---------------------------------------------------------------------------
+export async function createReward(data: CreateRewardInput) {
+  try {
+    const reward = await db.reward.create({
+      data: {
+        walletId: data.walletId,
+        name: data.name,
+        description: data.description ?? null,
+        costPoints: data.costPoints,
+        type: data.type,
+        value: data.value ?? null,
+        status: 'available',
+        expiresAt: data.expiresAt ?? null,
+      },
+    });
+
+    return reward;
+  } catch (error) {
+    console.error('[gamification.service] createReward error:', error);
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 12. deleteReward — Admin CRUD: soft-delete a reward (set status to 'expired')
+// ---------------------------------------------------------------------------
+export async function deleteReward(id: string) {
+  try {
+    const reward = await db.reward.findUnique({ where: { id } });
+
+    if (!reward) {
+      throw new Error('Reward not found');
+    }
+
+    const updated = await db.reward.update({
+      where: { id },
+      data: {
+        status: 'expired',
+      },
+    });
+
+    return updated;
+  } catch (error) {
+    console.error('[gamification.service] deleteReward error:', error);
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 13. getAllRewards — Admin: return all rewards ordered by type, then costPoints
+// ---------------------------------------------------------------------------
+export async function getAllRewards() {
+  try {
+    const rewards = await db.reward.findMany({
+      orderBy: [
+        { type: 'asc' },
+        { costPoints: 'asc' },
+      ],
+    });
+
+    return rewards;
+  } catch (error) {
+    console.error('[gamification.service] getAllRewards error:', error);
     throw error;
   }
 }

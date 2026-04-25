@@ -1,12 +1,32 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { ScanLine, CheckCircle, XCircle, Clock, Search, Eye, BarChart3, Camera } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import {
+  ScanLine,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Search,
+  Eye,
+  BarChart3,
+  Camera,
+  RefreshCw,
+  ListChecks,
+  Copy,
+  Plane,
+  MapPin,
+  AlertTriangle,
+  TrendingUp,
+  CheckCheck,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
@@ -30,6 +50,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,6 +99,27 @@ interface ScanStats {
   topRoutes: { from: string; to: string; count: number }[]
   providerDistribution: { provider: string; count: number }[]
 }
+
+// ── Color helpers ───────────────────────────────────────────────────────────
+
+const AIRLINE_COLORS = [
+  'bg-orange-500',
+  'bg-emerald-500',
+  'bg-sky-500',
+  'bg-rose-500',
+  'bg-violet-500',
+  'bg-amber-500',
+  'bg-teal-500',
+  'bg-pink-500',
+]
+
+const PROVIDER_COLORS: Record<string, string> = {
+  mock: 'bg-purple-500',
+  tesseract: 'bg-blue-500',
+  google: 'bg-emerald-500',
+}
+
+const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
 // ── Status Badge ────────────────────────────────────────────────────────────
 
@@ -137,7 +184,7 @@ function ProviderBadge({ provider }: { provider: string }) {
 
 // ── Confidence Bar ──────────────────────────────────────────────────────────
 
-function ConfidenceBar({ value }: { value: number }) {
+function ConfidenceBar({ value, className }: { value: number; className?: string }) {
   const pct = Math.round(value * 100)
   const color =
     pct >= 80
@@ -147,7 +194,7 @@ function ConfidenceBar({ value }: { value: number }) {
         : 'bg-red-500'
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center gap-2 ${className ?? ''}`}>
       <div className="h-2 w-20 rounded-full bg-muted">
         <div
           className={`h-2 rounded-full transition-all ${color}`}
@@ -159,7 +206,7 @@ function ConfidenceBar({ value }: { value: number }) {
   )
 }
 
-// ── Stats Card ──────────────────────────────────────────────────────────────
+// ── Stat Card ──────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   title: string
@@ -185,6 +232,317 @@ function StatCard({ title, value, icon, colorClass, iconBgClass }: StatCardProps
   )
 }
 
+// ── Mini Stat (for stats tab) ──────────────────────────────────────────────
+
+interface MiniStatProps {
+  label: string
+  value: string | number
+  sub?: string
+  icon: React.ReactNode
+  accent: string
+}
+
+function MiniStat({ label, value, sub, icon, accent }: MiniStatProps) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-lg font-bold">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ── Stats: Top Airlines Chart (horizontal bars) ────────────────────────────
+
+function TopAirlinesChart({ data }: { data: { airline: string; count: number }[] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+        Aucune donnée disponible
+      </div>
+    )
+  }
+  const maxCount = Math.max(...data.map((d) => d.count), 1)
+  return (
+    <div className="space-y-3">
+      {data.slice(0, 6).map((item, i) => (
+        <div key={item.airline} className="flex items-center gap-3">
+          <span className="w-32 truncate text-sm font-medium text-right">
+            {item.airline}
+          </span>
+          <div className="flex-1 h-7 rounded-md bg-muted overflow-hidden relative">
+            <div
+              className={`h-full rounded-md ${AIRLINE_COLORS[i % AIRLINE_COLORS.length]} transition-all duration-700 flex items-center justify-end pr-2`}
+              style={{ width: `${Math.max((item.count / maxCount) * 100, 8)}%` }}
+            >
+              <span className="text-xs font-bold text-white drop-shadow-sm">
+                {item.count}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Stats: Top Routes Cards ────────────────────────────────────────────────
+
+function TopRoutesCards({ data }: { data: { from: string; to: string; count: number }[] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+        Aucune donnée disponible
+      </div>
+    )
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {data.slice(0, 6).map((route) => (
+        <div
+          key={`${route.from}-${route.to}`}
+          className="flex items-center gap-3 rounded-lg border bg-background p-4 hover:shadow-sm transition-shadow"
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="text-center shrink-0">
+              <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{route.from}</p>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="h-px flex-1 bg-gradient-to-r from-orange-300 to-sky-300 dark:from-orange-700 dark:to-sky-700" />
+              <Plane className="size-4 text-muted-foreground mx-1 shrink-0 rotate-90" />
+              <div className="h-px flex-1 bg-gradient-to-r from-sky-300 to-orange-300 dark:from-sky-700 dark:to-orange-700" />
+            </div>
+            <div className="text-center shrink-0">
+              <p className="text-lg font-bold text-sky-600 dark:text-sky-400">{route.to}</p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="shrink-0 text-xs">
+            {route.count}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Stats: Provider Distribution (CSS donut) ───────────────────────────────
+
+function ProviderDistributionChart({ data, total }: { data: { provider: string; count: number }[]; total: number }) {
+  if (!data || data.length === 0 || total === 0) {
+    return (
+      <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+        Aucune donnée disponible
+      </div>
+    )
+  }
+
+  // Build CSS conic gradient segments via reduce
+  const colorMap: Record<string, string> = {
+    'bg-purple-500': '#a855f7',
+    'bg-blue-500': '#3b82f6',
+    'bg-emerald-500': '#10b981',
+    'bg-gray-400': '#9ca3af',
+  }
+
+  const gradientStops = data.reduce<string[]>((acc, d) => {
+    const pct = (d.count / total) * 100
+    const start = acc.length === 0 ? 0 : parseFloat(acc[acc.length - 1].split(' ').pop()!)
+    const end = start + pct
+    const color = PROVIDER_COLORS[d.provider.toLowerCase()] ?? 'bg-gray-400'
+    const hex = colorMap[color] ?? '#9ca3af'
+    acc.push(`${hex} ${start}% ${end}%`)
+    return acc
+  }, [])
+
+  const conicGradient = `conic-gradient(${gradientStops.join(', ')})`
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* Donut chart */}
+      <div className="relative">
+        <div
+          className="size-36 rounded-full"
+          style={{ background: conicGradient }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="size-24 rounded-full bg-background flex flex-col items-center justify-center">
+            <p className="text-2xl font-bold">{total}</p>
+            <p className="text-xs text-muted-foreground">total</p>
+          </div>
+        </div>
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-4">
+        {data.map((d) => {
+          const color = PROVIDER_COLORS[d.provider.toLowerCase()] ?? 'bg-gray-400'
+          return (
+            <div key={d.provider} className="flex items-center gap-2">
+              <div className={`size-3 rounded-full ${color}`} />
+              <span className="text-sm font-medium">{d.provider}</span>
+              <span className="text-xs text-muted-foreground">({d.count})</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Stats: Daily Scan Trend (bar chart) ────────────────────────────────────
+
+function DailyScanTrend({ scans }: { scans: TicketScan[] }) {
+  // Compute daily counts for last 7 days
+  const dailyCounts = useMemo(() => {
+    const today = new Date()
+    const days: { label: string; count: number; date: Date }[] = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      d.setHours(0, 0, 0, 0)
+      const nextD = new Date(d)
+      nextD.setDate(nextD.getDate() + 1)
+      const count = scans.filter((s) => {
+        const sd = new Date(s.createdAt)
+        return sd >= d && sd < nextD
+      }).length
+      days.push({
+        label: DAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1],
+        count,
+        date: d,
+      })
+    }
+    return days
+  }, [scans])
+
+  const maxCount = Math.max(...dailyCounts.map((d) => d.count), 1)
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end gap-2 h-40">
+        {dailyCounts.map((day) => (
+          <Tooltip key={day.label}>
+            <TooltipTrigger asChild>
+              <div className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                <div
+                  className={`w-full rounded-t-md transition-all duration-500 min-h-[4px] ${
+                    day.count === maxCount && day.count > 0
+                      ? 'bg-orange-500'
+                      : day.count > 0
+                        ? 'bg-orange-300 dark:bg-orange-600'
+                        : 'bg-muted'
+                  }`}
+                  style={{ height: `${Math.max((day.count / maxCount) * 100, 4)}%` }}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {day.count} scan{day.count !== 1 ? 's' : ''}
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        {dailyCounts.map((day) => (
+          <div key={day.label} className="flex-1 text-center text-xs text-muted-foreground">
+            {day.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Stats: Success Rate Ring ───────────────────────────────────────────────
+
+function SuccessRateRing({ rate }: { rate: number }) {
+  const circumference = 2 * Math.PI * 40
+  const offset = circumference - (rate / 100) * circumference
+  const color =
+    rate >= 80
+      ? 'text-emerald-500'
+      : rate >= 50
+        ? 'text-orange-500'
+        : 'text-red-500'
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative">
+        <svg className="size-28 -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="40" fill="none" className="stroke-muted" strokeWidth="8" />
+          <circle
+            cx="50"
+            cy="50"
+            r="40"
+            fill="none"
+            className={color}
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 1s ease-in-out' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center flex-col">
+          <p className={`text-2xl font-bold ${color}`}>{rate}%</p>
+        </div>
+      </div>
+      <p className="text-sm font-medium text-muted-foreground">Taux de réussite</p>
+    </div>
+  )
+}
+
+// ── Status Distribution Mini Bar ───────────────────────────────────────────
+
+function StatusDistribution({
+  total,
+  pending,
+  confirmed,
+  rejected,
+  expired,
+}: {
+  total: number
+  pending: number
+  confirmed: number
+  rejected: number
+  expired: number
+}) {
+  if (total === 0) return null
+  const segments = [
+    { pct: (confirmed / total) * 100, color: 'bg-emerald-500', label: 'Confirmés' },
+    { pct: (pending / total) * 100, color: 'bg-orange-500', label: 'En attente' },
+    { pct: (rejected / total) * 100, color: 'bg-red-500', label: 'Rejetés' },
+    { pct: (expired / total) * 100, color: 'bg-amber-400', label: 'Expirés' },
+  ]
+
+  return (
+    <div className="space-y-2">
+      <div className="flex h-4 rounded-full overflow-hidden bg-muted">
+        {segments.map((seg) => (
+          <div
+            key={seg.label}
+            className={`${seg.color} transition-all duration-700`}
+            style={{ width: `${seg.pct}%` }}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {segments.map((seg) => (
+          <div key={seg.label} className="flex items-center gap-1.5">
+            <div className={`size-2.5 rounded-full ${seg.color}`} />
+            <span className="text-xs text-muted-foreground">{seg.label}</span>
+            <span className="text-xs font-medium">{Math.round(seg.pct)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function TicketScansModule() {
@@ -198,6 +556,17 @@ export function TicketScansModule() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedScan, setSelectedScan] = useState<TicketScan | null>(null)
   const [actionSubmitting, setActionSubmitting] = useState(false)
+
+  // Edit mode in detail dialog
+  const [editMode, setEditMode] = useState(false)
+  const [editFields, setEditFields] = useState<Partial<TicketScan>>({})
+
+  // Batch selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchSubmitting, setBatchSubmitting] = useState(false)
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState('scans')
 
   // ── Data Fetching ───────────────────────────────────────────────────────
 
@@ -239,6 +608,8 @@ export function TicketScansModule() {
 
   const handleViewDetail = (scan: TicketScan) => {
     setSelectedScan(scan)
+    setEditMode(false)
+    setEditFields({})
     setDetailOpen(true)
   }
 
@@ -306,6 +677,158 @@ export function TicketScansModule() {
     setActionSubmitting(false)
   }
 
+  // ── Batch Actions ───────────────────────────────────────────────────────
+
+  const pendingScans = useMemo(
+    () => scanList.filter((s) => s.status === 'pending'),
+    [scanList]
+  )
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pendingScans.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(pendingScans.map((s) => s.id)))
+    }
+  }
+
+  const handleBatchConfirm = async () => {
+    if (selectedIds.size === 0) return
+    setBatchSubmitting(true)
+    const promises = Array.from(selectedIds).map(async (id) => {
+      try {
+        await fetch('/api/ticket-scans', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, action: 'confirm' }),
+        })
+      } catch {
+        // continue
+      }
+    })
+    await Promise.all(promises)
+
+    // Optimistic update for remaining
+    setScanList((prev) =>
+      prev.map((s) =>
+        selectedIds.has(s.id)
+          ? { ...s, status: 'confirmed' as const, confirmedAt: new Date().toISOString() }
+          : s
+      )
+    )
+    toast.success(`${selectedIds.size} scan(s) confirmé(s)`)
+    setSelectedIds(new Set())
+    setBatchSubmitting(false)
+    fetchScans()
+  }
+
+  const handleBatchReject = async () => {
+    if (selectedIds.size === 0) return
+    setBatchSubmitting(true)
+    const promises = Array.from(selectedIds).map(async (id) => {
+      try {
+        await fetch('/api/ticket-scans', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, action: 'reject' }),
+        })
+      } catch {
+        // continue
+      }
+    })
+    await Promise.all(promises)
+
+    setScanList((prev) =>
+      prev.map((s) =>
+        selectedIds.has(s.id)
+          ? { ...s, status: 'rejected' as const, rejectedAt: new Date().toISOString() }
+          : s
+      )
+    )
+    toast.success(`${selectedIds.size} scan(s) rejeté(s)`)
+    setSelectedIds(new Set())
+    setBatchSubmitting(false)
+    fetchScans()
+  }
+
+  // ── Edit Mode ───────────────────────────────────────────────────────────
+
+  const startEdit = () => {
+    if (!selectedScan) return
+    setEditFields({
+      passengerName: selectedScan.passengerName,
+      pnr: selectedScan.pnr,
+      flightNumber: selectedScan.flightNumber,
+      airline: selectedScan.airline,
+      departureCode: selectedScan.departureCode,
+      arrivalCode: selectedScan.arrivalCode,
+      seat: selectedScan.seat,
+      gate: selectedScan.gate,
+      terminal: selectedScan.terminal,
+    })
+    setEditMode(true)
+  }
+
+  const cancelEdit = () => {
+    setEditMode(false)
+    setEditFields({})
+  }
+
+  const saveEdit = () => {
+    if (!selectedScan) return
+    // Save locally since API doesn't support correction endpoint
+    setScanList((prev) =>
+      prev.map((s) =>
+        s.id === selectedScan.id ? { ...s, ...editFields } : s
+      )
+    )
+    setSelectedScan((prev) => (prev ? { ...prev, ...editFields } : prev))
+    setEditMode(false)
+    setEditFields({})
+    toast.success('Champs corrigés localement')
+  }
+
+  // ── Copy Extracted Data ─────────────────────────────────────────────────
+
+  const handleCopyExtracted = () => {
+    if (!selectedScan) return
+    const data = selectedScan
+    const text = [
+      `Passager: ${data.passengerName ?? 'N/A'}`,
+      `Téléphone: ${data.phone}`,
+      `PNR: ${data.pnr ?? 'N/A'}`,
+      `Vol: ${data.flightNumber ?? 'N/A'}`,
+      `Compagnie: ${data.airline ?? 'N/A'}`,
+      `Trajet: ${data.departureCode ?? '?'} → ${data.arrivalCode ?? '?'}`,
+      `Date vol: ${data.flightDate ?? 'N/A'}`,
+      `Siège: ${data.seat ?? 'N/A'}`,
+      `Porte: ${data.gate ?? 'N/A'}`,
+      `Terminal: ${data.terminal ?? 'N/A'}`,
+      `Classe: ${data.class ?? 'N/A'}`,
+      `Confiance: ${Math.round(data.confidence * 100)}%`,
+      `Source: ${data.source}`,
+      `Fournisseur: ${data.provider}`,
+    ].join('\n')
+
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Données copiées dans le presse-papier')
+    }).catch(() => {
+      toast.error('Impossible de copier')
+    })
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   const formatDate = (dateStr: string | null) => {
@@ -368,6 +891,15 @@ export function TicketScansModule() {
             Reconnaissance OCR des billets et cartes d&apos;embarquement
           </p>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => fetchScans()}
+          disabled={loading}
+          className="w-fit"
+        >
+          <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
+          Actualiser
+        </Button>
       </div>
 
       {/* Stats Row */}
@@ -402,115 +934,346 @@ export function TicketScansModule() {
         />
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>Liste des Scans</CardTitle>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:w-auto">
-              <div className="relative w-full sm:w-48">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Téléphone, PNR, vol..."
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="pending">En attente</SelectItem>
-                  <SelectItem value="confirmed">Confirmé</SelectItem>
-                  <SelectItem value="rejected">Rejeté</SelectItem>
-                  <SelectItem value="expired">Expiré</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="size-8 animate-spin rounded-full border-4 border-orange-200 border-t-orange-500" />
-            </div>
-          ) : (
-            <div className="max-h-[480px] overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead>PNR</TableHead>
-                    <TableHead>Vol</TableHead>
-                    <TableHead>Compagnie</TableHead>
-                    <TableHead>Trajet</TableHead>
-                    <TableHead>Confiance</TableHead>
-                    <TableHead>Fournisseur</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredScans.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
-                        Aucun scan trouvé.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredScans.map((scan) => (
-                      <TableRow key={scan.id}>
-                        <TableCell className="whitespace-nowrap text-xs">
-                          {formatShortDate(scan.createdAt)}
-                        </TableCell>
-                        <TableCell className="font-medium">{scan.phone}</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {scan.pnr ?? '—'}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {scan.flightNumber ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {scan.airline ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {scan.departureCode && scan.arrivalCode
-                            ? `${scan.departureCode} → ${scan.arrivalCode}`
-                            : '—'}
-                        </TableCell>
-                        <TableCell>
-                          <ConfidenceBar value={scan.confidence} />
-                        </TableCell>
-                        <TableCell>
-                          <ProviderBadge provider={scan.provider} />
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={scan.status} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewDetail(scan)}
-                            className="text-orange-500 border-orange-200 hover:bg-orange-50"
-                          >
-                            <Eye className="size-3.5" />
-                            Détails
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+      {/* Tabs: Scans & Statistiques */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="scans" className="gap-1.5">
+            <ListChecks className="size-4" />
+            Scans
+          </TabsTrigger>
+          <TabsTrigger value="stats" className="gap-1.5">
+            <BarChart3 className="size-4" />
+            Statistiques
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Tab: Scans ────────────────────────────────────────────── */}
+        <TabsContent value="scans" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  Liste des Scans
+                  {statusFilter === 'all' && (
+                    <Badge variant="secondary" className="text-xs">
+                      {filteredScans.length} résultat{filteredScans.length !== 1 ? 's' : ''}
+                    </Badge>
                   )}
-                </TableBody>
-              </Table>
+                </CardTitle>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:w-auto">
+                  <div className="relative w-full sm:w-48">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Téléphone, PNR, vol..."
+                      className="pl-9"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="Statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="pending">En attente</SelectItem>
+                      <SelectItem value="confirmed">Confirmé</SelectItem>
+                      <SelectItem value="rejected">Rejeté</SelectItem>
+                      <SelectItem value="expired">Expiré</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Batch Actions Bar */}
+              {selectedIds.size > 0 && (
+                <div className="mt-3 flex items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30 p-3">
+                  <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                    {selectedIds.size} scan{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={handleBatchConfirm}
+                    disabled={batchSubmitting}
+                  >
+                    <CheckCheck className="size-3.5" />
+                    {batchSubmitting ? 'Confirmation...' : 'Tout Confirmer'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleBatchReject}
+                    disabled={batchSubmitting}
+                  >
+                    <X className="size-3.5" />
+                    {batchSubmitting ? 'Rejet...' : 'Tout Rejeter'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="size-8 animate-spin rounded-full border-4 border-orange-200 border-t-orange-500" />
+                </div>
+              ) : (
+                <div className="max-h-[480px] overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {statusFilter === 'pending' || statusFilter === 'all' ? (
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={
+                                pendingScans.length > 0 &&
+                                selectedIds.size === pendingScans.length
+                              }
+                              onCheckedChange={toggleSelectAll}
+                              aria-label="Tout sélectionner"
+                            />
+                          </TableHead>
+                        ) : null}
+                        <TableHead>Date</TableHead>
+                        <TableHead>Téléphone</TableHead>
+                        <TableHead>PNR</TableHead>
+                        <TableHead>Vol</TableHead>
+                        <TableHead>Compagnie</TableHead>
+                        <TableHead>Trajet</TableHead>
+                        <TableHead>Confiance</TableHead>
+                        <TableHead>Fournisseur</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredScans.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={statusFilter === 'pending' || statusFilter === 'all' ? 11 : 10}
+                            className="h-24 text-center"
+                          >
+                            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                              <ScanLine className="size-8 opacity-40" />
+                              <span>Aucun scan trouvé.</span>
+                              {searchQuery && (
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  onClick={() => setSearchQuery('')}
+                                >
+                                  Effacer la recherche
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredScans.map((scan) => (
+                          <TableRow
+                            key={scan.id}
+                            className={
+                              selectedIds.has(scan.id)
+                                ? 'bg-orange-50/80 dark:bg-orange-950/20'
+                                : ''
+                            }
+                          >
+                            {(statusFilter === 'pending' || statusFilter === 'all') && (
+                              <TableCell>
+                                {scan.status === 'pending' ? (
+                                  <Checkbox
+                                    checked={selectedIds.has(scan.id)}
+                                    onCheckedChange={() => toggleSelect(scan.id)}
+                                    aria-label={`Sélectionner scan ${scan.pnr ?? scan.id}`}
+                                  />
+                                ) : null}
+                              </TableCell>
+                            )}
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {formatShortDate(scan.createdAt)}
+                            </TableCell>
+                            <TableCell className="font-medium">{scan.phone}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {scan.pnr ?? '—'}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {scan.flightNumber ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {scan.airline ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {scan.departureCode && scan.arrivalCode
+                                ? `${scan.departureCode} → ${scan.arrivalCode}`
+                                : '—'}
+                            </TableCell>
+                            <TableCell>
+                              <ConfidenceBar value={scan.confidence} />
+                            </TableCell>
+                            <TableCell>
+                              <ProviderBadge provider={scan.provider} />
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={scan.status} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewDetail(scan)}
+                                className="text-orange-500 border-orange-200 hover:bg-orange-50"
+                              >
+                                <Eye className="size-3.5" />
+                                Détails
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Tab: Statistiques ─────────────────────────────────────── */}
+        <TabsContent value="stats" className="mt-4 space-y-6">
+          {/* Overview Row */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <MiniStat
+              label="Taux de réussite"
+              value={`${stats?.successRate ?? 0}%`}
+              sub={`${stats?.confirmedScans ?? 0} / ${stats?.totalScans ?? 0}`}
+              icon={<TrendingUp className="size-5 text-emerald-600 dark:text-emerald-400" />}
+              accent="bg-emerald-100 dark:bg-emerald-900/30"
+            />
+            <MiniStat
+              label="En attente"
+              value={stats?.pendingScans ?? 0}
+              sub="à traiter"
+              icon={<Clock className="size-5 text-orange-600 dark:text-orange-400" />}
+              accent="bg-orange-100 dark:bg-orange-900/30"
+            />
+            <MiniStat
+              label="Expirés"
+              value={stats?.expiredScans ?? 0}
+              icon={<AlertTriangle className="size-5 text-amber-600 dark:text-amber-400" />}
+              accent="bg-amber-100 dark:bg-amber-900/30"
+            />
+            <MiniStat
+              label="Confiance Moy."
+              value={`${Math.round((stats?.avgConfidence ?? 0) * 100)}%`}
+              icon={<BarChart3 className="size-5 text-sky-600 dark:text-sky-400" />}
+              accent="bg-sky-100 dark:bg-sky-900/30"
+            />
+          </div>
+
+          {/* Charts Grid */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Top Airlines */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Plane className="size-4 text-orange-500" />
+                  Compagnies aériennes les plus scannées
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TopAirlinesChart data={stats?.topAirlines ?? []} />
+              </CardContent>
+            </Card>
+
+            {/* Top Routes */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MapPin className="size-4 text-orange-500" />
+                  Trajets les plus populaires
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TopRoutesCards data={stats?.topRoutes ?? []} />
+              </CardContent>
+            </Card>
+
+            {/* Provider Distribution */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="size-4 text-orange-500" />
+                  Répartition par fournisseur
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProviderDistributionChart
+                  data={stats?.providerDistribution ?? []}
+                  total={stats?.totalScans ?? 0}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Success Rate + Daily Trend */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="size-4 text-orange-500" />
+                  Tendances
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex justify-center">
+                  <SuccessRateRing rate={stats?.successRate ?? 0} />
+                </div>
+                <Separator />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-3">
+                    Scans des 7 derniers jours
+                  </p>
+                  <DailyScanTrend scans={scanList} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Status Distribution Bar (full width) */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ScanLine className="size-4 text-orange-500" />
+                Répartition par statut
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StatusDistribution
+                total={stats?.totalScans ?? scanList.length}
+                pending={stats?.pendingScans ?? scanList.filter((s) => s.status === 'pending').length}
+                confirmed={stats?.confirmedScans ?? scanList.filter((s) => s.status === 'confirmed').length}
+                rejected={stats?.rejectedScans ?? scanList.filter((s) => s.status === 'rejected').length}
+                expired={stats?.expiredScans ?? scanList.filter((s) => s.status === 'expired').length}
+              />
+            </CardContent>
+          </Card>
+
+          {/* No Data Fallback */}
+          {!stats && !loading && scanList.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+              <BarChart3 className="size-12 opacity-30" />
+              <p className="text-lg font-medium">Aucune donnée statistique</p>
+              <p className="text-sm">Les statistiques apparaîtront une fois des scans effectués.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -527,8 +1290,8 @@ export function TicketScansModule() {
 
           {selectedScan && (
             <div className="space-y-6">
-              {/* Status & Confidence */}
-              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
+              {/* Status & Confidence + Action Buttons */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground">Statut :</span>
                   <StatusBadge status={selectedScan.status} />
@@ -536,6 +1299,47 @@ export function TicketScansModule() {
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground">Confiance :</span>
                   <ConfidenceBar value={selectedScan.confidence} />
+                </div>
+                <div className="flex items-center gap-2 sm:ml-auto">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyExtracted}
+                      >
+                        <Copy className="size-3.5" />
+                        Copier
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copier les données extraites</TooltipContent>
+                  </Tooltip>
+                  {selectedScan.status === 'pending' && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={editMode ? cancelEdit : startEdit}
+                        >
+                          {editMode ? (
+                            <>
+                              <X className="size-3.5" />
+                              Annuler
+                            </>
+                          ) : (
+                            <>
+                              <CheckCheck className="size-3.5" />
+                              Corriger
+                            </>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {editMode ? 'Annuler la correction' : 'Corriger les champs manuellement'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
               </div>
 
@@ -547,7 +1351,16 @@ export function TicketScansModule() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-muted-foreground">Nom :</span>
-                    <p className="font-medium">{selectedScan.passengerName ?? 'Non extrait'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm"
+                        value={editFields.passengerName ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, passengerName: e.target.value }))}
+                        placeholder="Nom passager"
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedScan.passengerName ?? 'Non extrait'}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Téléphone :</span>
@@ -555,7 +1368,16 @@ export function TicketScansModule() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">PNR :</span>
-                    <p className="font-mono font-medium">{selectedScan.pnr ?? 'Non extrait'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm font-mono"
+                        value={editFields.pnr ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, pnr: e.target.value }))}
+                        placeholder="PNR"
+                      />
+                    ) : (
+                      <p className="font-mono font-medium">{selectedScan.pnr ?? 'Non extrait'}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Classe :</span>
@@ -563,7 +1385,16 @@ export function TicketScansModule() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Siège :</span>
-                    <p className="font-medium">{selectedScan.seat ?? 'Non extrait'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm"
+                        value={editFields.seat ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, seat: e.target.value }))}
+                        placeholder="Siège"
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedScan.seat ?? 'Non extrait'}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Source :</span>
@@ -580,11 +1411,29 @@ export function TicketScansModule() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-muted-foreground">Compagnie :</span>
-                    <p className="font-medium">{selectedScan.airline ?? 'Non extraite'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm"
+                        value={editFields.airline ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, airline: e.target.value }))}
+                        placeholder="Compagnie"
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedScan.airline ?? 'Non extraite'}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">N° Vol :</span>
-                    <p className="font-mono font-medium">{selectedScan.flightNumber ?? 'Non extrait'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm font-mono"
+                        value={editFields.flightNumber ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, flightNumber: e.target.value }))}
+                        placeholder="N° de vol"
+                      />
+                    ) : (
+                      <p className="font-mono font-medium">{selectedScan.flightNumber ?? 'Non extrait'}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Date du vol :</span>
@@ -596,11 +1445,29 @@ export function TicketScansModule() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Porte :</span>
-                    <p className="font-medium">{selectedScan.gate ?? 'Non extraite'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm"
+                        value={editFields.gate ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, gate: e.target.value }))}
+                        placeholder="Porte"
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedScan.gate ?? 'Non extraite'}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Terminal :</span>
-                    <p className="font-medium">{selectedScan.terminal ?? 'Non extrait'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-sm"
+                        value={editFields.terminal ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, terminal: e.target.value }))}
+                        placeholder="Terminal"
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedScan.terminal ?? 'Non extrait'}</p>
+                    )}
                   </div>
                 </div>
 
@@ -608,7 +1475,17 @@ export function TicketScansModule() {
                 <div className="mt-3 flex items-center justify-center gap-4 rounded-lg border bg-orange-50/50 p-4 dark:bg-orange-950/20">
                   <div className="text-center">
                     <p className="text-xs text-muted-foreground">Départ</p>
-                    <p className="text-lg font-bold">{selectedScan.departureCode ?? '???'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-center text-lg font-bold font-mono w-20"
+                        value={editFields.departureCode ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, departureCode: e.target.value }))}
+                        placeholder="Code"
+                        maxLength={3}
+                      />
+                    ) : (
+                      <p className="text-lg font-bold">{selectedScan.departureCode ?? '???'}</p>
+                    )}
                     <p className="text-xs">{selectedScan.departureCity ?? ''}</p>
                   </div>
                   <div className="flex-1 border-t-2 border-dashed border-orange-300 mx-2 relative">
@@ -618,7 +1495,17 @@ export function TicketScansModule() {
                   </div>
                   <div className="text-center">
                     <p className="text-xs text-muted-foreground">Arrivée</p>
-                    <p className="text-lg font-bold">{selectedScan.arrivalCode ?? '???'}</p>
+                    {editMode ? (
+                      <Input
+                        className="mt-1 h-8 text-center text-lg font-bold font-mono w-20"
+                        value={editFields.arrivalCode ?? ''}
+                        onChange={(e) => setEditFields((f) => ({ ...f, arrivalCode: e.target.value }))}
+                        placeholder="Code"
+                        maxLength={3}
+                      />
+                    ) : (
+                      <p className="text-lg font-bold">{selectedScan.arrivalCode ?? '???'}</p>
+                    )}
                     <p className="text-xs">{selectedScan.arrivalCity ?? ''}</p>
                   </div>
                 </div>
@@ -683,7 +1570,16 @@ export function TicketScansModule() {
             <Button variant="outline" onClick={() => setDetailOpen(false)}>
               Fermer
             </Button>
-            {selectedScan?.status === 'pending' && (
+            {editMode && (
+              <Button
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={saveEdit}
+              >
+                <CheckCircle className="size-4" />
+                Enregistrer les corrections
+              </Button>
+            )}
+            {selectedScan?.status === 'pending' && !editMode && (
               <>
                 <Button
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"

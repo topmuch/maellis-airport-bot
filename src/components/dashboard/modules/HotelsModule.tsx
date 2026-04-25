@@ -1,10 +1,36 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Building2,
   Bed,
@@ -13,10 +39,14 @@ import {
   Star,
   Search,
   Plus,
-  Phone,
   Calendar,
   Users,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -30,6 +60,7 @@ interface Hotel {
   terminal: string
   imageUrl: string | null
   amenities: string
+  rooms: HotelRoom[]
 }
 
 interface HotelRoom {
@@ -41,6 +72,7 @@ interface HotelRoom {
   maxHours: number
   maxGuests: number
   availableRooms: number
+  amenities?: string
 }
 
 interface DayUseBooking {
@@ -62,6 +94,70 @@ interface Stats {
   totalBookings: number
   activeBookings: number
   totalRevenue: number
+  cancelledBookings?: number
+  avgBookingPrice?: number
+  statusBreakdown?: { status: string; count: number }[]
+  popularHotels?: { hotelName: string; starRating: number; bookingCount: number; totalRevenue: number }[]
+}
+
+// ─── Booking Form State ─────────────────────────────────
+
+interface BookingForm {
+  hotelId: string
+  roomId: string
+  passengerName: string
+  phone: string
+  email: string
+  flightNumber: string
+  bookingDate: string
+  startTime: string
+  durationHours: number
+  guests: number
+}
+
+const emptyForm: BookingForm = {
+  hotelId: '',
+  roomId: '',
+  passengerName: '',
+  phone: '',
+  email: '',
+  flightNumber: '',
+  bookingDate: '',
+  startTime: '',
+  durationHours: 4,
+  guests: 1,
+}
+
+// ─── Helpers ────────────────────────────────────────────
+
+function getMinPrice(hotel: Hotel): number {
+  if (!hotel.rooms || hotel.rooms.length === 0) return 0
+  return Math.min(...hotel.rooms.map(r => r.hourPrice))
+}
+
+function formatPrice(price: number): string {
+  return price.toLocaleString('fr-FR')
+}
+
+function roomTypeLabel(type: string): string {
+  switch (type) {
+    case 'standard': return 'Standard'
+    case 'deluxe': return 'Deluxe'
+    case 'suite': return 'Suite'
+    case 'premium': return 'Premium'
+    default: return type.charAt(0).toUpperCase() + type.slice(1)
+  }
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'confirmed': return 'Confirmée'
+    case 'checked_in': return 'En cours'
+    case 'completed': return 'Terminée'
+    case 'cancelled': return 'Annulée'
+    case 'pending': return 'En attente'
+    default: return status
+  }
 }
 
 // ─── Module Component ───────────────────────────────────
@@ -73,16 +169,36 @@ export function HotelsModule() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'hotels' | 'bookings' | 'stats'>('hotels')
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedHotel, setSelectedHotel] = useState<string | null>(null)
+  const [expandedHotel, setExpandedHotel] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  // Search filters
+  const [filterDate, setFilterDate] = useState('')
+  const [filterHours, setFilterHours] = useState('')
+  const [filterGuests, setFilterGuests] = useState('')
 
-  const loadData = async () => {
+  // Booking dialog state
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false)
+  const [bookingForm, setBookingForm] = useState<BookingForm>(emptyForm)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Cancel dialog state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<DayUseBooking | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+
+  // ─── Data Loading ──────────────────────────────────────
+
+  const loadData = useCallback(async () => {
     try {
+      // Build search params with filters
+      const params = new URLSearchParams({ airportCode: 'DSS' })
+      if (filterDate) params.set('date', filterDate)
+      if (filterHours) params.set('hours', filterHours)
+      if (filterGuests) params.set('guests', filterGuests)
+
       const [hotelsRes, bookingsRes] = await Promise.all([
-        fetch('/api/hotels?airportCode=DSS'),
+        fetch(`/api/hotels?${params.toString()}`),
         fetch('/api/hotels/bookings?stats=true'),
       ])
       const hotelsData = await hotelsRes.json()
@@ -95,12 +211,142 @@ export function HotelsModule() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filterDate, filterHours, filterGuests])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // ─── Hotel filtering ──────────────────────────────────
 
   const filteredHotels = hotels.filter(h =>
     h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     h.address.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  // ─── Booking form helpers ─────────────────────────────
+
+  const selectedHotel = hotels.find(h => h.id === bookingForm.hotelId)
+  const availableRooms = selectedHotel?.rooms || []
+  const selectedRoom = availableRooms.find(r => r.id === bookingForm.roomId)
+
+  const handleFormChange = (field: keyof BookingForm, value: string | number) => {
+    setBookingForm(prev => {
+      const next = { ...prev, [field]: value }
+      // Reset roomId when hotel changes
+      if (field === 'hotelId') {
+        next.roomId = ''
+      }
+      return next
+    })
+  }
+
+  const resetForm = () => {
+    setBookingForm(emptyForm)
+  }
+
+  const handleSubmitBooking = async () => {
+    // Validation
+    if (!bookingForm.hotelId) {
+      toast.error('Veuillez sélectionner un hôtel')
+      return
+    }
+    if (!bookingForm.roomId) {
+      toast.error('Veuillez sélectionner un type de chambre')
+      return
+    }
+    if (!bookingForm.passengerName.trim()) {
+      toast.error('Le nom du passager est requis')
+      return
+    }
+    if (!bookingForm.phone.trim()) {
+      toast.error('Le numéro de téléphone est requis')
+      return
+    }
+    if (!bookingForm.bookingDate) {
+      toast.error('La date de réservation est requise')
+      return
+    }
+    if (!bookingForm.startTime) {
+      toast.error('L\'heure de début est requise')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/hotels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotelId: bookingForm.hotelId,
+          roomId: bookingForm.roomId,
+          passengerName: bookingForm.passengerName.trim(),
+          phone: bookingForm.phone.trim(),
+          email: bookingForm.email.trim() || undefined,
+          flightNumber: bookingForm.flightNumber.trim() || undefined,
+          bookingDate: bookingForm.bookingDate,
+          startTime: bookingForm.startTime,
+          durationHours: bookingForm.durationHours,
+          guests: bookingForm.guests,
+        }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        toast.success(`Réservation créée — Réf: ${data.data?.bookingRef || 'N/A'}`)
+        setBookingDialogOpen(false)
+        resetForm()
+        loadData()
+      } else {
+        toast.error(data.error || 'Erreur lors de la création de la réservation')
+      }
+    } catch {
+      toast.error('Erreur réseau — impossible de créer la réservation')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ─── Cancel booking ───────────────────────────────────
+
+  const openCancelDialog = (booking: DayUseBooking) => {
+    setCancelTarget(booking)
+    setCancelReason('')
+    setCancelDialogOpen(true)
+  }
+
+  const handleCancelBooking = async () => {
+    if (!cancelTarget) return
+    if (!cancelReason.trim()) {
+      toast.error('Veuillez indiquer une raison d\'annulation')
+      return
+    }
+
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/hotels/bookings/${cancelTarget.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: cancelReason.trim() }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        toast.success(`Réservation ${cancelTarget.bookingRef} annulée`)
+        setCancelDialogOpen(false)
+        setCancelTarget(null)
+        loadData()
+      } else {
+        toast.error(data.error || 'Erreur lors de l\'annulation')
+      }
+    } catch {
+      toast.error('Erreur réseau — impossible d\'annuler la réservation')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  // ─── Status colors ────────────────────────────────────
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -112,16 +358,32 @@ export function HotelsModule() {
     }
   }
 
+  const canCancel = (status: string) => {
+    return status === 'confirmed' || status === 'pending' || status === 'checked_in'
+  }
+
+  // ─── Today's date for default ─────────────────────────
+  const today = new Date().toISOString().split('T')[0]
+
+  // ─── Render ───────────────────────────────────────────
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">🏨 Marketplace Hôtels Day-Use</h1>
           <p className="text-sm text-muted-foreground">
             Réservation de chambres pour escales — à proximité de l&apos;aéroport
           </p>
         </div>
+        <Button
+          onClick={() => { resetForm(); setBookingDialogOpen(true) }}
+          className="bg-orange-500 hover:bg-orange-600 text-white"
+        >
+          <Plus className="mr-2 size-4" />
+          Nouvelle Réservation
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -165,7 +427,7 @@ export function HotelsModule() {
               <div className="flex items-center gap-3">
                 <span className="text-lg font-bold text-teal-500">FCFA</span>
                 <div>
-                  <p className="text-2xl font-bold">{(stats.totalRevenue || 0).toLocaleString()}</p>
+                  <p className="text-2xl font-bold">{formatPrice(stats.totalRevenue || 0)}</p>
                   <p className="text-xs text-muted-foreground">Chiffre d&apos;Affaires</p>
                 </div>
               </div>
@@ -192,49 +454,224 @@ export function HotelsModule() {
       {/* Hotels Tab */}
       {activeTab === 'hotels' && (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un hôtel..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          {/* Search & Filters */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher un hôtel..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Date</Label>
+                <Input
+                  type="date"
+                  value={filterDate}
+                  onChange={e => setFilterDate(e.target.value)}
+                  min={today}
+                  className="w-full sm:w-40"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Durée (h)</Label>
+                <Select value={filterHours} onValueChange={setFilterHours}>
+                  <SelectTrigger className="w-full sm:w-28">
+                    <SelectValue placeholder="Toutes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3">3h</SelectItem>
+                    <SelectItem value="4">4h</SelectItem>
+                    <SelectItem value="5">5h</SelectItem>
+                    <SelectItem value="6">6h</SelectItem>
+                    <SelectItem value="8">8h</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Voyageurs</Label>
+                <Select value={filterGuests} onValueChange={setFilterGuests}>
+                  <SelectTrigger className="w-full sm:w-28">
+                    <SelectValue placeholder="Tous" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1</SelectItem>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="4">4+</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(filterDate || filterHours || filterGuests) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mt-auto"
+                  onClick={() => { setFilterDate(''); setFilterHours(''); setFilterGuests('') }}
+                  title="Réinitialiser les filtres"
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredHotels.map(hotel => (
-              <Card key={hotel.id} className="overflow-hidden">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{hotel.name}</CardTitle>
-                      <div className="flex items-center gap-1 mt-1">
-                        {Array.from({ length: hotel.starRating }).map((_, i) => (
-                          <Star key={i} className="size-3 fill-yellow-400 text-yellow-400" />
+
+          {/* Hotels Grid */}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-8 animate-spin text-orange-500" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredHotels.map(hotel => {
+                const isExpanded = expandedHotel === hotel.id
+                const minPrice = getMinPrice(hotel)
+                const amenities = JSON.parse(hotel.amenities || '[]') as string[]
+
+                return (
+                  <Card key={hotel.id} className="overflow-hidden">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-base">{hotel.name}</CardTitle>
+                          <div className="flex items-center gap-1 mt-1">
+                            {Array.from({ length: hotel.starRating }).map((_, i) => (
+                              <Star key={i} className="size-3 fill-yellow-400 text-yellow-400" />
+                            ))}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          <MapPin className="mr-1 size-3" /> {hotel.distanceKm} km
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <p className="text-xs text-muted-foreground">{hotel.address}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {amenities.slice(0, 4).map((a: string) => (
+                          <Badge key={a} variant="secondary" className="text-[10px]">
+                            {a}
+                          </Badge>
                         ))}
                       </div>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      <MapPin className="mr-1 size-3" /> {hotel.distanceKm} km
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-xs text-muted-foreground">{hotel.address}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {JSON.parse(hotel.amenities || '[]').slice(0, 4).map((a: string) => (
-                      <Badge key={a} variant="secondary" className="text-[10px]">
-                        {a}
-                      </Badge>
-                    ))}
-                  </div>
-                  <p className="text-xs">
-                    À partir de <span className="font-bold text-orange-600">3 000 FCFA</span>/heure
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      <p className="text-xs">
+                        À partir de{' '}
+                        <span className="font-bold text-orange-600">
+                          {minPrice > 0 ? `${formatPrice(minPrice)} FCFA` : '—'}
+                        </span>
+                        /heure
+                      </p>
+
+                      {/* Expand/Collapse Rooms Button */}
+                      {hotel.rooms && hotel.rooms.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20 mt-1"
+                          onClick={() => setExpandedHotel(isExpanded ? null : hotel.id)}
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="mr-1 size-3" />
+                              Masquer les chambres
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="mr-1 size-3" />
+                              Voir {hotel.rooms.length} chambre{hotel.rooms.length > 1 ? 's' : ''} disponible{hotel.rooms.length > 1 ? 's' : ''}
+                            </>
+                          )}
+                        </Button>
+                      )}
+
+                      {/* Expanded Rooms */}
+                      {isExpanded && hotel.rooms && hotel.rooms.length > 0 && (
+                        <div className="mt-2 space-y-2 rounded-md border bg-muted/30 p-3">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Chambres disponibles
+                          </p>
+                          {hotel.rooms.map(room => {
+                            const roomAmenities = JSON.parse((room as HotelRoom & { amenities?: string }).amenities || '[]') as string[]
+                            return (
+                              <div
+                                key={room.id}
+                                className="rounded-md border bg-background p-3 space-y-1.5"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Bed className="size-3.5 text-muted-foreground" />
+                                    <span className="text-sm font-medium">{room.name}</span>
+                                  </div>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {roomTypeLabel(room.roomType)}
+                                  </Badge>
+                                </div>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="size-3" />
+                                    {room.minHours}h – {room.maxHours}h
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Users className="size-3" />
+                                    Max {room.maxGuests}
+                                  </span>
+                                  <span>
+                                    <span className="font-semibold text-orange-600">
+                                      {formatPrice(room.hourPrice)} FCFA
+                                    </span>
+                                    /h
+                                  </span>
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-[10px] ${room.availableRooms <= 2 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : ''}`}
+                                  >
+                                    {room.availableRooms} dispo{room.availableRooms > 1 ? 's' : ''}
+                                  </Badge>
+                                </div>
+                                {roomAmenities.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {roomAmenities.slice(0, 5).map((a: string) => (
+                                      <span key={a} className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">
+                                        {a}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                          <Button
+                            size="sm"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white mt-1"
+                            onClick={() => {
+                              setBookingForm(prev => ({
+                                ...prev,
+                                hotelId: hotel.id,
+                                roomId: hotel.rooms?.[0]?.id || '',
+                                bookingDate: filterDate || today,
+                              }))
+                              setBookingDialogOpen(true)
+                            }}
+                          >
+                            <Plus className="mr-1 size-3" />
+                            Réserver dans cet hôtel
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+              {!loading && filteredHotels.length === 0 && (
+                <div className="col-span-full py-12 text-center text-muted-foreground">
+                  Aucun hôtel trouvé
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -252,26 +689,53 @@ export function HotelsModule() {
                     <th className="p-3 text-left">Date</th>
                     <th className="p-3 text-right">Montant</th>
                     <th className="p-3 text-center">Statut</th>
+                    <th className="p-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id} className="border-t">
                       <td className="p-3 font-mono text-xs">{b.bookingRef}</td>
-                      <td className="p-3">{b.passengerName}</td>
+                      <td className="p-3">
+                        <div>
+                          <span className="font-medium">{b.passengerName}</span>
+                          {b.hotel && (
+                            <p className="text-xs text-muted-foreground">{b.hotel.name}</p>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3">{b.phone}</td>
-                      <td className="p-3">{b.bookingDate}</td>
-                      <td className="p-3 text-right font-medium">{b.totalPrice.toLocaleString()} FCFA</td>
+                      <td className="p-3">
+                        <div>
+                          <span>{b.bookingDate}</span>
+                          <p className="text-xs text-muted-foreground">
+                            {b.startTime} · {b.durationHours}h
+                          </p>
+                        </div>
+                      </td>
+                      <td className="p-3 text-right font-medium">{formatPrice(b.totalPrice)} FCFA</td>
                       <td className="p-3 text-center">
                         <Badge className={statusColor(b.status)} variant="secondary">
-                          {b.status}
+                          {statusLabel(b.status)}
                         </Badge>
+                      </td>
+                      <td className="p-3 text-center">
+                        {canCancel(b.status) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 px-2 text-xs"
+                            onClick={() => openCancelDialog(b)}
+                          >
+                            Annuler
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
                   {bookings.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                      <td colSpan={7} className="p-6 text-center text-muted-foreground">
                         Aucune réservation
                       </td>
                     </tr>
@@ -290,8 +754,20 @@ export function HotelsModule() {
             <CardHeader><CardTitle className="text-sm">Répartition par Statut</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>Confirmées</span><span className="font-bold">{stats.activeBookings}</span></div>
-                <div className="flex justify-between"><span>Terminées</span><span className="font-bold">{stats.totalBookings - stats.activeBookings}</span></div>
+                {stats.statusBreakdown && stats.statusBreakdown.length > 0 ? (
+                  stats.statusBreakdown.map(s => (
+                    <div key={s.status} className="flex justify-between">
+                      <span>{statusLabel(s.status)}</span>
+                      <span className="font-bold">{s.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="flex justify-between"><span>Confirmées</span><span className="font-bold">{stats.activeBookings}</span></div>
+                    <div className="flex justify-between"><span>Annulées</span><span className="font-bold">{stats.cancelledBookings || 0}</span></div>
+                    <div className="flex justify-between"><span>Terminées</span><span className="font-bold">{stats.totalBookings - stats.activeBookings - (stats.cancelledBookings || 0)}</span></div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -300,14 +776,301 @@ export function HotelsModule() {
             <CardContent>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span>Revenu Moyen</span><span className="font-bold">
-                  {stats.totalBookings > 0 ? Math.round((stats.totalRevenue || 0) / stats.totalBookings).toLocaleString() : 0} FCFA
+                  {stats.totalBookings > 0 ? formatPrice(Math.round((stats.totalRevenue || 0) / stats.totalBookings)) : '0'} FCFA
                 </span></div>
-                <div className="flex justify-between"><span>Taux d&apos;Occupation</span><span className="font-bold text-green-600">--</span></div>
+                <div className="flex justify-between"><span>Revenu Total</span><span className="font-bold text-teal-600">{formatPrice(stats.totalRevenue || 0)} FCFA</span></div>
+                {stats.avgBookingPrice !== undefined && stats.avgBookingPrice > 0 && (
+                  <div className="flex justify-between"><span>Prix Moyen (payées)</span><span className="font-bold">{formatPrice(Math.round(stats.avgBookingPrice))} FCFA</span></div>
+                )}
               </div>
             </CardContent>
           </Card>
+          {/* Popular Hotels */}
+          {stats.popularHotels && stats.popularHotels.length > 0 && (
+            <Card className="md:col-span-2">
+              <CardHeader><CardTitle className="text-sm">Hôtels Populaires</CardTitle></CardHeader>
+              <CardContent>
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left">Hôtel</th>
+                        <th className="p-2 text-center">Réservations</th>
+                        <th className="p-2 text-right">Revenu</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.popularHotels.map((h, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-2">
+                            <div className="flex items-center gap-2">
+                              <span>{h.hotelName}</span>
+                              <div className="flex items-center gap-0.5">
+                                {Array.from({ length: h.starRating }).map((_, j) => (
+                                  <Star key={j} className="size-2.5 fill-yellow-400 text-yellow-400" />
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-2 text-center font-medium">{h.bookingCount}</td>
+                          <td className="p-2 text-right font-medium">{formatPrice(h.totalRevenue)} FCFA</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
+
+      {/* ═══ Booking Creation Dialog ═══ */}
+      <Dialog open={bookingDialogOpen} onOpenChange={open => {
+        setBookingDialogOpen(open)
+        if (!open) resetForm()
+      }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nouvelle Réservation Day-Use</DialogTitle>
+            <DialogDescription>
+              Remplissez les informations pour créer une réservation d&apos;hôtel.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            {/* Hotel selector */}
+            <div className="space-y-1.5">
+              <Label htmlFor="hotel-select">Hôtel *</Label>
+              <Select
+                value={bookingForm.hotelId}
+                onValueChange={v => handleFormChange('hotelId', v)}
+              >
+                <SelectTrigger id="hotel-select">
+                  <SelectValue placeholder="Sélectionner un hôtel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hotels.map(h => (
+                    <SelectItem key={h.id} value={h.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{h.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({h.rooms?.length || 0} chambres)
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Room type selector */}
+            <div className="space-y-1.5">
+              <Label htmlFor="room-select">Type de chambre *</Label>
+              <Select
+                value={bookingForm.roomId}
+                onValueChange={v => handleFormChange('roomId', v)}
+                disabled={!selectedHotel || availableRooms.length === 0}
+              >
+                <SelectTrigger id="room-select">
+                  <SelectValue placeholder={
+                    !selectedHotel
+                      ? 'Sélectionnez d\'abord un hôtel'
+                      : availableRooms.length === 0
+                        ? 'Aucune chambre disponible'
+                        : 'Sélectionner une chambre'
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRooms.map(r => (
+                    <SelectItem key={r.id} value={r.id}>
+                      <div className="flex items-center justify-between gap-4">
+                        <span>{r.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatPrice(r.hourPrice)} FCFA/h · {r.minHours}h–{r.maxHours}h
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Passenger Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="passenger-name">Nom du passager *</Label>
+              <Input
+                id="passenger-name"
+                placeholder="ex: Amadou Diallo"
+                value={bookingForm.passengerName}
+                onChange={e => handleFormChange('passengerName', e.target.value)}
+              />
+            </div>
+
+            {/* Phone */}
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Téléphone *</Label>
+              <Input
+                id="phone"
+                placeholder="ex: +221 77 123 45 67"
+                value={bookingForm.phone}
+                onChange={e => handleFormChange('phone', e.target.value)}
+              />
+            </div>
+
+            {/* Email (optional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email">
+                Email <span className="text-muted-foreground text-xs">(optionnel)</span>
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="ex: amadou@email.com"
+                value={bookingForm.email}
+                onChange={e => handleFormChange('email', e.target.value)}
+              />
+            </div>
+
+            {/* Flight Number (optional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="flight">
+                N° de vol <span className="text-muted-foreground text-xs">(optionnel)</span>
+              </Label>
+              <Input
+                id="flight"
+                placeholder="ex: AF722"
+                value={bookingForm.flightNumber}
+                onChange={e => handleFormChange('flightNumber', e.target.value)}
+              />
+            </div>
+
+            {/* Date + Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="booking-date">Date *</Label>
+                <Input
+                  id="booking-date"
+                  type="date"
+                  value={bookingForm.bookingDate}
+                  min={today}
+                  onChange={e => handleFormChange('bookingDate', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="start-time">Heure de début *</Label>
+                <Input
+                  id="start-time"
+                  type="time"
+                  value={bookingForm.startTime}
+                  onChange={e => handleFormChange('startTime', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Duration + Guests */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="duration">Durée (heures) *</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min={3}
+                  max={8}
+                  value={bookingForm.durationHours}
+                  onChange={e => handleFormChange('durationHours', Math.max(3, Math.min(8, parseInt(e.target.value) || 3)))}
+                />
+                <p className="text-[10px] text-muted-foreground">Min 3h, max 8h</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="guests">Nombre de voyageurs *</Label>
+                <Input
+                  id="guests"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={bookingForm.guests}
+                  onChange={e => handleFormChange('guests', Math.max(1, parseInt(e.target.value) || 1))}
+                />
+              </div>
+            </div>
+
+            {/* Estimated price */}
+            {selectedRoom && (
+              <div className="rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 p-3">
+                <p className="text-xs text-muted-foreground">Prix estimé</p>
+                <p className="text-lg font-bold text-orange-600">
+                  {formatPrice(selectedRoom.hourPrice * bookingForm.durationHours)} FCFA
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedRoom.name} × {bookingForm.durationHours}h
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setBookingDialogOpen(false); resetForm() }}
+              disabled={submitting}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleSubmitBooking}
+              disabled={submitting}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+              {submitting ? 'Création...' : 'Confirmer la réservation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Cancel Booking Confirmation Dialog ═══ */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Annuler la réservation</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cancelTarget && (
+                <>
+                  Vous êtes sur le point d&apos;annuler la réservation{' '}
+                  <span className="font-mono font-semibold">{cancelTarget.bookingRef}</span>
+                  {' '}pour{' '}
+                  <span className="font-semibold">{cancelTarget.passengerName}</span>.
+                  Cette action est irréversible.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2 space-y-1.5">
+            <Label htmlFor="cancel-reason">Raison de l&apos;annulation *</Label>
+            <Input
+              id="cancel-reason"
+              placeholder="ex: Vol annulé, changement de plan..."
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Retour</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={e => {
+                e.preventDefault()
+                handleCancelBooking()
+              }}
+              disabled={cancelling || !cancelReason.trim()}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {cancelling && <Loader2 className="mr-2 size-4 animate-spin" />}
+              {cancelling ? 'Annulation...' : 'Confirmer l\'annulation'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

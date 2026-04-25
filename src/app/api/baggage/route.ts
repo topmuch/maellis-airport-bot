@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
 
     const baggageQR = await db.baggageQR.create({
       data: {
+        id: `bq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         phone: data.phone,
         passengerName: data.passengerName,
         flightNumber: data.flightNumber,
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
         expiresAt: data.expiresAt
           ? new Date(data.expiresAt)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        updatedAt: new Date(),
       },
     })
 

@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     const logs = await db.activityLog.findMany({
       where,
       include: {
-        admin: {
+        Admin: {
           select: {
             name: true,
             email: true,
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
     if (format === 'json') {
       const jsonData = logs.map((log) => ({
         date: log.createdAt.toISOString(),
-        admin: log.admin ? `${log.admin.name} (${log.admin.email})` : 'System',
+        admin: log.Admin ? `${log.Admin.name} (${log.Admin.email})` : 'System',
         action: log.action,
         module: log.module,
         details: log.details || '',
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
     const csvHeader = 'Date,Admin,Action,Module,Details,IP\n'
     const csvRows = logs.map((log) => {
       const date = log.createdAt.toISOString()
-      const admin = log.admin ? `${log.admin.name} (${log.admin.email})` : 'System'
+      const admin = log.Admin ? `${log.Admin.name} (${log.Admin.email})` : 'System'
       const action = log.action
       const logModule = log.module
       const details = (log.details || '').replace(/"/g, '""')

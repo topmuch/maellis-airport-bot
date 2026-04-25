@@ -35,7 +35,7 @@ export async function GET(
           take: 10,
         },
         _count: {
-          select: { invoices: true },
+          select: { Invoice: true },
         },
       },
     })
@@ -182,7 +182,7 @@ export async function DELETE(
       where: { id },
       include: {
         _count: {
-          select: { invoices: true },
+          select: { Invoice: true },
         },
       },
     })
@@ -195,11 +195,11 @@ export async function DELETE(
     }
 
     // Check if client has invoices — prevent deletion if so
-    if (existing._count.invoices > 0) {
+    if (existing._count.Invoice > 0) {
       return NextResponse.json(
         {
           success: false,
-          error: `Cannot delete client: ${existing._count.invoices} invoice(s) are linked to this client. Cancel or reassign them first.`,
+          error: `Cannot delete client: ${existing._count.Invoice} invoice(s) are linked to this client. Cancel or reassign them first.`,
         },
         { status: 400 }
       )

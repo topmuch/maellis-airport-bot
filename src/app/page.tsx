@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useNavigationStore } from '@/lib/store'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
@@ -103,10 +105,6 @@ const ChatSimulator = dynamic(
   () => import('@/components/landing/ChatSimulator').then((m) => ({ default: m.ChatSimulator })),
   { loading: LandingSkeleton, ssr: false }
 )
-const PricingTable = dynamic(
-  () => import('@/components/landing/PricingTable').then((m) => ({ default: m.PricingTable })),
-  { loading: LandingSkeleton, ssr: false }
-)
 const Testimonials = dynamic(
   () => import('@/components/landing/Testimonials').then((m) => ({ default: m.Testimonials })),
   { loading: LandingSkeleton, ssr: false }
@@ -124,19 +122,32 @@ const Footer = dynamic(
   { loading: LandingSkeleton, ssr: false }
 )
 
-export default function Home() {
-  const { showLanding, activeModule, setShowLanding } = useNavigationStore()
+function HomeContent() {
+  const searchParams = useSearchParams()
+  const { showLanding, activeModule, setShowLanding, setActiveModule } = useNavigationStore()
+
+  // Sync URL query params with Zustand store
+  useEffect(() => {
+    const landingParam = searchParams.get('showLanding')
+    const moduleParam = searchParams.get('activeModule') as ModuleKey | null
+
+    if (landingParam === 'false') {
+      setShowLanding(false)
+    }
+    if (moduleParam && moduleParam in modules) {
+      setActiveModule(moduleParam)
+    }
+  }, [searchParams, setShowLanding, setActiveModule])
 
   if (showLanding) {
     return (
-      <main className="min-h-screen bg-background">
+      <main className="min-h-screen bg-slate-950">
         <Navbar />
         <Hero />
         <LogoCloud />
         <ProblemSolution />
         <FeaturesGrid />
         <ChatSimulator />
-        <PricingTable />
         <Testimonials />
         <FAQ />
         <FinalCTA />
@@ -151,5 +162,13 @@ export default function Home() {
     <DashboardLayout>
       <ActiveModuleComponent />
     </DashboardLayout>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<LandingSkeleton />}>
+      <HomeContent />
+    </Suspense>
   )
 }

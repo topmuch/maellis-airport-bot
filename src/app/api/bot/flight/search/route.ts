@@ -182,13 +182,14 @@ async function storeFlightSearch(
   try {
     await db.flightSearch.create({
       data: {
+        id: `fs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         departureCode,
         arrivalCode,
         departureCity: departureCode,
         arrivalCity: arrivalCode,
         travelDate: date || null,
         passengers: passengers || 1,
-        resultsCount: (responseData?.resultsCount as number) || 0,
+        results: JSON.stringify(responseData?.results || []),
         cheapestPrice: (responseData?.cheapestPrice as number) || null,
         airline: null,
         status: responseData?.fallback ? 'fallback' : 'completed',

@@ -230,7 +230,7 @@ async function storeConversation(
     // Find or create user
     const user = await db.user.upsert({
       where: { phone },
-      create: { phone, lastSeen: new Date() },
+      create: { id: `usr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, phone, lastSeen: new Date(), updatedAt: new Date() },
       update: { lastSeen: new Date() },
     });
 
@@ -245,6 +245,7 @@ async function storeConversation(
         status: 'active',
         lastMessage: new Date(),
         messages: '[]',
+        updatedAt: new Date(),
       },
       update: {
         lastMessage: new Date(),

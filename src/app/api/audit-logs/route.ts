@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     const data = await db.activityLog.findMany({
       where,
       include: {
-        admin: {
+        Admin: {
           select: {
             id: true,
             name: true,

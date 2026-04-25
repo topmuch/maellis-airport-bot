@@ -3,8 +3,8 @@
  * Production-ready utilities for MAELLIS SEO
  */
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://maellis.sn'
-const SITE_NAME = 'MAELLIS'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://smartly.aero'
+const SITE_NAME = 'Smartly Assistant'
 const SITE_LOCALE = 'fr_SN'
 
 // ─── Canonical URL ─────────────────────────────────────────────────────────
@@ -24,10 +24,12 @@ export function organizationJsonLd() {
     url: SITE_URL,
     logo: `${SITE_URL}/logo.svg`,
     description:
-      'Plateforme intelligente de gestion aéroportuaire — Assistant WhatsApp IA B2B/B2C pour les aéroports d\'Afrique de l\'Ouest.',
+      'Smartly Assistant — L\'IA WhatsApp qui transforme l\'expérience aéroportuaire en Afrique. Déployé en 7 jours, ROI garanti.',
     contactPoint: {
       '@type': 'ContactPoint',
-      contactType: 'customer service',
+      contactType: 'sales',
+      telephone: '+221-33-869-69-69',
+      email: 'contact@smartly.aero',
       availableLanguage: ['fr', 'en', 'wo', 'ar'],
     },
     sameAs: [],
@@ -38,7 +40,7 @@ export function softwareApplicationJsonLd() {
   return {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: `${SITE_NAME} Aéroport Dashboard`,
+    name: 'Smartly Assistant',
     url: SITE_URL,
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
@@ -46,20 +48,21 @@ export function softwareApplicationJsonLd() {
       '@type': 'Offer',
       price: '0',
       priceCurrency: 'XOF',
-      description: 'Plan Premium — Accès complet à toutes les fonctionnalités',
+      description: 'Démo privée gratuite — Déploiement en 7 jours',
     },
     description:
-      'Système de gestion intelligente pour aéroports. Recherche de vols, bagages, salons VIP, transport, paiements, conversations WhatsApp IA.',
+      'L\'assistant IA WhatsApp qui transforme l\'expérience aéroportuaire en Afrique. 40% de coûts support en moins, +15% de revenus annexes. 9 modules intégrés.',
     screenshot: `${SITE_URL}/og-default.jpg`,
     featureList: [
-      'Recherche de vols en temps réel',
-      'Assistant WhatsApp IA multilingue',
-      'Gestion des bagages QR',
-      'Réservation salons VIP',
-      'Paiements mobiles CinetPay',
-      'Tableau de bord analytique',
-      'Gestion des partenaires',
-      'Facturation automatisée',
+      'IA Conversationnelle Avancée',
+      'Suivi de Vols Temps Réel',
+      'Bagages Intelligents & QR Tracking',
+      'Marketplace Intégrée',
+      'Conciergerie Hybride Bot + Humain',
+      'Dashboard Superadmin & Analytics',
+      'Gestion de Crise & Broadcast',
+      'Mode Famille & Assistance PMR',
+      'Facturation Automatique & OHADA',
     ],
   }
 }

@@ -183,7 +183,7 @@ export async function getMerchantById(id: string) {
       where: { id },
       include: {
         _count: {
-          select: { products: true, orders: true, reviews: true },
+          select: { Product: true, Order: true, Review: true },
         },
       },
     });
@@ -456,7 +456,7 @@ export async function getProducts(
     const products = await db.product.findMany({
       where,
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true },
         },
       },
@@ -478,7 +478,7 @@ export async function getProductById(id: string) {
     const product = await db.product.findUnique({
       where: { id },
       include: {
-        merchant: {
+        Merchant: {
           select: {
             id: true,
             name: true,
@@ -649,7 +649,7 @@ export async function searchProducts(
     const products = await db.product.findMany({
       where,
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true },
         },
       },
@@ -808,11 +808,11 @@ export async function createOrder(data: CreateOrderInput) {
           currency: 'XOF',
           scheduledTime: scheduledTime ? new Date(scheduledTime) : null,
           notes: notes ?? null,
-          items: {
+          OrderItem: {
             create: orderItems,
           },
         },
-        include: { items: true },
+        include: { OrderItem: true },
       });
 
       // Decrement stock for each item
@@ -865,10 +865,10 @@ export async function getOrders(
     const orders = await db.order.findMany({
       where,
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true },
         },
-        items: true,
+        OrderItem: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -888,10 +888,10 @@ export async function getOrderByNumber(orderNumber: string) {
     const order = await db.order.findUnique({
       where: { orderNumber },
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true, terminal: true },
         },
-        items: true,
+        OrderItem: true,
       },
     });
 
@@ -1052,7 +1052,7 @@ export async function getReviews(merchantId?: string, rating?: number) {
     const reviews = await db.review.findMany({
       where,
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true },
         },
       },
@@ -1179,7 +1179,7 @@ export async function getWishlist(customerPhone: string) {
     const products = await db.product.findMany({
       where: { id: { in: wishlist.map(w => w.productId) } },
       include: {
-        merchant: {
+        Merchant: {
           select: { id: true, name: true, logo: true },
         },
       },

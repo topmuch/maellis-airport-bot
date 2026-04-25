@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
 
     await db.activityLog.create({
       data: {
+        id: `al-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         adminId: admin.id,
         action: 'login',
         module: 'auth',

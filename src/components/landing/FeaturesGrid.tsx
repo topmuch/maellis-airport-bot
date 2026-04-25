@@ -1,19 +1,20 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   Brain,
-  Plane,
+  PlaneTakeoff,
   Luggage,
-  Store,
-  UserCheck,
+  ShoppingBag,
+  Headset,
   BarChart3,
-  ShieldAlert,
-  Heart,
+  Siren,
+  Users,
   Receipt,
   type LucideIcon,
 } from 'lucide-react'
-import { staggerContainer, staggerItem, fadeInUp, viewportOnce } from '@/lib/animations'
+
+const ease: [number, number, number, number] = [0.22, 1, 0.36, 1]
 
 // ─── Feature Data ────────────────────────────────────────────────────────
 
@@ -21,143 +22,132 @@ interface Feature {
   title: string
   description: string
   icon: LucideIcon
-  bgClass: string
-  iconClass: string
 }
 
 const features: Feature[] = [
   {
-    title: 'IA Conversationnelle Avanc\u00e9e',
-    description:
-      "Comprend le fran\u00e7ais, l'anglais, le wolof et l'arabe. Anticipe les besoins des passagers.",
     icon: Brain,
-    bgClass: 'bg-orange-100 dark:bg-orange-900/30',
-    iconClass: 'text-orange-600 dark:text-orange-400',
+    title: 'IA Conversationnelle Avancée',
+    description:
+      "Moteur NLP multilingue entraîné sur le domaine aéroportuaire. Comprend le wolof, le français, l'anglais et l'arabe.",
   },
   {
-    title: 'Suivi de Vols Temps R\u00e9el',
+    icon: PlaneTakeoff,
+    title: 'Suivi de Vols Temps Réel',
     description:
-      "Portes d'embarquement, retards, terminaux \u2014 informations actualis\u00e9es toutes les 60 secondes.",
-    icon: Plane,
-    bgClass: 'bg-sky-100 dark:bg-sky-900/30',
-    iconClass: 'text-sky-600 dark:text-sky-400',
+      'Intégration aviation en temps réel. Notifications push automatiques, portes, retards, et correspondances.',
   },
   {
-    title: 'Bagages Intelligents',
-    description:
-      'QR code de suivi JWT s\u00e9curis\u00e9. Notifications automatiques. D\u00e9claration de perte en 1 clic.',
     icon: Luggage,
-    bgClass: 'bg-violet-100 dark:bg-violet-900/30',
-    iconClass: 'text-violet-600 dark:text-violet-400',
+    title: 'Bagages Intelligents & QR Tracking',
+    description:
+      'Suivi bagages par QR code, déclaration PIR automatisée, notifications de livraison en temps réel.',
   },
   {
-    title: 'Marketplace Int\u00e9gr\u00e9e',
+    icon: ShoppingBag,
+    title: 'Marketplace Intégrée',
     description:
-      'Lounges VIP, taxis, restaurants, duty-free. Paiement Orange Money / Wave / Carte.',
-    icon: Store,
-    bgClass: 'bg-emerald-100 dark:bg-emerald-900/30',
-    iconClass: 'text-emerald-600 dark:text-emerald-400',
+      'Salons VIP, taxis, duty-free, hôtels — réservation et paiement directement dans WhatsApp via CinetPay.',
   },
   {
-    title: 'Conciergerie Hybride',
+    icon: Headset,
+    title: 'Conciergerie Hybride Bot + Humain',
     description:
-      'Bot + Humain. Transfert fluide vers vos \u00e9quipes pour les cas complexes.',
-    icon: UserCheck,
-    bgClass: 'bg-amber-100 dark:bg-amber-900/30',
-    iconClass: 'text-amber-600 dark:text-amber-400',
+      'Le bot gère 94% des demandes. Escalade intelligente vers un agent humain quand nécessaire.',
   },
   {
-    title: 'Dashboard Superadmin',
-    description:
-      'Analytics temps r\u00e9el, gestion des modules, rapports PDF automatis\u00e9s.',
     icon: BarChart3,
-    bgClass: 'bg-blue-100 dark:bg-blue-900/30',
-    iconClass: 'text-blue-600 dark:text-blue-400',
+    title: 'Dashboard Superadmin & Analytics',
+    description:
+      'Vue d\'ensemble en temps réel de toutes les opérations. KPIs, rapports, et alertes configurables.',
   },
   {
-    title: 'Gestion de Crise',
+    icon: Siren,
+    title: 'Gestion de Crise & Broadcast',
     description:
-      'Broadcast WhatsApp en cas de gr\u00e8ve, annulation, ou urgence. Ciblage intelligent.',
-    icon: ShieldAlert,
-    bgClass: 'bg-rose-100 dark:bg-rose-900/30',
-    iconClass: 'text-rose-600 dark:text-rose-400',
+      'Diffusion ciblée en cas de perturbation. Alertes multicanal et gestion des situations d\'urgence.',
   },
   {
-    title: 'Mode Famille & PMR',
+    icon: Users,
+    title: 'Mode Famille & Assistance PMR',
     description:
-      'Assistance personnalis\u00e9e pour voyageurs avec enfants ou \u00e0 mobilit\u00e9 r\u00e9duite.',
-    icon: Heart,
-    bgClass: 'bg-pink-100 dark:bg-pink-900/30',
-    iconClass: 'text-pink-600 dark:text-pink-400',
+      'Accompagnement dédié pour les passagers à mobilité réduite et les voyageurs avec enfants.',
   },
   {
-    title: 'Facturation Automatique',
-    description:
-      'Conforme OHADA/UEMOA. Abonnements, commissions, relances automatiques.',
     icon: Receipt,
-    bgClass: 'bg-teal-100 dark:bg-teal-900/30',
-    iconClass: 'text-teal-600 dark:text-teal-400',
+    title: 'Facturation Automatique & OHADA',
+    description:
+      'Génération automatique de factures conformes OHADA. Suivi paiements et relances programmées.',
   },
 ]
 
 // ─── Component ───────────────────────────────────────────────────────────
 
 export function FeaturesGrid() {
+  const prefersReducedMotion = useReducedMotion()
+
+  const hoverAnimation = prefersReducedMotion ? {} : { y: -4 }
+
   return (
-    <section id="features" className="py-20" style={{ scrollMarginTop: '4.5rem' }}>
-      <div className="mx-auto max-w-7xl px-4">
-        {/* ── Heading ── */}
+    <section
+      id="features"
+      className="py-20 lg:py-32 bg-gradient-to-b from-slate-950 via-slate-900/50 to-slate-950"
+      style={{ scrollMarginTop: '4.5rem' }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ── Heading ────────────────────────────────────────────────── */}
         <motion.div
-          className="mb-16 text-center"
-          variants={fadeInUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={viewportOnce}
+          className="text-center"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.5, ease }}
         >
-          <h2 className="text-3xl font-bold md:text-4xl">
-            Tout ce dont votre a\u00e9roport a besoin, dans{' '}
-            <span className="text-orange-500">WhatsApp</span>
+          <h2 className="text-3xl lg:text-4xl font-semibold tracking-tight text-white text-center">
+            Tout ce dont votre aéroport a besoin, dans WhatsApp
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-            9 modules puissants pour transformer l&apos;exp\u00e9rience passager
+          <p className="text-lg text-slate-400 text-center mt-4 max-w-2xl mx-auto">
+            9 modules puissants pour transformer l&apos;expérience passager et
+            optimiser vos opérations.
           </p>
         </motion.div>
 
-        {/* ── Grid ── */}
-        <motion.div
-          className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={viewportOnce}
-        >
-          {features.map((feature) => {
+        {/* ── Grid ───────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-16">
+          {features.map((feature, index) => {
             const Icon = feature.icon
             return (
               <motion.div
                 key={feature.title}
-                variants={staggerItem}
-                whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                className="group rounded-xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:border-orange-200 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-orange-800"
+                whileHover={{ ...hoverAnimation, transition: { duration: 0.3 } }}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-60px' }}
+                transition={{
+                  duration: 0.5,
+                  ease,
+                  delay: prefersReducedMotion ? 0 : index * 0.06,
+                }}
+                className="rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-sm p-8 hover:border-amber-500/20 hover:bg-white/[0.06] transition-all duration-300 group cursor-default"
               >
                 {/* Icon */}
-                <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-xl ${feature.bgClass}`}
-                >
-                  <Icon className={`h-6 w-6 ${feature.iconClass}`} />
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-5 group-hover:bg-amber-500/20 transition-colors">
+                  <Icon className="w-6 h-6 text-amber-400" />
                 </div>
 
                 {/* Title */}
-                <h3 className="mt-4 text-base font-semibold">{feature.title}</h3>
+                <h3 className="text-lg font-semibold text-white">
+                  {feature.title}
+                </h3>
 
                 {/* Description */}
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-slate-400 mt-2 leading-relaxed">
                   {feature.description}
                 </p>
               </motion.div>
             )
           })}
-        </motion.div>
+        </div>
       </div>
     </section>
   )

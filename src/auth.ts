@@ -48,6 +48,7 @@ setInterval(() => {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  trustHost: true,
   adapter: PrismaAdapter(db) as any,
   providers: [
     Credentials({

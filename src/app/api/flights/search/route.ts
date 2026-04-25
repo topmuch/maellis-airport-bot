@@ -242,6 +242,7 @@ export async function POST(request: NextRequest) {
 
     await db.flightSearch.create({
       data: {
+        id: `fs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         departureCode: depCode,
         arrivalCode: arrCode || '',
         departureCity: depCity,

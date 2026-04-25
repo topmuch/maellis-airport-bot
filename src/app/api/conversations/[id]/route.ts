@@ -40,10 +40,10 @@ export async function GET(
     const conversation = await db.conversation.findUnique({
       where: { id },
       include: {
-        user: true,
+        User: true,
         _count: {
           select: {
-            conversationMessages: true,
+            ConversationMessage: true,
           },
         },
       },
@@ -58,8 +58,8 @@ export async function GET(
 
     const formatted = {
       id: conversation.id,
-      userPhone: conversation.user?.phone ?? null,
-      userName: conversation.user?.name ?? null,
+      userPhone: conversation.User?.phone ?? null,
+      userName: conversation.User?.name ?? null,
       language: conversation.language,
       status: conversation.status,
       intent: conversation.intent,
@@ -67,7 +67,7 @@ export async function GET(
       lastMessage: conversation.lastMessage,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
-      messageCount: conversation._count.conversationMessages,
+      messageCount: conversation._count.ConversationMessage,
     }
 
     return NextResponse.json({ data: formatted })

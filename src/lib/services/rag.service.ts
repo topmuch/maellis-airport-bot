@@ -409,7 +409,7 @@ export async function tfidfSearch(
 
   const allChunks: FlatChunk[] = []
   for (const kb of knowledgeBases) {
-    for (const chunk of kb.chunks) {
+    for (const chunk of kb.DocumentChunk) {
       allChunks.push({
         chunkId: chunk.id,
         kbId: kb.id,
@@ -686,7 +686,7 @@ export async function getKnowledgeBase(id: string) {
   return db.knowledgeBase.findUnique({
     where: { id },
     include: {
-      chunks: {
+      DocumentChunk: {
         orderBy: { chunkIndex: 'asc' },
       },
     },

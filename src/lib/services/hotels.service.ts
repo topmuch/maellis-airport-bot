@@ -389,7 +389,7 @@ export async function getBookingByRef(ref: string) {
     const booking = await db.dayUseBooking.findUnique({
       where: { bookingRef: ref },
       include: {
-        hotel: {
+        Hotel: {
           select: {
             id: true,
             name: true,
@@ -427,7 +427,7 @@ export async function getUserBookings(phone: string) {
     const bookings = await db.dayUseBooking.findMany({
       where: { phone },
       include: {
-        hotel: {
+        Hotel: {
           select: {
             id: true,
             name: true,

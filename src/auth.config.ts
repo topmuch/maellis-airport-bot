@@ -28,13 +28,14 @@ export const authConfig = {
         return true
       }
 
-      // Redirect logged-in users away from auth pages
+      // Redirect logged-in users away from auth pages → dashboard
       if (
         isLoggedIn &&
         (pathname === '/auth/login' || pathname === '/auth/register' || pathname === '/auth/admin' || pathname === '/auth/partner')
       ) {
         const url = nextUrl.clone()
         url.pathname = '/'
+        url.searchParams.set('showLanding', 'false')
         return Response.redirect(url)
       }
 

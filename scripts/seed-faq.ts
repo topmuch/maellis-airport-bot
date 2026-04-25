@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { db } from '../src/lib/db'
 
 const FAQ_DATA = [
@@ -139,6 +140,7 @@ async function seedFAQs() {
 
       await db.fAQ.create({
         data: {
+          id: crypto.randomBytes(12).toString('hex'),
           airportCode: 'DSS',
           category: item.category,
           question: JSON.stringify(item.question),
@@ -146,6 +148,7 @@ async function seedFAQs() {
           keywords: JSON.stringify(item.keywords),
           priority: item.priority,
           isActive: true,
+          updatedAt: new Date(),
         },
       })
 

@@ -577,7 +577,7 @@ export async function createBooking(data: CreateBookingData) {
         status: 'requested',
       },
       include: {
-        provider: true,
+        TransportProvider: true,
       },
     })
 
@@ -604,7 +604,7 @@ export async function assignDriver(bookingId: string, driver: AssignDriverData) 
   try {
     const booking = await db.transportBooking.findUnique({
       where: { id: bookingId },
-      include: { provider: true },
+      include: { TransportProvider: true },
     })
 
     if (!booking) {
@@ -628,7 +628,7 @@ export async function assignDriver(bookingId: string, driver: AssignDriverData) 
         status: 'assigned',
       },
       include: {
-        provider: true,
+        TransportProvider: true,
       },
     })
   } catch (error) {
@@ -667,7 +667,7 @@ export async function updateBookingStatus(bookingId: string, status: string) {
     // Fetch current booking
     const booking = await db.transportBooking.findUnique({
       where: { id: bookingId },
-      include: { provider: true },
+      include: { TransportProvider: true },
     })
 
     if (!booking) {
@@ -692,7 +692,7 @@ export async function updateBookingStatus(bookingId: string, status: string) {
       where: { id: bookingId },
       data: { status },
       include: {
-        provider: true,
+        TransportProvider: true,
       },
     })
   } catch (error) {
@@ -736,7 +736,7 @@ export async function getBookings(providerId?: string, status?: string) {
       where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
-        provider: true,
+        TransportProvider: true,
       },
     })
   } catch (error) {

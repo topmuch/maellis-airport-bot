@@ -117,6 +117,7 @@ export async function POST(
     // Create the message
     const message = await db.conversationMessage.create({
       data: {
+        id: `cmsg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         conversationId: id,
         role: data.role,
         content: data.content,

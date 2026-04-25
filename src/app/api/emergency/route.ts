@@ -58,12 +58,14 @@ export async function POST(request: NextRequest) {
 
     const alert = await db.emergencyAlert.create({
       data: {
+        id: `emg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         userPhone,
         userName: userName || null,
         alertType,
         location: location || null,
         description,
         severity: severity || 'medium',
+        updatedAt: new Date(),
       },
     })
 

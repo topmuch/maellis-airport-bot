@@ -51,7 +51,7 @@ export async function getCategories() {
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
       include: {
-        _count: { select: { tracks: { where: { isActive: true } } } },
+        _count: { select: { MusicTrack: { where: { isActive: true } } } },
       },
     });
     return categories.map(cat => ({
@@ -62,7 +62,7 @@ export async function getCategories() {
       icon: cat.icon,
       color: cat.color,
       imageUrl: cat.imageUrl,
-      trackCount: cat._count.tracks,
+      trackCount: cat._count.MusicTrack,
     }));
   } catch (error) {
     console.error('[music.service] getCategories error:', error);
@@ -87,7 +87,7 @@ export async function getTracks(categoryId?: string) {
         thumbnailUrl: true,
         duration: true,
         playCount: true,
-        category: { select: { name: true, slug: true } },
+        MusicCategory: { select: { name: true, slug: true } },
       },
     });
     return tracks;
@@ -159,7 +159,7 @@ export async function getAllCategories() {
     return await db.musicCategory.findMany({
       orderBy: { sortOrder: 'asc' },
       include: {
-        _count: { select: { tracks: true } },
+        _count: { select: { MusicTrack: true } },
       },
     });
   } catch (error) {
@@ -244,7 +244,7 @@ export async function getAllTracks() {
     return await db.musicTrack.findMany({
       orderBy: { sortOrder: 'asc' },
       include: {
-        category: { select: { name: true, slug: true } },
+        MusicCategory: { select: { name: true, slug: true } },
       },
     });
   } catch (error) {

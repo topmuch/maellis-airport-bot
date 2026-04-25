@@ -1,58 +1,78 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { staggerContainer, staggerItem, viewportOnce } from '@/lib/animations'
+import { Plane } from 'lucide-react'
 
-const partners = [
-  { name: 'AIBD Dakar', abbr: 'AIBD' },
-  { name: 'Air Sénégal', abbr: 'ASK' },
-  { name: 'Aéroport Abidjan', abbr: 'ABJ' },
-  { name: 'Air Côte d\'Ivoire', abbr: 'ACI' },
-  { name: 'Aéroport Bamako', abbr: 'BKO' },
+const ease: [number, number, number, number] = [0.22, 1, 0.36, 1]
+
+const logos = [
+  { name: 'Aéroport DSS' },
+  { name: 'Air Sénégal' },
+  { name: 'CASA Airlines' },
+  { name: 'AIBD' },
+  { name: 'Smartly Partner' },
 ]
+
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.12,
+      delayChildren: 0.2,
+    },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease },
+  },
+}
 
 export function LogoCloud() {
   return (
-    <section className="py-16 border-y border-border/40">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Heading */}
-        <motion.p
-          variants={staggerItem}
-          initial="hidden"
-          whileInView="visible"
-          viewport={viewportOnce}
-          className="text-sm uppercase tracking-widest text-muted-foreground text-center mb-10"
-        >
-          Ils nous font confiance
-        </motion.p>
+    <motion.section
+      className="py-16 bg-slate-950"
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-60px' }}
+      variants={containerVariants}
+    >
+      {/* Title */}
+      <motion.p
+        variants={itemVariants}
+        className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500 text-center mb-12"
+      >
+        Ils nous font confiance
+      </motion.p>
 
-        {/* Logo Grid */}
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={viewportOnce}
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 md:gap-6 items-center justify-items-center"
-        >
-          {partners.map((partner) => (
-            <motion.div
-              key={partner.name}
-              variants={staggerItem}
-              className="flex flex-col items-center gap-2 group"
-            >
-              {/* Stylized logo placeholder */}
-              <div className="flex items-center justify-center w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 group-hover:border-orange-300 dark:group-hover:border-orange-700/50 group-hover:bg-orange-50/50 dark:group-hover:bg-orange-950/20 transition-all duration-300">
-                <span className="text-2xl font-extrabold tracking-tight text-slate-400 dark:text-slate-600 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-300">
-                  {partner.abbr}
-                </span>
-              </div>
-              <span className="text-sm font-medium text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors duration-300 text-center">
-                {partner.name}
-              </span>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
+      {/* Logos */}
+      <motion.div
+        variants={containerVariants}
+        className="flex flex-wrap items-center justify-center gap-12 lg:gap-16 px-4"
+      >
+        {logos.map((logo) => (
+          <motion.div
+            key={logo.name}
+            variants={itemVariants}
+            className="flex items-center gap-2 group"
+          >
+            <Plane className="h-4 w-4 text-slate-700 group-hover:text-slate-500 transition-colors duration-300" />
+            <span className="text-xl font-bold text-slate-600 hover:text-slate-300 transition-colors duration-300 cursor-default select-none">
+              {logo.name}
+            </span>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Separator line */}
+      <motion.div
+        variants={itemVariants}
+        className="border-t border-white/5 max-w-md mx-auto mt-12"
+      />
+    </motion.section>
   )
 }

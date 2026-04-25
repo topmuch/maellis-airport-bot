@@ -4,13 +4,16 @@
  */
 import type { Variants } from 'framer-motion'
 
+// Cubic bezier ease — must be typed as tuple to satisfy Framer Motion
+const ease: [number, number, number, number] = [0.22, 1, 0.36, 1]
+
 // ─── Fade In from Below ──────────────────────────────────────────────────
 export const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 30 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.6, ease },
   },
 }
 
@@ -20,7 +23,7 @@ export const fadeInLeft: Variants = {
   visible: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.6, ease },
   },
 }
 
@@ -30,7 +33,7 @@ export const fadeInRight: Variants = {
   visible: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.6, ease },
   },
 }
 
@@ -40,7 +43,7 @@ export const scaleIn: Variants = {
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.5, ease },
   },
 }
 
@@ -61,7 +64,7 @@ export const staggerItem: Variants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.5, ease },
   },
 }
 

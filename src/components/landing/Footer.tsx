@@ -1,120 +1,170 @@
 'use client'
 
-import Image from 'next/image'
-import { Linkedin, Twitter, MessageSquare, Youtube } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { Plane, Shield, MapPin, Zap, Linkedin, Github, MessageCircle } from 'lucide-react'
 
-const columns = [
+const ease: [number, number, number, number] = [0.22, 1, 0.36, 1]
+
+/* ─── Data ──────────────────────────────────────────────────────────────── */
+
+const footerColumns: { title: string; links: string[] }[] = [
   {
     title: 'Produit',
-    links: ['Fonctionnalités', 'Tarifs', 'Démo', 'Documentation', 'Changelog'],
+    links: [
+      'IA Conversationnelle',
+      'Suivi de Vols',
+      'Marketplace',
+      'Dashboard Analytics',
+      'Gestion de Crise',
+    ],
   },
   {
     title: 'Entreprise',
-    links: ['À propos', 'Blog', 'Carrières', 'Presse', 'Contact'],
+    links: ['À Propos', 'Équipe', 'Carrières', 'Partenaires', 'Contact'],
   },
   {
     title: 'Ressources',
-    links: ['Guide de démarrage', 'API Docs', 'Status', 'Sécurité', 'RGPD'],
+    links: [
+      'Documentation',
+      'Blog',
+      'Études de Cas',
+      'Webinaires',
+      'Centre d\'Aide',
+    ],
   },
   {
     title: 'Légal',
-    links: ['CGV', 'Confidentialité', 'Cookies', 'Mentions légales'],
+    links: [
+      'Mentions Légales',
+      'Politique de Confidentialité',
+      'Conditions Générales',
+      'RGPD',
+      'Sécurité',
+    ],
   },
 ]
 
-const socialLinks = [
-  { icon: Linkedin, label: 'LinkedIn' },
-  { icon: Twitter, label: 'Twitter' },
-  { icon: MessageSquare, label: 'WhatsApp' },
-  { icon: Youtube, label: 'Youtube' },
+const badges = [
+  { icon: Shield, label: 'RGPD Compliant' },
+  { icon: MapPin, label: 'Made in Dakar' },
+  { icon: Zap, label: 'Propulsé par Groq AI' },
 ]
 
-export function Footer() {
-  return (
-    <footer className="bg-slate-900 dark:bg-[#0B0F19] text-slate-400 pt-16 pb-8">
-      <div className="max-w-7xl mx-auto px-4">
-        {/* ─── Logo + Description ─────────────────────────────────────── */}
-        <div className="flex flex-col items-center text-center mb-12">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/20">
-              <Image
-                src="/smartly-logo.png"
-                alt="Smartly Assistant logo"
-                width={56}
-                height={56}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-white font-bold text-xl leading-tight">
-                Smartly
-              </span>
-              <span className="text-slate-500 text-sm font-normal leading-tight">
-                Assistant
-              </span>
-            </div>
-          </div>
-          <p className="text-sm text-slate-500 max-w-md">
-            L&apos;assistant IA WhatsApp qui transforme l&apos;expérience
-            aéroportuaire en Afrique. Déployé en 7 jours.
-          </p>
-        </div>
+const socialLinks = [
+  { icon: MessageCircle, label: 'Twitter' },
+  { icon: Linkedin, label: 'LinkedIn' },
+  { icon: Github, label: 'GitHub' },
+]
 
-        {/* ─── 4-Column Grid ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          {columns.map((col) => (
-            <div key={col.title}>
-              <h4 className="text-white font-semibold text-sm mb-4">
-                {col.title}
+/* ─── Component ─────────────────────────────────────────────────────────── */
+
+export function Footer() {
+  const prefersReducedMotion = useReducedMotion()
+
+  const fadeInUp = {
+    hidden: { opacity: 0, y: prefersReducedMotion ? 0 : 16 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: prefersReducedMotion ? 0 : 0.6,
+        ease,
+      },
+    },
+  }
+
+  const stagger = {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: prefersReducedMotion ? 0 : 0.08,
+        delayChildren: 0.05,
+      },
+    },
+  }
+
+  return (
+    <footer className="bg-slate-950 border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ─── Column Grid ────────────────────────────────────────────── */}
+        <motion.div
+          className="grid grid-cols-2 md:grid-cols-4 gap-10 py-16"
+          variants={stagger}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-40px' }}
+        >
+          {footerColumns.map((column) => (
+            <motion.div key={column.title} variants={fadeInUp}>
+              <h4 className="text-xs font-medium uppercase tracking-[0.15em] text-slate-500 mb-4">
+                {column.title}
               </h4>
-              <ul className="space-y-2">
-                {col.links.map((link) => (
+              <ul>
+                {column.links.map((link) => (
                   <li key={link}>
                     <a
                       href="#"
-                      className="text-sm hover:text-white transition-colors"
+                      className="text-sm text-slate-400 hover:text-white transition-colors py-1.5 cursor-pointer block"
                     >
                       {link}
                     </a>
                   </li>
                 ))}
               </ul>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* ─── Bottom Bar ─────────────────────────────────────────────── */}
-        <div className="pt-8 border-t border-slate-800">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            {/* Left: Socials */}
-            <div className="flex items-center gap-4">
+        <motion.div
+          className="border-t border-white/5 py-8"
+          initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.6 }}
+        >
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+            {/* Left — Logo + Copyright */}
+            <div className="flex flex-col items-center lg:items-start gap-3">
+              <div className="flex items-center gap-2.5">
+                <Plane className="w-5 h-5 text-amber-500" />
+                <span className="text-white font-semibold text-sm">
+                  Smartly Assistant
+                </span>
+              </div>
+              <p className="text-xs text-slate-600">
+                &copy; 2026 Smartly Assistant. Tous droits réservés.
+              </p>
+            </div>
+
+            {/* Center — Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {badges.map((badge) => (
+                <span
+                  key={badge.label}
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-500 bg-white/5 rounded-full px-3 py-1"
+                >
+                  <badge.icon className="w-3.5 h-3.5" />
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Right — Social Icons */}
+            <div className="flex items-center gap-3">
               {socialLinks.map((social) => (
                 <a
                   key={social.label}
                   href="#"
-                  className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-white transition-all"
                   aria-label={social.label}
+                  className="text-slate-500 hover:text-white transition-colors"
                 >
-                  <social.icon className="size-4" />
+                  <social.icon className="w-5 h-5" />
                 </a>
               ))}
             </div>
-
-            {/* Right: Badges */}
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span>Made with ❤️ in Dakar</span>
-              <span className="hidden sm:inline">|</span>
-              <span>Propulsé par Groq AI</span>
-              <span className="hidden sm:inline">|</span>
-              <span>RGPD Compliant</span>
-            </div>
           </div>
-
-          {/* Copyright */}
-          <p className="text-xs text-slate-600 mt-6 text-center md:text-left">
-            © {new Date().getFullYear()} Smartly Assistant. Tous droits réservés.
-          </p>
-        </div>
+        </motion.div>
       </div>
     </footer>
   )
