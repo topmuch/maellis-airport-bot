@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api-client'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -193,7 +194,13 @@ function fakeFetch<T>(data: T, delay = 400): Promise<T> {
 export function useDashboardKpis() {
   return useQuery<KpiData>({
     queryKey: ['dashboard', 'kpis'],
-    queryFn: () => fakeFetch(mockKpi),
+    queryFn: async () => {
+      try {
+        const result = await apiClient.get<KpiData>('/api/dashboard/stats')
+        if (result.success && result.data) return result.data
+      } catch {}
+      return fakeFetch(mockKpi)
+    },
     staleTime: 30_000,
   })
 }
@@ -201,7 +208,13 @@ export function useDashboardKpis() {
 export function useDashboardCharts() {
   return useQuery<ChartsData>({
     queryKey: ['dashboard', 'charts'],
-    queryFn: () => fakeFetch(mockCharts),
+    queryFn: async () => {
+      try {
+        const result = await apiClient.get<ChartsData>('/api/dashboard/charts')
+        if (result.success && result.data) return result.data
+      } catch {}
+      return fakeFetch(mockCharts)
+    },
     staleTime: 30_000,
   })
 }

@@ -646,11 +646,13 @@ export function EmergencyModule() {
                   Contacts d&apos;urgence ({contacts.length})
                 </CardTitle>
                 <Button
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  size="lg"
                   onClick={openCreateContact}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-5 w-5" />
                   <span className="hidden sm:inline ml-1">Ajouter un contact</span>
+                  <span className="sm:hidden ml-1">Ajouter</span>
                 </Button>
               </div>
             </CardHeader>

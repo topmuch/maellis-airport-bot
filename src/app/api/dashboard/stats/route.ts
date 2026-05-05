@@ -40,18 +40,21 @@ export async function GET(request: NextRequest) {
     ])
 
     return NextResponse.json({
-      totalConversations,
-      messagesToday,
-      activeAlerts,
-      revenueToday: paymentsToday._sum.amount ?? 0,
-      totalFlightSearches,
-      totalLoungeBookings,
-      totalTransportBookings,
+      success: true,
+      data: {
+        totalConversations,
+        messagesToday,
+        activeAlerts,
+        revenueToday: paymentsToday._sum.amount ?? 0,
+        totalFlightSearches,
+        totalLoungeBookings,
+        totalTransportBookings,
+      },
     })
   } catch (error) {
     console.error('Error fetching dashboard stats:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard stats' },
+      { success: false, error: 'Failed to fetch dashboard stats' },
       { status: 500 }
     )
   }

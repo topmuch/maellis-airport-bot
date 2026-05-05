@@ -379,18 +379,26 @@ export function CarRentalModule() {
   }
 
   const handleSavePartner = async () => {
-    if (!partnerForm.name) {
+    if (!partnerForm.name.trim()) {
       toast.error("Le nom de l'agence est requis")
+      return
+    }
+    if (!partnerForm.contactPhone.trim()) {
+      toast.error('Le numéro de téléphone est requis')
+      return
+    }
+    if (!partnerForm.terminal) {
+      toast.error('Le terminal est requis')
       return
     }
     setPartnerSubmitting(true)
     try {
       const payload = {
-        name: partnerForm.name,
-        terminal: partnerForm.terminal || undefined,
-        contactPhone: partnerForm.contactPhone || undefined,
-        contactEmail: partnerForm.contactEmail || undefined,
-        commissionRate: partnerForm.commissionRate || undefined,
+        name: partnerForm.name.trim(),
+        terminal: partnerForm.terminal || 'T1',
+        contactPhone: partnerForm.contactPhone.trim(),
+        contactEmail: partnerForm.contactEmail.trim() || undefined,
+        commissionRate: Number(partnerForm.commissionRate) || 10,
       }
       if (editingPartner) {
         const result = await apiClient.put(`/api/car-rental/${editingPartner.id}`, payload)
@@ -938,7 +946,7 @@ export function CarRentalModule() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label>Téléphone</Label>
+                <Label>Téléphone *</Label>
                 <Input placeholder="+221 77 123 45 67" value={partnerForm.contactPhone} onChange={(e) => setPartnerForm((f) => ({ ...f, contactPhone: e.target.value }))} />
               </div>
               <div className="grid gap-2">
@@ -953,7 +961,7 @@ export function CarRentalModule() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPartnerDialogOpen(false)}>Annuler</Button>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={handleSavePartner} disabled={partnerSubmitting}>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={handleSavePartner} disabled={partnerSubmitting || !partnerForm.name.trim() || !partnerForm.contactPhone.trim()}>
               {partnerSubmitting ? 'Enregistrement...' : editingPartner ? 'Modifier' : 'Ajouter'}
             </Button>
           </DialogFooter>

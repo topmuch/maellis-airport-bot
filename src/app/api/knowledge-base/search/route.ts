@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       where: {
         airportCode,
         isActive: true,
-        status: 'indexed',
+        status: { in: ['completed', 'indexed'] },
       },
       select: {
         id: true,
