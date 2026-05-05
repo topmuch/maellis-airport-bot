@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
     const data: ContactPayload = parsed.data
 
     // In production: send email via nodemailer or store in DB
-    // eslint-disable-next-line no-console
     console.log('[POST /api/contact] New message received:', {
       name: data.name,
       email: data.email,

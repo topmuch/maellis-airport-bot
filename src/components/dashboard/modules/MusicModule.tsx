@@ -301,7 +301,6 @@ export function MusicModule() {
     return () => {
       if (playbackTimerRef.current) clearInterval(playbackTimerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playingTrackId, totalDuration])
 
   // ─── Data Loading ────────────────────────────────────
@@ -409,7 +408,6 @@ export function MusicModule() {
       setProgress(0)
       setCurrentTime(0)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queue, playingTrackId, shuffleOn, repeatMode])
 
   const handleNext = () => {

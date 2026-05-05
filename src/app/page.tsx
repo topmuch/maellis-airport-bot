@@ -4,7 +4,6 @@ import { useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useNavigationStore } from '@/lib/store'
-import { AuthGuard } from '@/components/auth/AuthGuard'
 
 function LandingSkeleton() {
   return (
@@ -30,6 +29,12 @@ const Footer = dynamic(
   { loading: LandingSkeleton, ssr: false }
 )
 
+// DashboardRouter handles AuthGuard + DashboardLayout + all module rendering
+const DashboardRouter = dynamic(
+  () => import('@/components/dashboard/DashboardRouter'),
+  { ssr: false }
+)
+
 function HomeContent() {
   const searchParams = useSearchParams()
   const { showLanding, setShowLanding } = useNavigationStore()
@@ -49,15 +54,8 @@ function HomeContent() {
     )
   }
 
-  // Dashboard mode — AuthGuard will redirect to /auth/login if not authenticated
-  // The AuthGuard fallback shows "Connectez-vous pour accéder au dashboard" with a "Se connecter" button
-  return (
-    <AuthGuard>
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <p className="text-white">Dashboard - chargement des modules...</p>
-      </div>
-    </AuthGuard>
-  )
+  // Dashboard mode — DashboardRouter includes AuthGuard and DashboardLayout
+  return <DashboardRouter />
 }
 
 export default function Home() {

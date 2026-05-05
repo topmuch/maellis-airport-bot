@@ -10,7 +10,10 @@ export function useAirportSocket(_airportCode: string, options?: UseAirportSocke
   const [isConnected] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const optionsRef = useRef(options)
-  optionsRef.current = options
+
+  useEffect(() => {
+    optionsRef.current = options
+  }, [options])
 
   const cleanup = useCallback(() => {
     if (wsRef.current) {

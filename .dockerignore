@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env*.local
+mini-services
+dev.log
+server.log
+*.bak

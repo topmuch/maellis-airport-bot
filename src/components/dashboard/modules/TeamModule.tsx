@@ -304,7 +304,9 @@ export function TeamModule() {
   const [logActionFilter, setLogActionFilter] = useState('all')
 
   // Fetch team members from partners API
-  const fetchTeamMembers = useCallback(async () => {
+  const teamLoadedRef = useRef(false)
+
+  const loadTeamMembers = useCallback(async () => {
     const result = await apiClient.get('/api/partners')
     if (result.success) {
       const partners = result.data as Array<Record<string, unknown>>
@@ -324,8 +326,12 @@ export function TeamModule() {
   }, [])
 
   useEffect(() => {
-    fetchTeamMembers()
-  }, [fetchTeamMembers])
+    if (!teamLoadedRef.current) {
+      teamLoadedRef.current = true
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
+      loadTeamMembers()
+    }
+  }, [loadTeamMembers])
 
   const resetInviteForm = () => {
     setFormName('')
@@ -342,7 +348,7 @@ export function TeamModule() {
       toast.success(`Invitation envoyée à ${formEmail}`)
       setInviteOpen(false)
       resetInviteForm()
-      fetchTeamMembers()
+      loadTeamMembers()
     } else {
       toast.error(result.error || "Erreur lors de l'invitation")
     }
