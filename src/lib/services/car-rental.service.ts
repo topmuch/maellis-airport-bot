@@ -357,6 +357,8 @@ export async function createPartner(data: CreatePartnerData) {
 
     return db.carRentalPartner.create({
       data: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         name: validatedData.name,
         terminal: validatedData.terminal,
         contactPhone: validatePhone(validatedData.contactPhone, 'contactPhone'),
@@ -442,7 +444,7 @@ export async function getVehicles(filters: {
       where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { pricePerDay: 'asc' },
       include: {
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },
@@ -477,6 +479,7 @@ export async function createVehicle(data: CreateVehicleData) {
 
     return db.vehicle.create({
       data: {
+        id: crypto.randomUUID(),
         partnerId: validatedData.partnerId,
         category: validatedData.category,
         brand: validatedData.brand,
@@ -489,7 +492,7 @@ export async function createVehicle(data: CreateVehicleData) {
         imageUrl: validatedData.imageUrl ?? null,
       },
       include: {
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },
@@ -535,7 +538,7 @@ export async function updateVehicle(id: string, data: UpdateVehicleData) {
       where: { id },
       data: updateData,
       include: {
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },
@@ -649,14 +652,14 @@ export async function getBookings(filters: {
         skip,
         take: limit,
         include: {
-          vehicle: {
+          Vehicle: {
             include: {
-              partner: {
+              CarRentalPartner: {
                 select: { id: true, name: true, terminal: true },
               },
             },
           },
-          partner: {
+          CarRentalPartner: {
             select: { id: true, name: true, terminal: true },
           },
         },
@@ -697,7 +700,7 @@ export async function createBooking(data: CreateBookingData) {
     // Validate vehicle exists and is available
     const vehicle = await db.vehicle.findUnique({
       where: { id: validatedData.vehicleId },
-      include: { partner: true },
+      include: { CarRentalPartner: true },
     })
 
     if (!vehicle) {
@@ -737,6 +740,7 @@ export async function createBooking(data: CreateBookingData) {
 
     const booking = await db.carBooking.create({
       data: {
+        id: crypto.randomUUID(),
         vehicleId: vehicle.id,
         partnerId: vehicle.partnerId,
         userPhone: safeUserPhone,
@@ -752,14 +756,14 @@ export async function createBooking(data: CreateBookingData) {
         confirmationCode,
       },
       include: {
-        vehicle: {
+        Vehicle: {
           include: {
-            partner: {
+            CarRentalPartner: {
               select: { id: true, name: true, terminal: true },
             },
           },
         },
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },
@@ -792,14 +796,14 @@ export async function getBookingById(id: string) {
     return db.carBooking.findUnique({
       where: { id },
       include: {
-        vehicle: {
+        Vehicle: {
           include: {
-            partner: {
+            CarRentalPartner: {
               select: { id: true, name: true, terminal: true },
             },
           },
         },
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },
@@ -872,14 +876,14 @@ export async function updateBookingStatus(id: string, targetAction: string) {
       where: { id },
       data: { status: newStatus },
       include: {
-        vehicle: {
+        Vehicle: {
           include: {
-            partner: {
+            CarRentalPartner: {
               select: { id: true, name: true, terminal: true },
             },
           },
         },
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },
@@ -932,14 +936,14 @@ export async function processPayment(bookingId: string, data: { paymentRef: stri
         paymentRef: parsed.data.paymentRef,
       },
       include: {
-        vehicle: {
+        Vehicle: {
           include: {
-            partner: {
+            CarRentalPartner: {
               select: { id: true, name: true, terminal: true },
             },
           },
         },
-        partner: {
+        CarRentalPartner: {
           select: { id: true, name: true, terminal: true },
         },
       },

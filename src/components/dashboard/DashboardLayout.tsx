@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component, type ReactNode, type ErrorInfo } from 'react'
 import { Plane, Bell, Menu, Globe, LogOut, User, ShieldCheck } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNavigationStore } from '@/lib/store'
@@ -43,6 +43,25 @@ const languages = [
   { code: 'ar', label: 'العربية', flag: '🇸🇦' },
   { code: 'wo', label: 'Wolof', flag: '🇸🇳' },
 ] as const
+
+// ─── Banner Error Boundary ────────────────────────────────────────
+// Prevents EmergencyBanner crashes from taking down the entire page.
+// The banner is rendered outside the ModuleErrorBoundary in DashboardRouter.
+
+interface BannerErrorBoundaryProps { children: ReactNode }
+interface BannerErrorBoundaryState { hasError: boolean }
+
+class BannerErrorBoundary extends Component<BannerErrorBoundaryProps, BannerErrorBoundaryState> {
+  state: BannerErrorBoundaryState = { hasError: false }
+  static getDerivedStateFromError() { return { hasError: true } }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[DashboardLayout] EmergencyBanner crashed:', error, info.componentStack)
+  }
+  render() {
+    if (this.state.hasError) return null
+    return this.props.children
+  }
+}
 
 const ROLE_LABELS: Record<string, string> = {
   SUPERADMIN: 'Super Admin',
@@ -371,7 +390,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Page Content */}
         <main className="flex-1 p-4 md:p-6">
           {/* Emergency Alert Banner — shown on all pages when active alerts exist */}
-          <EmergencyBanner />
+          <BannerErrorBoundary>
+            <EmergencyBanner />
+          </BannerErrorBoundary>
           {children}
         </main>
       </SidebarInset>

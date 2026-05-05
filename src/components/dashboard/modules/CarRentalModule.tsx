@@ -37,7 +37,7 @@ interface CarRentalPartner {
 interface Vehicle {
   id: string
   partnerId?: string
-  partner?: { id: string; name: string; terminal: string }
+  CarRentalPartner?: { id: string; name: string; terminal: string }
   partnerName?: string
   category: 'Eco' | 'Comfort' | 'SUV' | 'Van' | 'Luxury'
   brand: string
@@ -57,14 +57,14 @@ interface CarBooking {
   userName?: string
   userPhone?: string
   vehicleId?: string
-  vehicle?: {
+  Vehicle?: {
     id: string
     brand: string
     model: string
     category: string
-    partner?: { id: string; name: string; terminal: string }
+    CarRentalPartner?: { id: string; name: string; terminal: string }
   }
-  partner?: { id: string; name: string; terminal: string }
+  CarRentalPartner?: { id: string; name: string; terminal: string }
   pickupDate: string
   dropoffDate: string
   pickupLocation?: string
@@ -589,7 +589,7 @@ export function CarRentalModule() {
       (b.confirmationCode ?? '').toLowerCase().includes(q) ||
       (b.userName ?? '').toLowerCase().includes(q) ||
       (b.userPhone ?? '').toLowerCase().includes(q) ||
-      (b.vehicle ? `${b.vehicle.brand} ${b.vehicle.model}` : '').toLowerCase().includes(q)
+      (b.Vehicle ? `${b.Vehicle.brand} ${b.Vehicle.model}` : '').toLowerCase().includes(q)
     )
   })
 
@@ -766,7 +766,7 @@ export function CarRentalModule() {
                     <TableBody>
                       {vehicles.map((vehicle) => (
                         <TableRow key={vehicle.id}>
-                          <TableCell className="text-sm">{vehicle.partnerName ?? vehicle.partner?.name ?? '—'}</TableCell>
+                          <TableCell className="text-sm">{vehicle.partnerName ?? vehicle.CarRentalPartner?.name ?? '—'}</TableCell>
                           <TableCell className="font-medium">{vehicle.brand} {vehicle.model}</TableCell>
                           <TableCell className="hidden sm:table-cell"><CategoryBadge category={vehicle.category} /></TableCell>
                           <TableCell className="hidden md:table-cell text-sm">{vehicle.seats} places</TableCell>
@@ -890,7 +890,7 @@ export function CarRentalModule() {
                         <TableRow key={b.id}>
                           <TableCell className="font-mono text-xs">{b.confirmationCode ?? '—'}</TableCell>
                           <TableCell className="font-medium">{b.userName ?? '—'}</TableCell>
-                          <TableCell className="hidden sm:table-cell text-sm max-w-[160px] truncate">{b.vehicle ? `${b.vehicle.brand} ${b.vehicle.model}` : '—'}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm max-w-[160px] truncate">{b.Vehicle ? `${b.Vehicle.brand} ${b.Vehicle.model}` : '—'}</TableCell>
                           <TableCell className="hidden md:table-cell text-xs">
                             {formatDateFr(b.pickupDate)} → {formatDateFr(b.dropoffDate)}
                           </TableCell>
@@ -1077,11 +1077,11 @@ export function CarRentalModule() {
                 </div>
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Véhicule:</span>
-                  <p className="font-medium">{selectedBooking.vehicle ? `${selectedBooking.vehicle.brand} ${selectedBooking.vehicle.model} (${selectedBooking.vehicle.category})` : '—'}</p>
+                  <p className="font-medium">{selectedBooking.Vehicle ? `${selectedBooking.Vehicle.brand} ${selectedBooking.Vehicle.model} (${selectedBooking.Vehicle.category})` : '—'}</p>
                 </div>
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Agence:</span>
-                  <p className="font-medium">{selectedBooking.vehicle?.partner?.name ?? selectedBooking.partner?.name ?? '—'}</p>
+                  <p className="font-medium">{selectedBooking.Vehicle?.CarRentalPartner?.name ?? selectedBooking.CarRentalPartner?.name ?? '—'}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Début:</span>
@@ -1138,7 +1138,7 @@ export function CarRentalModule() {
                 <SelectContent>
                   {vehicles.filter((v) => v.isAvailable !== false).map((v) => (
                     <SelectItem key={v.id} value={v.id}>
-                      {v.partner?.name ?? ''} — {v.brand} {v.model} ({v.category}) — {formatXof(v.pricePerDay)}/j
+                      {v.CarRentalPartner?.name ?? ''} — {v.brand} {v.model} ({v.category}) — {formatXof(v.pricePerDay)}/j
                     </SelectItem>
                   ))}
                 </SelectContent>

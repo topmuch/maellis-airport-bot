@@ -298,7 +298,7 @@ export function EmergencyModule() {
     } finally {
       setLoadingContacts(false)
     }
-  }, [])
+  }, [safeAirportCode])
 
   useEffect(() => {
     fetchIncidents()
@@ -351,7 +351,8 @@ export function EmergencyModule() {
 
       if (result.success) {
         const json = result.data as Record<string, unknown>
-        const created = ((json.data as Record<string, unknown>)?.incident ?? json.data ?? json) as Incident | undefined
+        // API returns { incident, primaryContact } — apiClient unwraps outer { success, data }
+        const created = (result.data as Record<string, unknown>)?.incident as Incident | undefined
         if (created) {
           setIncidents((prev) => [created, ...prev])
         }
@@ -1072,7 +1073,7 @@ export function EmergencyModule() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleDeleteContact}
+              onClick={(e) => { e.preventDefault(); handleDeleteContact() }}
             >
               Supprimer
             </AlertDialogAction>
