@@ -90,7 +90,7 @@ export async function PUT(request: NextRequest) {
         await db.externalApiConfig.upsert({
           where: { id: 'global' },
           update: { [prismaField]: value || null },
-          create: { id: 'global', [prismaField]: value || null },
+          create: { id: 'global', updatedAt: new Date(), [prismaField]: value || null },
         })
         const { invalidateExternalConfigCache } = await import('@/lib/external-api-client')
         invalidateExternalConfigCache()

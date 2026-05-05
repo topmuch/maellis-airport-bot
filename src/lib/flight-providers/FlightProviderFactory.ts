@@ -32,7 +32,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 async function loadConfig() {
   return await db.systemConfig.upsert({
     where: { id: 'global' },
-    create: { id: 'global' },
+    create: { id: 'global', updatedAt: new Date() },
     update: {},
   })
 }
@@ -41,7 +41,7 @@ async function loadExternalConfig() {
   try {
     return await db.externalApiConfig.upsert({
       where: { id: 'global' },
-      create: { id: 'global' },
+      create: { id: 'global', updatedAt: new Date() },
       update: {},
     })
   } catch {

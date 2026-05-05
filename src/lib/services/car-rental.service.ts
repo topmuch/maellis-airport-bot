@@ -277,7 +277,7 @@ export async function getPartnerById(id: string) {
     return db.carRentalPartner.findUnique({
       where: { id },
       include: {
-        _count: { select: { vehicles: true, bookings: true } },
+        _count: { select: { Vehicle: true, CarBooking: true } },
       },
     })
   } catch (error) {
@@ -329,7 +329,7 @@ export async function getPartners(activeOnly: boolean = true) {
       where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { name: 'asc' },
       include: {
-        _count: { select: { vehicles: true, bookings: true } },
+        _count: { select: { Vehicle: true, CarBooking: true } },
       },
     })
   } catch (error) {

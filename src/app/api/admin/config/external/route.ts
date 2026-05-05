@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest) {
   try {
     const config = await db.externalApiConfig.upsert({
       where: { id: 'global' },
-      create: { id: 'global' },
+      create: { id: 'global', updatedAt: new Date() },
       update: {},
     })
 
@@ -90,6 +90,7 @@ export async function PUT(request: NextRequest) {
       where: { id: 'global' },
       create: {
         id: 'global',
+        updatedAt: new Date(),
         aviationStackKey: data.aviationStackKey || null,
         aviationStackUrl: data.aviationStackUrl || 'http://api.aviationstack.com/v1',
         groqApiKey: data.groqApiKey || null,

@@ -65,7 +65,7 @@ export async function getExternalConfig(): Promise<ExternalConfig> {
   try {
     const row = await db.externalApiConfig.upsert({
       where: { id: 'global' },
-      create: { id: 'global' },
+      create: { id: 'global', updatedAt: new Date() },
       update: {},
     })
 

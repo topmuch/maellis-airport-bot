@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const config = await db.systemConfig.upsert({
       where: { id: 'global' },
-      create: { id: 'global' },
+      create: { id: 'global', updatedAt: new Date() },
       update: {},
     })
 
@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
       where: { id: 'global' },
       create: {
         id: 'global',
+        updatedAt: new Date(),
         flightProvider,
         aviationStackKey: aviationStackKey || null,
         customFidsUrl: customFidsUrl || null,

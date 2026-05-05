@@ -230,8 +230,8 @@ export async function getAlerts(filters: {
         include: {
           _count: {
             select: {
-              deliveries: true,
-              acknowledgements: true,
+              BroadcastDelivery: true,
+              BroadcastAcknowledgement: true,
             },
           },
         },
@@ -266,11 +266,11 @@ export async function getAlertById(id: string) {
     const alert = await db.broadcastAlert.findUnique({
       where: { id },
       include: {
-        deliveries: true,
-        acknowledgements: {
+        BroadcastDelivery: true,
+        BroadcastAcknowledgement: {
           orderBy: { acknowledgedAt: 'desc' },
         },
-        auditLogs: {
+        BroadcastAuditLog: {
           orderBy: { performedAt: 'desc' },
         },
       },
@@ -279,7 +279,7 @@ export async function getAlertById(id: string) {
     if (!alert) return null
 
     // Compute aggregated stats
-    const deliveries = alert.deliveries || []
+    const deliveries: Array<{ status: string }> = (alert as any).BroadcastDelivery || []
     const stats = {
       sent: deliveries.filter((d) => d.status === 'sent').length,
       delivered: deliveries.filter((d) => d.status === 'delivered').length,
@@ -287,7 +287,7 @@ export async function getAlertById(id: string) {
       failed: deliveries.filter((d) => d.status === 'failed').length,
       pending: deliveries.filter((d) => d.status === 'pending').length,
       total: deliveries.length,
-      acknowledged: alert.acknowledgements?.length || 0,
+      acknowledged: (alert as any).BroadcastAcknowledgement?.length || 0,
     }
 
     return {
@@ -593,6 +593,7 @@ export async function testAlert(data: {
         sentAt: new Date(),
         expiresAt: new Date(Date.now() + 5 * 60 * 1000), // expires in 5 min
         createdBy: performedBy,
+        updatedAt: new Date(),
       },
     })
 

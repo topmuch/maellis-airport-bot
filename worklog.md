@@ -115,3 +115,37 @@ Files modified:
 Stage Summary:
 - All 5 bugs fixed with zero new TypeScript errors in the modified files
 - Pre-existing TS errors in unrelated files (`admin/config/*`) remain untouched
+
+---
+Task ID: fix-missing-hooks
+Agent: Sub-Agent (fullstack-developer)
+Task: Create missing hook files to fix production build failures
+
+Work Log:
+- **Problem**: `OverviewModule.tsx` and `RealTimeIndicator.tsx` imported from three hook files that did not exist (`useAirportSocket`, `useDashboardData`, `useSocketConnection`), causing Turbopack compilation to fail.
+- **Solution**: Created all three hooks in `src/hooks/` with `'use client'` directives and proper TypeScript types.
+
+1. **`src/hooks/useAirportSocket.ts`** — Mock WebSocket hook for airport-specific real-time stats.
+   - Uses `useState`, `useEffect`, `useCallback`, `useRef` from React.
+   - Returns `{ isConnected: false }` — no real WebSocket connection.
+   - Accepts `airportCode: string` and `options: { onStatsUpdate?: (data: unknown) => void }`.
+   - Cleanup function closes any potential WebSocket ref on unmount.
+
+2. **`src/hooks/useDashboardData.ts`** — Four TanStack Query hooks providing mock dashboard data.
+   - `useDashboardKpis()` → mock KPI data (1247 conversations, 89 messages, 3 alerts, 452000 FCFA revenue, etc.)
+   - `useDashboardCharts()` → mock traffic (7-day area chart), intents (7 categories bar chart), languages (4 languages distribution bar)
+   - `useDashboardPerformance()` → mock performance (87% resolution, 1.2s avg response, 24-point sparkline)
+   - `useDashboardActivity(page, limit)` → paginated mock recent conversations with full `RecentConversation` type
+   - All use `useQuery` from `@tanstack/react-query` with appropriate `staleTime` and simulated 400ms latency.
+   - Properly typed interfaces exported: `KpiData`, `ChartsData`, `PerformanceData`, `RecentConversation`, `ActivityData`.
+
+3. **`src/hooks/useSocketConnection.ts`** — Simple mock hook.
+   - Accepts `_enabled: boolean` (unused).
+   - Returns `{ isConnected: false }` always.
+
+Stage Summary:
+- All three hooks created with `'use client'` directive, proper TypeScript types, and correct export names.
+- Zero new TypeScript errors introduced by the hooks or their consuming files (`OverviewModule.tsx`, `RealTimeIndicator.tsx`).
+- Turbopack compilation succeeds (`✓ Compiled successfully in 21.0s`).
+- Remaining build failure is a pre-existing Prisma type error in `src/app/api/admin/config/external/route.ts` (missing `updatedAt` in upsert create) — unrelated to this task.
+- Files created: `src/hooks/useAirportSocket.ts`, `src/hooks/useDashboardData.ts`, `src/hooks/useSocketConnection.ts`
