@@ -282,7 +282,7 @@ export function EmergencyModule() {
       const result = await apiClient.post('/api/emergency/incidents', {
         // Authenticated user's airport code from session
         airportCode: airportCode || 'DSS',
-        category: formCategory,
+        alertType: formCategory,
         userName: formUserName || undefined,
         userPhone: formUserPhone,
         userEmail: formUserEmail || undefined,

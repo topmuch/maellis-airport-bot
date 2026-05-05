@@ -166,7 +166,7 @@ const createPartnerSchema = z.object({
   terminal: z.string().min(1, 'terminal is required').max(50),
   contactPhone: z.string().min(6, 'contactPhone is required').max(20),
   contactEmail: z.string().email('Invalid email format').optional(),
-  commissionRate: z.coerce.number().min(0).max(1).default(0.10),
+  commissionRate: z.coerce.number().min(0).max(100).default(10),
 })
 
 const updatePartnerSchema = z.object({
@@ -175,7 +175,7 @@ const updatePartnerSchema = z.object({
   contactPhone: z.string().min(6).max(20).optional(),
   contactEmail: z.string().email('Invalid email format').nullable().optional(),
   isActive: z.boolean().optional(),
-  commissionRate: z.coerce.number().min(0).max(1).optional(),
+  commissionRate: z.coerce.number().min(0).max(100).optional(),
 })
 
 const createVehicleSchema = z.object({
@@ -325,13 +325,18 @@ export async function getPartners(activeOnly: boolean = true) {
 
     console.log('[car-rental] getPartners called')
 
-    return db.carRentalPartner.findMany({
+    const raw = await db.carRentalPartner.findMany({
       where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { name: 'asc' },
       include: {
         _count: { select: { Vehicle: true, CarBooking: true } },
       },
     })
+    // Convert commissionRate from decimal (0.10) to percentage (10) for UI
+    return raw.map(p => ({
+      ...p,
+      commissionRate: p.commissionRate != null ? Math.round(p.commissionRate * 100) : undefined,
+    }))
   } catch (error) {
     throw safeError(error, 'getPartners')
   }
@@ -356,7 +361,7 @@ export async function createPartner(data: CreatePartnerData) {
         terminal: validatedData.terminal,
         contactPhone: validatePhone(validatedData.contactPhone, 'contactPhone'),
         contactEmail: validatedData.contactEmail ?? null,
-        commissionRate: validatedData.commissionRate,
+        commissionRate: (validatedData.commissionRate || 0) / 100,
       },
     })
   } catch (error) {
@@ -388,7 +393,7 @@ export async function updatePartner(id: string, data: UpdatePartnerData) {
     if (parsed.data.contactPhone !== undefined) updateData.contactPhone = validatePhone(parsed.data.contactPhone, 'contactPhone')
     if (parsed.data.contactEmail !== undefined) updateData.contactEmail = parsed.data.contactEmail
     if (parsed.data.isActive !== undefined) updateData.isActive = parsed.data.isActive
-    if (parsed.data.commissionRate !== undefined) updateData.commissionRate = validateNonNegative(parsed.data.commissionRate, 'commissionRate')
+    if (parsed.data.commissionRate !== undefined) updateData.commissionRate = validateNonNegative(parsed.data.commissionRate, 'commissionRate') / 100
 
     console.log('[car-rental] updatePartner called', { id, changes: Object.keys(updateData) })
 

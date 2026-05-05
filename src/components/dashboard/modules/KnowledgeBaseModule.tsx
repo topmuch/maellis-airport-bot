@@ -9,7 +9,6 @@ import {
   FileText,
   BarChart3,
   Check,
-  X,
   Loader2,
   Upload,
   RefreshCw,
@@ -19,7 +18,6 @@ import {
   FileType,
   Blocks,
   Database,
-  AlertTriangle,
   Zap,
   Globe,
 } from 'lucide-react'
@@ -393,24 +391,23 @@ function ImportUrlTab() {
   const [url, setUrl] = useState('')
   const [importTitle, setImportTitle] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
-  const [fullContent, setFullContent] = useState<string | null>(null)
   const [charCount, setCharCount] = useState(0)
   const [estimatedChunks, setEstimatedChunks] = useState(0)
   const [wasTruncated, setWasTruncated] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [sourceInfo, setSourceInfo] = useState<string | null>(null)
 
-  const handlePreview = async () => {
+  // Single step: preview + import in one action
+  const handleImport = async () => {
     if (!url.trim() || !url.startsWith('http')) {
       toast.error('Veuillez entrer une URL valide (http:// ou https://)')
       return
     }
-    setLoading(true)
+    setImporting(true)
     setPreview(null)
-    setFullContent(null)
     try {
-      const result = await apiClient.post<{
+      // Step 1: Extract content from URL
+      const previewResult = await apiClient.post<{
         success: boolean
         preview?: string
         fullContent?: string
@@ -422,33 +419,22 @@ function ImportUrlTab() {
         error?: string
       }>('/api/admin/kb-import/preview', { url: url.trim() })
 
-      if (result.success && result.data) {
-        setPreview(result.data.preview || null)
-        setFullContent(result.data.fullContent || null)
-        setCharCount(result.data.charCount || 0)
-        setEstimatedChunks(result.data.estimatedChunks || 0)
-        setWasTruncated(result.data.wasTruncated || false)
-        setSourceInfo(result.data.title || null)
-        toast.success(`Contenu extrait : ~${result.data.charCount} caractères, ${result.data.estimatedChunks} blocs estimés`)
-      } else {
-        const errMsg = 'error' in result ? result.error : 'Erreur lors de l\'extraction'
+      if (!previewResult.success || !previewResult.data?.fullContent) {
+        const errMsg = 'error' in previewResult ? previewResult.error : 'Erreur lors de l\'extraction'
         toast.error(errMsg)
+        return
       }
-    } catch {
-      toast.error('Erreur réseau — vérifiez votre connexion')
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const handleImport = async () => {
-    if (!fullContent || !url.trim()) {
-      toast.error('Aucun contenu à importer. Veuillez d\'abord extraire un aperçu.')
-      return
-    }
-    setImporting(true)
-    try {
-      const result = await apiClient.post<{
+      const content = previewResult.data.fullContent
+      // Show preview
+      setPreview(previewResult.data.preview || null)
+      setCharCount(previewResult.data.charCount || 0)
+      setEstimatedChunks(previewResult.data.estimatedChunks || 0)
+      setWasTruncated(previewResult.data.wasTruncated || false)
+      setSourceInfo(previewResult.data.title || null)
+
+      // Step 2: Import directly
+      const importResult = await apiClient.post<{
         success: boolean
         message?: string
         documentId?: string
@@ -457,34 +443,28 @@ function ImportUrlTab() {
         error?: string
       }>('/api/admin/kb-import/import', {
         url: url.trim(),
-        content: fullContent,
+        content,
         title: importTitle.trim() || undefined,
       })
 
-      if (result.success) {
-        toast.success(`Import réussi : ${result.data?.message || 'OK'}`)
-        // Reset
+      if (importResult.success) {
+        toast.success(`Import réussi : ${importResult.data?.message || 'OK'} — ${previewResult.data.charCount} caractères, ${previewResult.data.estimatedChunks} blocs`)
+        // Reset all
         setUrl('')
         setImportTitle('')
         setPreview(null)
-        setFullContent(null)
         setCharCount(0)
         setEstimatedChunks(0)
         setWasTruncated(false)
         setSourceInfo(null)
       } else {
-        toast.error('Erreur lors de l\'import')
+        toast.error(importResult.error || "Erreur lors de l'import")
       }
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur réseau — vérifiez votre connexion')
     } finally {
       setImporting(false)
     }
-  }
-
-  const handleCancel = () => {
-    setPreview(null)
-    setFullContent(null)
   }
 
   return (
@@ -509,7 +489,7 @@ function ImportUrlTab() {
             onChange={(e) => setImportTitle(e.target.value)}
           />
 
-          {/* URL + Preview Button */}
+          {/* URL + Import Button */}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -519,17 +499,17 @@ function ImportUrlTab() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="pl-9"
-                onKeyDown={(e) => { if (e.key === 'Enter' && !loading) handlePreview() }}
-                disabled={loading}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !importing) handleImport() }}
+                disabled={importing}
               />
             </div>
             <Button
-              className="bg-blue-600 text-white hover:bg-blue-700 shrink-0"
-              onClick={handlePreview}
-              disabled={loading || !url.trim()}
+              className="bg-emerald-600 text-white hover:bg-emerald-700 shrink-0"
+              onClick={handleImport}
+              disabled={importing || !url.trim()}
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              <span className="ml-2">{loading ? 'Extraction...' : 'Apercu'}</span>
+              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+              <span className="ml-2">{importing ? 'Import...' : 'Importer directement'}</span>
             </Button>
           </div>
 
@@ -570,20 +550,11 @@ function ImportUrlTab() {
                 </ScrollArea>
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons — Import done, show success */}
               <div className="flex gap-2">
-                <Button
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
-                  onClick={handleImport}
-                  disabled={importing || !fullContent}
-                >
-                  {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  <span className="ml-2">{importing ? 'Import en cours...' : 'Valider et importer'}</span>
-                </Button>
-                <Button variant="outline" onClick={handleCancel} disabled={importing}>
-                  <X className="h-4 w-4" />
-                  <span className="ml-2">Annuler</span>
-                </Button>
+                <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-200">
+                  <Check className="mr-1 h-3 w-3" /> Import termine avec succes
+                </Badge>
               </div>
             </div>
           )}
@@ -591,13 +562,13 @@ function ImportUrlTab() {
       </Card>
 
       {/* Empty State */}
-      {!preview && !loading && (
+      {!preview && !importing && (
         <Card className="py-12 text-center">
           <CardContent>
             <Globe className="mx-auto mb-3 h-12 w-12 text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">Entrez une URL pour extraire son contenu</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Le contenu sera previsualise avant validation
+              Le contenu sera extrait et importe automatiquement
             </p>
           </CardContent>
         </Card>
