@@ -1,10 +1,62 @@
 'use client'
 
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, Component, type ReactNode, type ErrorInfo } from 'react'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useNavigationStore } from '@/lib/store'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+import { Button } from '@/components/ui/button'
 import type { ModuleKey } from '@/lib/store'
+
+// ─── Module Error Boundary ──────────────────────────────────────────────
+// Catches any uncaught rendering error inside a lazy-loaded dashboard module
+// and shows a friendly fallback instead of the Next.js "Application error" page.
+
+interface ModuleErrorBoundaryProps { children: ReactNode; moduleName: string }
+interface ModuleErrorBoundaryState { hasError: boolean; error: Error | null }
+
+class ModuleErrorBoundary extends Component<ModuleErrorBoundaryProps, ModuleErrorBoundaryState> {
+  constructor(props: ModuleErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[DashboardRouter] Module "${this.props.moduleName}" crashed:`, error, info.componentStack)
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null })
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 mb-4">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">Module indisponible</h3>
+          <p className="text-sm text-muted-foreground max-w-md mb-1">
+            Le module <span className="font-medium text-foreground">{this.props.moduleName}</span> a rencontré une erreur.
+          </p>
+          <p className="text-xs text-muted-foreground max-w-sm mb-6">
+            {this.state.error?.message || 'Une erreur inattendue est survenue.'}
+          </p>
+          <Button variant="outline" onClick={this.handleRetry} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Réessayer
+          </Button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // ─── Skeleton ────────────────────────────────────────────────────────────
 
@@ -62,6 +114,40 @@ const CarRentalModule = lazy(() => import('./modules/CarRentalModule').then(m =>
 
 // ─── Static module map ──────────────────────────────────────────────────
 
+const MODULE_LABELS: Record<ModuleKey, string> = {
+  overview: 'Vue d\'ensemble',
+  flights: 'Vols',
+  baggage: 'Bagages',
+  lounge: 'Salons VIP',
+  transport: 'Transport',
+  payments: 'Paiements',
+  emergency: 'Gestion d\'urgence',
+  partners: 'Partenaires',
+  conversations: 'Conversations',
+  analytics: 'Analytique',
+  team: 'Équipe',
+  reports: 'Rapports',
+  marketplace: 'Marketplace',
+  ticket_scans: 'Scan billets',
+  ads: 'Publicités',
+  invoices: 'Factures',
+  modules: 'Modules',
+  demo: 'Démo',
+  docs: 'Documentation',
+  settings: 'Paramètres',
+  faq: 'FAQ',
+  knowledge_base: 'Base de connaissances',
+  hotels: 'Hôtels',
+  miles: 'Programme fidélité',
+  rebooking: 'Réenregistrement',
+  pmr_audio: 'PMR Audio',
+  health_pharmacy: 'Santé & Pharmacie',
+  wifi: 'WiFi',
+  checkin: 'Check-in',
+  music: 'Musique',
+  car_rental: 'Location de voitures',
+}
+
 const moduleMap: Record<ModuleKey, React.LazyExoticComponent<React.ComponentType>> = {
   overview: OverviewModule,
   flights: FlightsModule,
@@ -101,13 +187,16 @@ const moduleMap: Record<ModuleKey, React.LazyExoticComponent<React.ComponentType
 export default function DashboardRouter() {
   const { activeModule } = useNavigationStore()
   const Module = moduleMap[activeModule]
+  const moduleLabel = MODULE_LABELS[activeModule] || activeModule
 
   return (
     <AuthGuard>
       <DashboardLayout>
-        <Suspense fallback={<ModuleSkeleton />}>
-          <Module />
-        </Suspense>
+        <ModuleErrorBoundary moduleName={moduleLabel}>
+          <Suspense fallback={<ModuleSkeleton />}>
+            <Module />
+          </Suspense>
+        </ModuleErrorBoundary>
       </DashboardLayout>
     </AuthGuard>
   )

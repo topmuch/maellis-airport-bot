@@ -1,8 +1,64 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, Component, type ReactNode, type ErrorInfo } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+
+// ─── Error Boundary ─────────────────────────────────────────────
+
+interface ErrorBoundaryProps { children: ReactNode; fallback?: ReactNode }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null }
+
+class EmergencyErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[EmergencyModule] Uncaught error:', error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="flex flex-col items-center justify-center py-16 text-destructive">
+          <AlertCircle className="mb-3 h-10 w-10" />
+          <p className="text-sm font-medium">Une erreur est survenue</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md text-center">
+            {this.state.error?.message || 'Veuillez rafraîchir la page.'}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            Réessayer
+          </Button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// ─── Safe date formatting ───────────────────────────────────────
+
+function safeFormat(dateStr: string | null | undefined, fmt: string): string {
+  try {
+    if (!dateStr) return '—'
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '—'
+    return format(d, fmt, { locale: fr })
+  } catch {
+    return '—'
+  }
+}
 import {
   ShieldAlert, Clock, CheckCircle, Heart, Shield, Flame, Baby, Wrench,
   AlertCircle, Plus, Phone, Trash2, Pencil, Star, Loader2,
@@ -170,6 +226,8 @@ function TypeCell({ category }: { category: string }) {
 
 export function EmergencyModule() {
   const { airportCode } = useAuth()
+  // Safe airport code — fallback to DSS if session doesn't provide one
+  const safeAirportCode = airportCode || 'DSS'
   // ── Incident state ─────────────────────────────────────────────
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loadingIncidents, setLoadingIncidents] = useState(true)
@@ -227,7 +285,7 @@ export function EmergencyModule() {
     setLoadingContacts(true)
     try {
       // Authenticated user's airport code from session
-      const result = await apiClient.get(`/api/emergency/contacts?airport=${airportCode || 'DSS'}`)
+      const result = await apiClient.get(`/api/emergency/contacts?airport=${safeAirportCode}`)
       if (result.success) {
         const json = result.data as Record<string, unknown>
         const data = json.data ?? json ?? []
@@ -281,7 +339,7 @@ export function EmergencyModule() {
     try {
       const result = await apiClient.post('/api/emergency/incidents', {
         // Authenticated user's airport code from session
-        airportCode: airportCode || 'DSS',
+        airportCode: safeAirportCode,
         alertType: formCategory,
         userName: formUserName || undefined,
         userPhone: formUserPhone,
@@ -382,7 +440,7 @@ export function EmergencyModule() {
     try {
       const payload = {
         // Authenticated user's airport code from session
-        airportCode: airportCode || 'DSS',
+        airportCode: safeAirportCode,
         category: cfCategory,
         name: cfName,
         phoneNumber: cfPhone,
@@ -466,6 +524,7 @@ export function EmergencyModule() {
   // ══════════════════════════════════════════════════════════════
 
   return (
+    <EmergencyErrorBoundary>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -597,7 +656,7 @@ export function EmergencyModule() {
                             )}
                           </TableCell>
                           <TableCell className="hidden text-muted-foreground text-sm lg:table-cell">
-                            {format(new Date(incident.createdAt), 'dd/MM HH:mm', { locale: fr })}
+                            {safeFormat(incident.createdAt, 'dd/MM HH:mm')}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -637,7 +696,7 @@ export function EmergencyModule() {
           </Card>
         </TabsContent>
 
-        {/* ═══════════════════ TAB 2: Contacts ═══════════════════ */}
+        {/* ═════════════════ TAB 2: Contacts ═════════════════ */}
         <TabsContent value="contacts" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1021,5 +1080,6 @@ export function EmergencyModule() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </EmergencyErrorBoundary>
   )
 }
