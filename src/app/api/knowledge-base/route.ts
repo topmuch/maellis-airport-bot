@@ -13,6 +13,73 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const airportCode = searchParams.get('airportCode') || 'DSS'
+    const type = searchParams.get('type') || undefined
+
+    // ── type=stats: return aggregated statistics ──
+    if (type === 'stats') {
+      const [totalDocuments, activeDocuments, documents] = await Promise.all([
+        db.knowledgeBase.count({ where: { airportCode } }),
+        db.knowledgeBase.count({ where: { airportCode, isActive: true } }),
+        db.knowledgeBase.findMany({
+          where: { airportCode },
+          select: {
+            id: true,
+            airportCode: true,
+            title: true,
+            fileName: true,
+            fileType: true,
+            fileSize: true,
+            chunkCount: true,
+            isActive: true,
+            status: true,
+            errorMessage: true,
+            processedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            sourceUrl: true,
+            importedAt: true,
+            isExternal: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ])
+
+      // Count total chunks
+      const docIds = documents.map((d) => d.id)
+      const totalChunks = docIds.length > 0
+        ? await db.documentChunk.count({ where: { kbId: { in: docIds } } })
+        : 0
+
+      // Compute average chunks per document (among docs that have chunks)
+      const avgChunksPerDoc = totalDocuments > 0 ? totalChunks / totalDocuments : 0
+
+      // File type distribution
+      const fileTypeMap: Record<string, number> = {}
+      for (const doc of documents) {
+        const ft = doc.fileType?.toLowerCase() || 'unknown'
+        fileTypeMap[ft] = (fileTypeMap[ft] || 0) + 1
+      }
+      const fileTypeDistribution = Object.entries(fileTypeMap)
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count)
+
+      // Recent documents (last 10)
+      const recentDocuments = documents.slice(0, 10)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalDocuments,
+          totalChunks,
+          activeDocuments,
+          avgChunksPerDoc,
+          fileTypeDistribution,
+          recentDocuments,
+        },
+      })
+    }
+
+    // ── Default: list documents with pagination ──
     const status = searchParams.get('status') || undefined
     const search = searchParams.get('search') || undefined
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))

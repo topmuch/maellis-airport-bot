@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Puzzle,
   BarChart3,
@@ -46,6 +46,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { toast } from 'sonner'
+import { apiClient } from '@/lib/api-client'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -235,6 +236,41 @@ function KpiCard({
 
 function ModulesTab() {
   const [modules, setModules] = useState<ModuleItem[]>(MODULES_DATA)
+  const [loaded, setLoaded] = useState(false)
+
+  // ── Load persisted module toggle states from Settings API ──
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSettings() {
+      try {
+        const result = await apiClient.get<Array<{ id: string; key: string; value: string }>>('/api/settings')
+        if (!result.success || cancelled) return
+
+        const settingsMap = new Map<string, string>()
+        for (const s of result.data) {
+          settingsMap.set(s.key, s.value)
+        }
+
+        setModules((prev) =>
+          prev.map((m) => {
+            const settingKey = `module_${m.id}_active`
+            const persisted = settingsMap.get(settingKey)
+            if (persisted === undefined) return m
+            const isActive = persisted === 'true'
+            return { ...m, active: isActive, usage: isActive ? (m.usage || Math.floor(Math.random() * 30) + 50) : 0 }
+          })
+        )
+      } catch {
+        // Silently fall back to default state
+      } finally {
+        if (!cancelled) setLoaded(true)
+      }
+    }
+
+    loadSettings()
+    return () => { cancelled = true }
+  }, [])
 
   const activeCount = modules.filter((m) => m.active).length
   const totalCount = modules.length
@@ -242,23 +278,42 @@ function ModulesTab() {
     modules.reduce((sum, m) => sum + m.usage, 0) / totalCount
   )
 
-  const handleToggle = (id: string) => {
-    setModules((prev) =>
-      prev.map((m) => {
-        if (m.id === id) {
-          const newActive = !m.active
-          const newUsage = newActive ? Math.floor(Math.random() * 30) + 50 : 0
-          toast.success(
-            newActive
-              ? `Module "${m.name}" activé`
-              : `Module "${m.name}" désactivé`
+  // ── Toggle handler with API persistence ──
+  const handleToggle = useCallback((id: string) => {
+    setModules((prev) => {
+      const mod = prev.find((m) => m.id === id)
+      if (!mod) return prev
+
+      const newActive = !mod.active
+      const newUsage = newActive ? Math.floor(Math.random() * 30) + 50 : 0
+
+      // Persist to Settings API (fire-and-forget)
+      apiClient.put('/api/settings', {
+        key: `module_${id}_active`,
+        value: newActive ? 'true' : 'false',
+      }).then((result) => {
+        if (!result.success) {
+          toast.error(`Erreur de sauvegarde : ${result.error}`)
+          // Revert local state on failure
+          setModules((curr) =>
+            curr.map((m) =>
+              m.id === id ? { ...m, active: !newActive, usage: !newActive ? Math.floor(Math.random() * 30) + 50 : 0 } : m
+            )
           )
-          return { ...m, active: newActive, usage: newUsage }
         }
-        return m
       })
-    )
-  }
+
+      toast.success(
+        newActive
+          ? `Module "${mod.name}" activé`
+          : `Module "${mod.name}" désactivé`
+      )
+
+      return prev.map((m) =>
+        m.id === id ? { ...m, active: newActive, usage: newUsage } : m
+      )
+    })
+  }, [])
 
   return (
     <div className="space-y-6">

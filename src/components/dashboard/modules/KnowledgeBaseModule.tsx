@@ -165,8 +165,8 @@ function DocumentsTab() {
       params.set('airportCode', 'DSS')
       if (statusFilter !== 'all') params.set('status', statusFilter)
       if (search) params.set('search', search)
-      const result = await apiClient.get<KBDocument[]>(`/api/knowledge-base?${params}`)
-      if (result.success) setDocuments(result.data || [])
+      const result = await apiClient.get<{ documents: KBDocument[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/knowledge-base?${params}`)
+      if (result.success) setDocuments(result.data?.documents || [])
     } catch { toast.error('Erreur de chargement des documents') }
     setLoading(false)
   }, [search, statusFilter])
@@ -629,11 +629,27 @@ function RAGTab() {
     setResult(null)
     try {
       const startTime = performance.now()
+      const result = await apiClient.post<{ results: Array<{ chunkId: string; content: string; score: number; source: { title?: string; fileName?: string; fileType?: string } | null; chunkIndex: number }>; context: string; totalChunks: number; query: string }>('/api/knowledge-base/search', { query: q, airportCode: 'DSS', topK: 5 })
       const endTime = performance.now()
-      const result = await apiClient.post<RAGResult>('/api/knowledge-base/test', { query: q, airportCode: 'DSS', topK: 5 })
-      if (result.success) {
-        setResult({ ...result.data, responseTime: Math.round(endTime - startTime) })
-      } else toast.error(result.error || 'Erreur lors du test RAG')
+      if (result.success && result.data) {
+        const searchResponse = result.data
+        const uniqueSources = [...new Set(searchResponse.results.map((r) => r.source?.title || r.source?.fileName || 'Unknown'))]
+        const mappedResult: RAGResult = {
+          query: searchResponse.query,
+          chunks: searchResponse.results.map((r) => ({
+            source: r.source?.title || r.source?.fileName || 'Unknown',
+            score: r.score,
+            content: r.content,
+            chunkIndex: r.chunkIndex,
+          })),
+          context: searchResponse.context,
+          sources: uniqueSources,
+          responseTime: Math.round(endTime - startTime),
+        }
+        setResult(mappedResult)
+      } else {
+        toast.error(!result.success ? (result as { error?: string }).error || 'Erreur lors du test RAG' : 'Aucun résultat')
+      }
     } catch { toast.error('Erreur de connexion') }
     setLoading(false)
   }

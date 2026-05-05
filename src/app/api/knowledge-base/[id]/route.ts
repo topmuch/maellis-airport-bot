@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { unlink } from 'fs/promises'
+import path from 'path'
 import { requireRole } from '@/lib/auth'
 import { validateId, parseBody, ValidationError } from '@/lib/validate'
 
@@ -139,11 +140,16 @@ export async function DELETE(
     }
 
     // Delete file from disk if it exists
-    if (document.fileUrl) {
+    // fileUrl is stored as "upload://kb/filename" — build real filesystem path
+    if (document.fileUrl || document.fileName) {
       try {
-        await unlink(document.fileUrl)
+        const fileBasename = path.basename(document.fileUrl || document.fileName || '')
+        if (fileBasename) {
+          const realPath = path.join(process.cwd(), 'upload', 'kb', fileBasename)
+          await unlink(realPath)
+        }
       } catch {
-        // File might not exist, continue
+        // File might not exist on disk, continue with DB deletion
       }
     }
 

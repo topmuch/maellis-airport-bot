@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
@@ -65,10 +66,6 @@ export async function POST(request: NextRequest) {
     const filePath = path.join(uploadDir, fileName)
     await writeFile(filePath, buffer)
 
-    // Create KnowledgeBase entry via dynamic Prisma import
-    const { PrismaClient } = await import('@prisma/client')
-    const db = new PrismaClient()
-
     const docTitle = title || file.name.replace(/\.[^/.]+$/, '')
 
     const doc = await db.knowledgeBase.create({
@@ -77,7 +74,7 @@ export async function POST(request: NextRequest) {
         title: docTitle,
         content: content || null,
         fileName: fileName,
-        fileType: ext.replace('.', '').toUpperCase(),
+        fileType: ext.replace('.', '').toLowerCase(),
         fileSize: file.size,
         fileUrl: `upload://kb/${fileName}`,
         airportCode: 'DSS',
@@ -87,8 +84,6 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       },
     })
-
-    await db.$disconnect()
 
     return NextResponse.json({
       success: true,
