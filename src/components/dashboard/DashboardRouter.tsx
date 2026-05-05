@@ -1,10 +1,12 @@
 'use client'
 
-import dynamic from 'next/dynamic'
+import { lazy, Suspense } from 'react'
 import { useNavigationStore } from '@/lib/store'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import type { ModuleKey } from '@/lib/store'
+
+// ─── Skeleton ────────────────────────────────────────────────────────────
 
 function ModuleSkeleton() {
   return (
@@ -20,43 +22,81 @@ function ModuleSkeleton() {
   )
 }
 
-const dynamicOpts = { loading: () => <ModuleSkeleton />, ssr: false }
+// ─── Lazy-loaded modules ────────────────────────────────────────────────
+// Using React.lazy instead of next/dynamic because webpack production build
+// requires next/dynamic options to be inline object literals (not a shared
+// variable). Since DashboardRouter is already loaded with ssr:false from
+// page.tsx, React.lazy + Suspense is the correct approach.
 
-// Static module map — every key has a fully static import path so webpack/turbopack
-// can analyse and code-split each module at build time (no variable template literals).
-const moduleMap: Record<ModuleKey, React.ComponentType> = {
-  overview: dynamic(() => import('./modules/OverviewModule').then((m) => ({ default: m.OverviewModule })), dynamicOpts),
-  flights: dynamic(() => import('./modules/FlightsModule').then((m) => ({ default: m.FlightsModule })), dynamicOpts),
-  baggage: dynamic(() => import('./modules/BaggageModule').then((m) => ({ default: m.BaggageModule })), dynamicOpts),
-  lounge: dynamic(() => import('./modules/LoungeModule').then((m) => ({ default: m.LoungeModule })), dynamicOpts),
-  transport: dynamic(() => import('./modules/TransportModule').then((m) => ({ default: m.TransportModule })), dynamicOpts),
-  payments: dynamic(() => import('./modules/PaymentsModule').then((m) => ({ default: m.PaymentsModule })), dynamicOpts),
-  emergency: dynamic(() => import('./modules/EmergencyModule').then((m) => ({ default: m.EmergencyModule })), dynamicOpts),
-  partners: dynamic(() => import('./modules/PartnersModule').then((m) => ({ default: m.PartnersModule })), dynamicOpts),
-  conversations: dynamic(() => import('./modules/ConversationsModule').then((m) => ({ default: m.ConversationsModule })), dynamicOpts),
-  analytics: dynamic(() => import('./modules/AnalyticsModule').then((m) => ({ default: m.AnalyticsModule })), dynamicOpts),
-  team: dynamic(() => import('./modules/TeamModule').then((m) => ({ default: m.TeamModule })), dynamicOpts),
-  reports: dynamic(() => import('./modules/ReportsModule').then((m) => ({ default: m.ReportsModule })), dynamicOpts),
-  marketplace: dynamic(() => import('./modules/MarketplaceModule').then((m) => ({ default: m.MarketplaceModule })), dynamicOpts),
-  ticket_scans: dynamic(() => import('./modules/TicketScansModule').then((m) => ({ default: m.TicketScansModule })), dynamicOpts),
-  ads: dynamic(() => import('./modules/AdsModule').then((m) => ({ default: m.AdsModule })), dynamicOpts),
-  invoices: dynamic(() => import('./modules/InvoicesModule').then((m) => ({ default: m.InvoicesModule })), dynamicOpts),
-  modules: dynamic(() => import('./modules/ModuleManagement').then((m) => ({ default: m.ModuleManagement })), dynamicOpts),
-  demo: dynamic(() => import('./modules/DemoModule').then((m) => ({ default: m.DemoModule })), dynamicOpts),
-  docs: dynamic(() => import('./modules/DocsModule').then((m) => ({ default: m.DocsModule })), dynamicOpts),
-  settings: dynamic(() => import('./modules/SettingsModule').then((m) => ({ default: m.SettingsModule })), dynamicOpts),
-  faq: dynamic(() => import('./modules/FAQModule').then((m) => ({ default: m.FAQModule })), dynamicOpts),
-  knowledge_base: dynamic(() => import('./modules/KnowledgeBaseModule').then((m) => ({ default: m.KnowledgeBaseModule })), dynamicOpts),
-  hotels: dynamic(() => import('./modules/HotelsModule').then((m) => ({ default: m.HotelsModule })), dynamicOpts),
-  miles: dynamic(() => import('./modules/MilesModule').then((m) => ({ default: m.MilesModule })), dynamicOpts),
-  rebooking: dynamic(() => import('./modules/RebookingModule').then((m) => ({ default: m.RebookingModule })), dynamicOpts),
-  pmr_audio: dynamic(() => import('./modules/PmrAudioModule').then((m) => ({ default: m.PmrAudioModule })), dynamicOpts),
-  health_pharmacy: dynamic(() => import('./modules/HealthPharmacyModule').then((m) => ({ default: m.HealthPharmacyModule })), dynamicOpts),
-  wifi: dynamic(() => import('./modules/WifiModule').then((m) => ({ default: m.WifiModule })), dynamicOpts),
-  checkin: dynamic(() => import('./modules/CheckinModule').then((m) => ({ default: m.CheckinModule })), dynamicOpts),
-  music: dynamic(() => import('./modules/MusicModule').then((m) => ({ default: m.MusicModule })), dynamicOpts),
-  car_rental: dynamic(() => import('./modules/CarRentalModule').then((m) => ({ default: m.CarRentalModule })), dynamicOpts),
+const OverviewModule = lazy(() => import('./modules/OverviewModule').then(m => ({ default: m.OverviewModule })))
+const FlightsModule = lazy(() => import('./modules/FlightsModule').then(m => ({ default: m.FlightsModule })))
+const BaggageModule = lazy(() => import('./modules/BaggageModule').then(m => ({ default: m.BaggageModule })))
+const LoungeModule = lazy(() => import('./modules/LoungeModule').then(m => ({ default: m.LoungeModule })))
+const TransportModule = lazy(() => import('./modules/TransportModule').then(m => ({ default: m.TransportModule })))
+const PaymentsModule = lazy(() => import('./modules/PaymentsModule').then(m => ({ default: m.PaymentsModule })))
+const EmergencyModule = lazy(() => import('./modules/EmergencyModule').then(m => ({ default: m.EmergencyModule })))
+const PartnersModule = lazy(() => import('./modules/PartnersModule').then(m => ({ default: m.PartnersModule })))
+const ConversationsModule = lazy(() => import('./modules/ConversationsModule').then(m => ({ default: m.ConversationsModule })))
+const AnalyticsModule = lazy(() => import('./modules/AnalyticsModule').then(m => ({ default: m.AnalyticsModule })))
+const TeamModule = lazy(() => import('./modules/TeamModule').then(m => ({ default: m.TeamModule })))
+const ReportsModule = lazy(() => import('./modules/ReportsModule').then(m => ({ default: m.ReportsModule })))
+const MarketplaceModule = lazy(() => import('./modules/MarketplaceModule').then(m => ({ default: m.MarketplaceModule })))
+const TicketScansModule = lazy(() => import('./modules/TicketScansModule').then(m => ({ default: m.TicketScansModule })))
+const AdsModule = lazy(() => import('./modules/AdsModule').then(m => ({ default: m.AdsModule })))
+const InvoicesModule = lazy(() => import('./modules/InvoicesModule').then(m => ({ default: m.InvoicesModule })))
+const ModuleManagement = lazy(() => import('./modules/ModuleManagement').then(m => ({ default: m.ModuleManagement })))
+const DemoModule = lazy(() => import('./modules/DemoModule').then(m => ({ default: m.DemoModule })))
+const DocsModule = lazy(() => import('./modules/DocsModule').then(m => ({ default: m.DocsModule })))
+const SettingsModule = lazy(() => import('./modules/SettingsModule').then(m => ({ default: m.SettingsModule })))
+const FAQModule = lazy(() => import('./modules/FAQModule').then(m => ({ default: m.FAQModule })))
+const KnowledgeBaseModule = lazy(() => import('./modules/KnowledgeBaseModule').then(m => ({ default: m.KnowledgeBaseModule })))
+const HotelsModule = lazy(() => import('./modules/HotelsModule').then(m => ({ default: m.HotelsModule })))
+const MilesModule = lazy(() => import('./modules/MilesModule').then(m => ({ default: m.MilesModule })))
+const RebookingModule = lazy(() => import('./modules/RebookingModule').then(m => ({ default: m.RebookingModule })))
+const PmrAudioModule = lazy(() => import('./modules/PmrAudioModule').then(m => ({ default: m.PmrAudioModule })))
+const HealthPharmacyModule = lazy(() => import('./modules/HealthPharmacyModule').then(m => ({ default: m.HealthPharmacyModule })))
+const WifiModule = lazy(() => import('./modules/WifiModule').then(m => ({ default: m.WifiModule })))
+const CheckinModule = lazy(() => import('./modules/CheckinModule').then(m => ({ default: m.CheckinModule })))
+const MusicModule = lazy(() => import('./modules/MusicModule').then(m => ({ default: m.MusicModule })))
+const CarRentalModule = lazy(() => import('./modules/CarRentalModule').then(m => ({ default: m.CarRentalModule })))
+
+// ─── Static module map ──────────────────────────────────────────────────
+
+const moduleMap: Record<ModuleKey, React.LazyExoticComponent<React.ComponentType>> = {
+  overview: OverviewModule,
+  flights: FlightsModule,
+  baggage: BaggageModule,
+  lounge: LoungeModule,
+  transport: TransportModule,
+  payments: PaymentsModule,
+  emergency: EmergencyModule,
+  partners: PartnersModule,
+  conversations: ConversationsModule,
+  analytics: AnalyticsModule,
+  team: TeamModule,
+  reports: ReportsModule,
+  marketplace: MarketplaceModule,
+  ticket_scans: TicketScansModule,
+  ads: AdsModule,
+  invoices: InvoicesModule,
+  modules: ModuleManagement,
+  demo: DemoModule,
+  docs: DocsModule,
+  settings: SettingsModule,
+  faq: FAQModule,
+  knowledge_base: KnowledgeBaseModule,
+  hotels: HotelsModule,
+  miles: MilesModule,
+  rebooking: RebookingModule,
+  pmr_audio: PmrAudioModule,
+  health_pharmacy: HealthPharmacyModule,
+  wifi: WifiModule,
+  checkin: CheckinModule,
+  music: MusicModule,
+  car_rental: CarRentalModule,
 }
+
+// ─── Component ───────────────────────────────────────────────────────────
 
 export default function DashboardRouter() {
   const { activeModule } = useNavigationStore()
@@ -65,7 +105,9 @@ export default function DashboardRouter() {
   return (
     <AuthGuard>
       <DashboardLayout>
-        <Module />
+        <Suspense fallback={<ModuleSkeleton />}>
+          <Module />
+        </Suspense>
       </DashboardLayout>
     </AuthGuard>
   )

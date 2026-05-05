@@ -1,8 +1,5 @@
-# ─── Build Stage ─────────────────────────────────────────────────────
-FROM node:20-alpine AS base
-
-# Install dependencies only when needed
-FROM base AS deps
+# ─── Stage 1: Dependencies ────────────────────────────────────────────
+FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -16,8 +13,8 @@ RUN \
     npm install; \
   fi
 
-# ─── Build Stage ─────────────────────────────────────────────────────
-FROM base AS builder
+# ─── Stage 2: Build ───────────────────────────────────────────────────
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -26,34 +23,32 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Build Next.js — must use npx (not bun) so NODE_OPTIONS are respected
+# Build Next.js — MUST use npx (not bun) so NODE_OPTIONS are respected
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npx next build
 
-# ─── Production Stage ────────────────────────────────────────────────
-FROM base AS runner
+# Copy standalone output & static assets into a single folder
+RUN cp -r .next/static .next/standalone/.next/ && \
+    cp -r public .next/standalone/
+
+# ─── Stage 3: Production Runner ──────────────────────────────────────
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV DATABASE_URL="file:/app/data/maellis.db"
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    mkdir -p /app/data && \
+    chown nextjs:nodejs /app/data
 
-# Copy standalone output
-COPY --from=builder /app/.next/standalone ./
-
-# Copy static assets
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/static ./.next/static
-
-# Copy Prisma schema and DB for SQLite
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/db ./db
-
-# Copy seed script
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/db ./db
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 USER nextjs
 
