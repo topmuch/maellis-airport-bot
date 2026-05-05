@@ -1,0 +1,10 @@
+{
+  "name": "maellis-bot-service",
+  "version": "2.0.0",
+  "description": "MAELLIS Airport WhatsApp Bot Service - Phase 1: Real WhatsApp + Groq AI, Phase 2: Business Modules",
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "start": "bun index.ts"
+  },
+  "dependencies": {}
+}

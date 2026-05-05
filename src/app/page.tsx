@@ -1,31 +1,69 @@
 'use client'
 
-export default function Home() {
+import { useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { useNavigationStore } from '@/lib/store'
+import { AuthGuard } from '@/components/auth/AuthGuard'
+
+function LandingSkeleton() {
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      gap: '2rem',
-      padding: '1rem'
-    }}>
-      <div style={{
-        position: 'relative',
-        width: '6rem',
-        height: '6rem'
-      }}>
-        <img
-          src="/logo.svg"
-          alt="Z.ai Logo"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain'
-          }}
-        />
+    <div className="min-h-screen bg-slate-950">
+      <div className="mx-auto max-w-7xl space-y-12 p-6">
+        <div className="h-16 animate-pulse rounded bg-muted" />
+        <div className="h-96 animate-pulse rounded-lg bg-muted" />
       </div>
     </div>
+  )
+}
+
+const Navbar = dynamic(
+  () => import('@/components/landing/Navbar').then((m) => ({ default: m.Navbar })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const Hero = dynamic(
+  () => import('@/components/landing/Hero').then((m) => ({ default: m.Hero })),
+  { loading: LandingSkeleton, ssr: false }
+)
+const Footer = dynamic(
+  () => import('@/components/landing/Footer').then((m) => ({ default: m.Footer })),
+  { loading: LandingSkeleton, ssr: false }
+)
+
+function HomeContent() {
+  const searchParams = useSearchParams()
+  const { showLanding, setShowLanding } = useNavigationStore()
+
+  useEffect(() => {
+    const lp = searchParams.get('showLanding')
+    if (lp === 'false') setShowLanding(false)
+  }, [searchParams, setShowLanding])
+
+  if (showLanding) {
+    return (
+      <main className="min-h-screen bg-slate-950">
+        <Navbar />
+        <Hero />
+        <Footer />
+      </main>
+    )
+  }
+
+  // Dashboard mode — AuthGuard will redirect to /auth/login if not authenticated
+  // The AuthGuard fallback shows "Connectez-vous pour accéder au dashboard" with a "Se connecter" button
+  return (
+    <AuthGuard>
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <p className="text-white">Dashboard - chargement des modules...</p>
+      </div>
+    </AuthGuard>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<LandingSkeleton />}>
+      <HomeContent />
+    </Suspense>
   )
 }

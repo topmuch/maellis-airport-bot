@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" fill="none">
+  <defs>
+    <linearGradient id="logoGradDark" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+  </defs>
+  <!-- Chat bubble + airplane icon mark -->
+  <g transform="translate(2, 2)">
+    <!-- Rounded square bg -->
+    <rect width="44" height="44" rx="12" fill="url(#logoGradDark)"/>
+    <!-- Chat bubble outline -->
+    <path d="M12 14C12 11.79 13.79 10 16 10H28C30.21 10 32 11.79 32 14V24C32 26.21 30.21 28 28 28H24L22 33L20 28H16C13.79 28 12 26.21 12 24V14Z" fill="white" opacity="0.95"/>
+    <!-- Airplane icon inside bubble -->
+    <path d="M17 21L22 14L23.5 19.5L29 21L23.5 22.5L22 28L17 21Z" fill="#F97316"/>
+  </g>
+  <!-- Brand name - light text for dark mode -->
+  <text x="54" y="24" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" font-weight="700" fill="#F8FAFC" dominant-baseline="central">
+    <tspan font-weight="700">Smartly</tspan>
+    <tspan font-weight="400" fill="#94A3B8"> Assistant</tspan>
+  </text>
+</svg>

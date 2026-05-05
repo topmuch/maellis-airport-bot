@@ -1,0 +1,221 @@
+import { renderToBuffer } from '@react-pdf/renderer'
+import {
+  RevenueReportPDF,
+  ActivityReportPDF,
+  type RevenueReportData,
+  type ActivityReportData,
+} from './templates'
+import {
+  InvoicePDF,
+  type InvoicePDFData,
+} from './invoice-template'
+
+/**
+ * Generates a Revenue Report PDF buffer.
+ *
+ * @param data - Structured revenue report data
+ * @returns PDF Buffer ready to send as HTTP response
+ * @throws Error if PDF generation fails
+ */
+export async function generateRevenuePDF(data: RevenueReportData): Promise<Buffer> {
+  try {
+    const buffer = await renderToBuffer(<RevenueReportPDF data={data} />)
+    return Buffer.from(buffer)
+  } catch (error) {
+    console.error('Error generating revenue PDF:', error)
+    throw new Error('Échec de la génération du PDF de revenus')
+  }
+}
+
+/**
+ * Generates an Activity Report PDF buffer.
+ *
+ * @param data - Structured activity report data
+ * @returns PDF Buffer ready to send as HTTP response
+ * @throws Error if PDF generation fails
+ */
+export async function generateActivityPDF(data: ActivityReportData): Promise<Buffer> {
+  try {
+    const buffer = await renderToBuffer(<ActivityReportPDF data={data} />)
+    return Buffer.from(buffer)
+  } catch (error) {
+    console.error('Error generating activity PDF:', error)
+    throw new Error("Échec de la génération du PDF d'activité")
+  }
+}
+
+/**
+ * Generates a CSV string from revenue data.
+ *
+ * @param data - Structured revenue report data
+ * @returns CSV string with BOM for Excel compatibility
+ */
+export function generateRevenueCSV(data: RevenueReportData): string {
+  const BOM = '\uFEFF' // Byte Order Mark for Excel UTF-8
+  const headers = ['Date', 'Référence', 'Téléphone', 'Fournisseur', 'Montant', 'Devise', 'Statut']
+  const rows = data.payments.map((p) => [
+    p.date,
+    p.reference || '',
+    p.phone,
+    p.provider,
+    p.amount.toString(),
+    data.currency,
+    p.status,
+  ])
+
+  const escapeCSV = (value: string): string => {
+    // Prevent CSV injection: prefix dangerous first characters with a single quote
+    let safeValue = value
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+      safeValue = "'" + safeValue
+    }
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+      return `"${safeValue.replace(/"/g, '""')}"`
+    }
+    return safeValue
+  }
+
+  const csvLines = [
+    headers.map(escapeCSV).join(','),
+    ...rows.map((row) => row.map(escapeCSV).join(',')),
+  ]
+
+  return BOM + csvLines.join('\n')
+}
+
+/**
+ * Generates a CSV string from activity data.
+ *
+ * @param data - Structured activity report data
+ * @returns CSV string with BOM for Excel compatibility
+ */
+export function generateActivityCSV(data: ActivityReportData): string {
+  const BOM = '\uFEFF'
+
+  // Escape CSV cell: prevent injection + handle special chars
+  const escapeCSV = (value: string): string => {
+    let safeValue = value
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+      safeValue = "'" + safeValue
+    }
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+      return `"${safeValue.replace(/"/g, '""')}"`
+    }
+    return safeValue
+  }
+
+  // Summary section
+  const lines: string[] = [
+    'RAPPORT D\'ACTIVITÉ - ' + data.airportName,
+    'Période,' + data.dateFrom + ' à ' + data.dateTo,
+    '',
+    'RÉSUMÉ',
+    'Conversations,' + data.totalConversations,
+    'Messages,' + data.totalMessages,
+    'Conversations Résolues,' + data.resolvedConversations,
+    'Taux de Résolution,' + data.resolutionRate.toFixed(1) + '%',
+    'Temps de Réponse Moyen,' + data.averageResponseTime.toFixed(1) + 's',
+    '',
+    'RÉPARTITION DES LANGUES',
+    'Langue,Messages,Pourcentage',
+    ...data.languagesBreakdown.map((l) => `${l.language},${l.count},${l.percentage.toFixed(1)}%`),
+    '',
+    'INTENTIONS PRINCIPALES',
+    'Intention,Nombre,Pourcentage',
+    ...data.topIntents.map((i) => `${i.intent},${i.count},${i.percentage.toFixed(1)}%`),
+  ]
+
+  return BOM + lines.map(escapeCSV).join('\n')
+}
+
+// ─── Invoice PDF Generation ───────────────────────────────────────────────
+
+/**
+ * Generates an Invoice PDF buffer using the InvoicePDF template.
+ *
+ * @param data - Structured invoice data
+ * @returns PDF Buffer ready to send as HTTP response
+ * @throws Error if PDF generation fails
+ */
+export async function generateInvoicePDFBuffer(data: InvoicePDFData): Promise<Buffer> {
+  try {
+    const buffer = await renderToBuffer(<InvoicePDF data={data} />)
+    return Buffer.from(buffer)
+  } catch (error) {
+    console.error('Error generating invoice PDF:', error)
+    throw new Error('Échec de la génération du PDF de facture')
+  }
+}
+
+// ─── Invoice CSV Export ────────────────────────────────────────────────────
+
+/**
+ * Generates a CSV string from invoice data (Sage/QuickBooks compatible).
+ * Uses BOM for Excel UTF-8 compatibility.
+ *
+ * Headers: NumeroFacture,DateEmission,DateEcheance,Client,Type,Statut,HT,TVA,TTC,Devise
+ *
+ * @param invoices - Array of invoice objects
+ * @returns CSV string with BOM for Excel compatibility
+ */
+export function generateInvoiceCSV(
+  invoices: Array<{
+    invoiceNumber: string
+    issueDate: string
+    dueDate: string
+    clientName: string
+    type: string
+    status: string
+    subtotal: number
+    taxRate: number
+    taxAmount: number
+    total: number
+    currency: string
+  }>
+): string {
+  const BOM = '\uFEFF'
+  const headers = [
+    'NumeroFacture',
+    'DateEmission',
+    'DateEcheance',
+    'Client',
+    'Type',
+    'Statut',
+    'HT',
+    'TVA',
+    'TTC',
+    'Devise',
+  ]
+
+  const escapeCSV = (value: string): string => {
+    // Prevent CSV injection: prefix dangerous first characters
+    let safeValue = value
+    if (/^[=+\-@\t\r]/.test(safeValue)) {
+      safeValue = "'" + safeValue
+    }
+    if (safeValue.includes(',') || safeValue.includes('"') || safeValue.includes('\n')) {
+      return `"${safeValue.replace(/"/g, '""')}"`
+    }
+    return safeValue
+  }
+
+  const rows = invoices.map((inv) => [
+    escapeCSV(inv.invoiceNumber),
+    escapeCSV(inv.issueDate),
+    escapeCSV(inv.dueDate),
+    escapeCSV(inv.clientName),
+    escapeCSV(inv.type),
+    escapeCSV(inv.status),
+    inv.subtotal.toString(),
+    inv.taxAmount.toString(),
+    inv.total.toString(),
+    escapeCSV(inv.currency),
+  ])
+
+  const csvLines = [
+    headers.map(escapeCSV).join(','),
+    ...rows.map((row) => row.join(',')),
+  ]
+
+  return BOM + csvLines.join('\n')
+}
