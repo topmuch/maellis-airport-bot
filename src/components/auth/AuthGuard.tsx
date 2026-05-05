@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useSession, SessionProvider } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -77,7 +77,7 @@ function AuthGuardInner({ children, requiredRole, fallback }: AuthGuardProps) {
   if (!isLoggedIn || !isActive || (requiredRole && !hasMinRole(userRole, requiredRole))) {
     if (fallback) return <>{fallback}</>
 
-    const loginHref = `/auth/login?callbackUrl=${encodeURIComponent(pathname)}?showLanding=false`
+    const loginHref = `/auth/login?callbackUrl=${encodeURIComponent(pathname + '?showLanding=false')}`
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-black px-4 gap-8">
@@ -119,13 +119,9 @@ function AuthGuardInner({ children, requiredRole, fallback }: AuthGuardProps) {
 }
 
 export function AuthGuard({ children, ...props }: AuthGuardProps) {
-  return (
-    <SessionProvider>
-      <AuthGuardInner {...props}>
-        {children}
-      </AuthGuardInner>
-    </SessionProvider>
-  )
+  // SessionProvider is provided at root level in <Providers> (layout.tsx)
+  // Do NOT wrap again here — nested SessionProviders cause stale sessions
+  return <AuthGuardInner {...props}>{children}</AuthGuardInner>
 }
 
 // ─── useAuth hook ──────────────────────────────────────────────────────
